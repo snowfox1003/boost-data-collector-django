@@ -8,6 +8,8 @@ import logging
 from celery import shared_task
 from django.core.management import call_command
 
+from core.errors import classify_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,6 +65,12 @@ def run_scheduled_collectors_task(
                 f"run_scheduled_collectors exited with code {code}"
             ) from e
         logger.info("run_scheduled_collectors_task: finished successfully")
-    except Exception:
-        logger.exception("run_scheduled_collectors_task failed")
+    except Exception as exc:
+        logger.exception(
+            "run_scheduled_collectors_task failed",
+            extra={
+                "failure_category": classify_failure(exc).value,
+                "task": "run_scheduled_collectors_task",
+            },
+        )
         raise

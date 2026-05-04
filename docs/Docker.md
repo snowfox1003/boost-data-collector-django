@@ -202,7 +202,7 @@ The `make up` / `make build` targets always run `clean-mac` first, so you never 
 - **Run a one-off command** (e.g. Django management command):
 
   ```bash
-  docker compose run --rm web python manage.py run_all_collectors
+  docker compose run --rm web python manage.py run_scheduled_collectors --schedule daily --group github
   docker compose run --rm web python manage.py createsuperuser
   ```
 

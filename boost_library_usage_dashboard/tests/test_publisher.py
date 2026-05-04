@@ -9,6 +9,31 @@ from django.core.management.base import CommandError
 from boost_library_usage_dashboard.publisher import publish_dashboard
 
 
+def _fake_clone(_slug, dest, token=None):
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / ".git").mkdir()
+
+
+@pytest.mark.django_db
+def test_publish_dashboard_full_flow_mocked_git(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "index.html").write_text("<html/>", encoding="utf-8")
+    with patch.object(settings, "RAW_DIR", str(raw)):
+        with patch(
+            "boost_library_usage_dashboard.publisher.clone_repo",
+            side_effect=_fake_clone,
+        ):
+            with patch(
+                "boost_library_usage_dashboard.publisher.prepare_repo_for_pull",
+            ):
+                with patch("boost_library_usage_dashboard.publisher.pull"):
+                    with patch("boost_library_usage_dashboard.publisher.push"):
+                        publish_dashboard(out, "org", "repo", "main")
+
+
 @pytest.mark.django_db
 def test_publish_dashboard_rejects_owner_with_path_separator(tmp_path):
     """Owner must be a single slug; path separators are rejected."""

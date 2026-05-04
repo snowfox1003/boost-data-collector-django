@@ -33,8 +33,8 @@ from github_activity_tracker.workspace import (
     iter_existing_issue_jsons,
     iter_existing_pr_jsons,
 )
-from github_ops import get_github_client
-from github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops import get_github_client
+from core.operations.github_ops.client import ConnectionException, RateLimitException
 
 if TYPE_CHECKING:
     from github_activity_tracker.models import GitHubRepository

@@ -16,7 +16,7 @@ CMD_NAME = "run_clang_github_tracker"
 def test_run_clang_github_tracker_dry_run_logs_resolved(caplog):
     """Dry run resolves dates from DB and does not call sync."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity"
+        "clang_github_tracker.collectors.sync_clang_github_activity"
     ) as sync_mock:
         with caplog.at_level(logging.INFO):
             call_command(CMD_NAME, "--dry-run", stdout=StringIO(), stderr=StringIO())
@@ -29,9 +29,9 @@ def test_run_clang_github_tracker_dry_run_logs_resolved(caplog):
 def test_run_clang_github_tracker_skip_sync(caplog):
     """--skip-github-sync bypasses the GitHub sync step (not only under --dry-run)."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity"
+        "clang_github_tracker.collectors.sync_clang_github_activity"
     ) as sync_mock, patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.write_md_files",
+        "clang_github_tracker.collectors.write_md_files",
         return_value={},
     ):
         with caplog.at_level(logging.INFO):
@@ -51,7 +51,7 @@ def test_run_clang_github_tracker_skip_sync(caplog):
 def test_run_clang_github_tracker_since_until_aliases(caplog):
     """--from-date/--to-date aliases parse like Boost."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity"
+        "clang_github_tracker.collectors.sync_clang_github_activity"
     ) as sync_mock:
         with caplog.at_level(logging.INFO):
             call_command(
@@ -72,7 +72,7 @@ def test_run_clang_github_tracker_calls_sync_clang_github_activity_when_not_dry_
 ):
     """Without --dry-run, command calls sync_clang_github_activity with start_item."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity",
+        "clang_github_tracker.collectors.sync_clang_github_activity",
         return_value=(0, [], []),
     ) as sync_mock:
         with caplog.at_level(logging.INFO):
@@ -96,14 +96,12 @@ def test_run_clang_github_tracker_calls_sync_clang_github_activity_when_not_dry_
 def test_run_clang_github_tracker_skip_pinecone(caplog):
     """--skip-pinecone does not call run_cppa_pinecone_sync."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity",
+        "clang_github_tracker.collectors.sync_clang_github_activity",
         return_value=(0, [1], []),
     ):
-        with patch(
-            "clang_github_tracker.management.commands.run_clang_github_tracker.call_command"
-        ) as cc:
+        with patch("clang_github_tracker.collectors.call_command") as cc:
             with patch(
-                "clang_github_tracker.management.commands.run_clang_github_tracker.write_md_files",
+                "clang_github_tracker.collectors.write_md_files",
                 return_value={},
             ):
                 call_command(
@@ -126,14 +124,12 @@ def test_run_clang_github_tracker_skip_pinecone(caplog):
 def test_run_clang_github_tracker_empty_pinecone_app_type_skips_sync(caplog):
     """Empty CLANG_GITHUB_PINECONE_APP_TYPE must not call run_cppa_pinecone_sync with -issues/-prs."""
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.sync_clang_github_activity",
+        "clang_github_tracker.collectors.sync_clang_github_activity",
         return_value=(0, [1], []),
     ):
-        with patch(
-            "clang_github_tracker.management.commands.run_clang_github_tracker.call_command"
-        ) as cc:
+        with patch("clang_github_tracker.collectors.call_command") as cc:
             with patch(
-                "clang_github_tracker.management.commands.run_clang_github_tracker.write_md_files",
+                "clang_github_tracker.collectors.write_md_files",
                 return_value={},
             ):
                 with caplog.at_level(logging.WARNING):
@@ -171,14 +167,18 @@ def test_push_markdown_calls_publish_and_unlinks_new_files(tmp_path):
     one.write_text("x", encoding="utf-8")
     new_files = {"issues/2024/2024-01/#1 - A.md": str(one)}
 
-    with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.publish_clang_markdown"
-    ) as pub:
-        from clang_github_tracker.management.commands.run_clang_github_tracker import (
-            Command,
-        )
+    with patch("clang_github_tracker.collectors.publish_clang_markdown") as pub:
+        from clang_github_tracker.collectors import ClangGithubTrackerCollector
 
-        Command()._push_markdown(md, new_files)
+        ClangGithubTrackerCollector(
+            dry_run=False,
+            skip_github_sync=True,
+            skip_markdown_export=False,
+            skip_remote_push=False,
+            skip_pinecone=True,
+            since=None,
+            until=None,
+        )._push_markdown(md, new_files)
 
     pub.assert_called_once_with(md, "myorg", "myrepo", "main", new_files)
     assert not one.exists()
@@ -199,15 +199,23 @@ def test_push_markdown_publish_failure_does_not_unlink(tmp_path):
     new_files = {"x.md": str(one)}
 
     with patch(
-        "clang_github_tracker.management.commands.run_clang_github_tracker.publish_clang_markdown",
+        "clang_github_tracker.collectors.publish_clang_markdown",
         side_effect=CommandError("publish failed"),
     ):
-        from clang_github_tracker.management.commands.run_clang_github_tracker import (
-            Command,
+        from clang_github_tracker.collectors import ClangGithubTrackerCollector
+
+        collector = ClangGithubTrackerCollector(
+            dry_run=False,
+            skip_github_sync=True,
+            skip_markdown_export=False,
+            skip_remote_push=False,
+            skip_pinecone=True,
+            since=None,
+            until=None,
         )
 
         with pytest.raises(CommandError, match="publish failed"):
-            Command()._push_markdown(md, new_files)
+            collector._push_markdown(md, new_files)
 
     assert one.exists()
     assert one.read_text(encoding="utf-8") == "keep"

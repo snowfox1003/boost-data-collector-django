@@ -10,7 +10,7 @@ import logging
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from operations.slack_ops import (
+from core.operations.slack_ops import (
     get_slack_app_token,
     get_slack_bot_token,
 )

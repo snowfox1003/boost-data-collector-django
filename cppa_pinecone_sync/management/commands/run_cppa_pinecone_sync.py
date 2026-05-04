@@ -9,10 +9,16 @@ Usage:
     python manage.py run_cppa_pinecone_sync   # no args: hint only (run-all not yet implemented)
 """
 
+from __future__ import annotations
+
 import importlib
 import logging
+from typing import Any
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 
 from cppa_pinecone_sync.ingestion import PineconeInstance
 from cppa_pinecone_sync.sync import sync_to_pinecone
@@ -36,7 +42,54 @@ def _resolve_preprocessor(dotted_path: str):
     return fn
 
 
-class Command(BaseCommand):
+class CppaPineconeSyncCollector(CollectorBase):
+    """Run sync_to_pinecone for one (app_type, namespace, preprocessor)."""
+
+    def __init__(
+        self,
+        *,
+        app_type: str,
+        namespace: str,
+        preprocessor_path: str,
+        instance: PineconeInstance,
+    ) -> None:
+        self.app_type = app_type
+        self.namespace = namespace
+        self.preprocessor_path = preprocessor_path
+        self.instance = instance
+
+    def run(self) -> None:
+        logger.info(
+            "run_cppa_pinecone_sync: starting app_type=%s namespace=%s preprocessor=%s",
+            self.app_type,
+            self.namespace,
+            self.preprocessor_path,
+        )
+
+        try:
+            preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
+            result = sync_to_pinecone(
+                self.app_type,
+                self.namespace,
+                preprocess_fn,
+                instance=self.instance,
+            )
+            logger.info(
+                "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
+                result["upserted"],
+                result["total"],
+                result["failed_count"],
+            )
+            if result.get("errors"):
+                for err in result["errors"]:
+                    logger.warning("Sync error: %s", err)
+            logger.info("run_cppa_pinecone_sync: finished successfully")
+        except Exception as e:
+            logger.exception("run_cppa_pinecone_sync failed")
+            raise CommandError(f"Sync failed: {e}") from e
+
+
+class Command(BaseCollectorCommand):
     help = (
         "Run CPPA Pinecone Sync. Pass --app-type, --namespace and --preprocessor to run "
         "sync_to_pinecone for one source; other apps can call sync_to_pinecone() directly."
@@ -69,7 +122,7 @@ class Command(BaseCommand):
             help="Pinecone API key instance to use: 'public' (default) or 'private'.",
         )
 
-    def handle(self, *args, **options):
+    def get_collector(self, **options: Any) -> CollectorBase:
         app_type = (options.get("app_type") or "").strip() or None
         namespace = (options.get("namespace") or "").strip() or None
         preprocessor_path = (options.get("preprocessor") or "").strip() or None
@@ -93,28 +146,9 @@ class Command(BaseCommand):
                 "or register sources and run 'all' (not yet implemented)."
             )
 
-        logger.info(
-            "run_cppa_pinecone_sync: starting app_type=%s namespace=%s preprocessor=%s",
-            app_type,
-            namespace,
-            preprocessor_path,
+        return CppaPineconeSyncCollector(
+            app_type=app_type,
+            namespace=namespace,
+            preprocessor_path=preprocessor_path,
+            instance=instance,
         )
-
-        try:
-            preprocess_fn = _resolve_preprocessor(preprocessor_path)
-            result = sync_to_pinecone(
-                app_type, namespace, preprocess_fn, instance=instance
-            )
-            logger.info(
-                "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
-                result["upserted"],
-                result["total"],
-                result["failed_count"],
-            )
-            if result.get("errors"):
-                for err in result["errors"]:
-                    logger.warning("Sync error: %s", err)
-            logger.info("run_cppa_pinecone_sync: finished successfully")
-        except Exception as e:
-            logger.exception("run_cppa_pinecone_sync failed")
-            raise CommandError(f"Sync failed: {e}") from e

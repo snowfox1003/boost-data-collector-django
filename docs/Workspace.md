@@ -133,6 +133,16 @@ python manage.py migrate_workspace_layout
 
 Use `--dry-run` to see what would be moved without changing files. For commits, the command prefers `master/`; if `master/` is missing it uses `developer/` (the `developer/` folder is ignored when `master/` exists).
 
+## Orphan temp files
+
+If a collector crashes between write and delete, leftover `*.tmp`, `*.part`, `*.lock`, or `*.swp` files may remain. Run:
+
+```bash
+python manage.py cleanup_workspace_orphans
+```
+
+By default this **dry-runs** (lists candidates). Use `--execute` to delete files older than `--max-age-hours` (default: 24).
+
 ## Conventions
 
 - **github_activity_tracker:** JSON cache for commits, issues, and PRs; files are removed after being saved to the DB.

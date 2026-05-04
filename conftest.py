@@ -9,7 +9,7 @@ def _patch_django_context_copy_py314():
     """Fix Django BaseContext.__copy__ on Python 3.14 (copy(super()) is broken there)."""
     import sys
 
-    if sys.version_info >= (3, 14):
+    if sys.version_info >= (3, 14):  # pragma: no cover
         from django.template.context import BaseContext
 
         def __copy__(self):
@@ -28,7 +28,7 @@ def pytest_configure(config):  # noqa: F841 (pytest hook; name must match spec)
 # Load app-level fixture modules so fixtures from each app are available everywhere.
 pytest_plugins = [
     "cppa_user_tracker.tests.fixtures",
-    "github_ops.tests.fixtures",
+    "core.tests.github_ops.fixtures",
     "github_activity_tracker.tests.fixtures",
     "boost_library_tracker.tests.fixtures",
     "boost_library_docs_tracker.tests.fixtures",
@@ -37,7 +37,6 @@ pytest_plugins = [
     "boost_library_usage_dashboard.tests.fixtures",
     "boost_usage_tracker.tests.fixtures",
     "boost_mailing_list_tracker.tests.fixtures",
-    "workflow.tests.fixtures",
     "boost_collector_runner.tests.fixtures",
 ]
 

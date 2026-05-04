@@ -11,15 +11,15 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from github_ops.git_ops import (
+from core.operations.github_ops.git_ops import (
     clone_repo,
     prepare_repo_for_pull,
     pull,
     push as git_push,
     sanitize_git_output,
 )
-from github_ops.tokens import get_github_token
-from operations.md_ops.github_export import detect_stale_titled_paths
+from core.operations.github_ops.tokens import get_github_token
+from core.operations.md_ops.github_export import detect_stale_titled_paths
 
 logger = logging.getLogger(__name__)
 

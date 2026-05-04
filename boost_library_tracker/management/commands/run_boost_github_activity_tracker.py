@@ -8,6 +8,8 @@ Runs several tasks in order:
   4. Upsert Boost GitHub issues and PRs to Pinecone
 """
 
+from __future__ import annotations
+
 import logging
 import shutil
 from datetime import datetime
@@ -16,8 +18,10 @@ from pathlib import Path
 import requests
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 from core.utils.datetime_parsing import parse_iso_datetime
 from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
@@ -28,13 +32,13 @@ from github_activity_tracker.sync import sync_github
 
 from boost_library_tracker.services import get_or_create_boost_library_repo
 from boost_library_tracker.workspace import get_md_export_dir
-from github_ops import (
+from core.operations.github_ops import (
     get_github_client,
     get_github_token,
     upload_folder_to_github,
 )
-from github_ops.client import ConnectionException, RateLimitException
-from operations.md_ops.github_export import (
+from core.operations.github_ops.client import ConnectionException, RateLimitException
+from core.operations.md_ops.github_export import (
     detect_renames_from_dirs,
     write_md_files,
 )
@@ -342,7 +346,24 @@ def task_pinecone_sync(dry_run: bool = False) -> None:
     )
 
 
-class Command(BaseCommand):
+class BoostGithubActivityCollector(CollectorBase):
+    """GitHub sync + Markdown + push; Pinecone in ``sync_pinecone``."""
+
+    def __init__(self, cmd: Command, options: dict) -> None:
+        self.cmd = cmd
+        self.options = options
+
+    def run(self) -> None:
+        self.cmd._handle_core(self.options)
+
+    def sync_pinecone(self) -> None:
+        o = self.options
+        if o.get("dry_run") or o.get("skip_pinecone"):
+            return
+        task_pinecone_sync(dry_run=False)
+
+
+class Command(BaseCollectorCommand):
     """Sync Boost GitHub activity, export issues/PRs as Markdown, push to repo, Pinecone upsert."""
 
     help = (
@@ -409,7 +430,10 @@ class Command(BaseCommand):
             "`--from-library` is a deprecated alias.",
         )
 
-    def handle(self, *args, **options):
+    def get_collector(self, **options):
+        return BoostGithubActivityCollector(cmd=self, options=dict(options))
+
+    def _handle_core(self, options):
         dry_run = options["dry_run"]
         skip_github_sync = options["skip_github_sync"]
         skip_markdown_export = options["skip_markdown_export"]
@@ -506,9 +530,7 @@ class Command(BaseCommand):
             else:
                 logger.info("skipping remote push (--skip-remote-push)")
 
-            if not skip_pinecone:
-                task_pinecone_sync(dry_run=False)
-            else:
+            if skip_pinecone:
                 logger.info("skipping Pinecone (--skip-pinecone)")
 
             logger.info("finished successfully")

@@ -10,7 +10,8 @@ base RotatingFileHandler only uses custom rotate() for the final move; this
 subclass overrides doRollover() so all renames and deletes share the same safe path.
 
 DiscordHandler / SlackHandler: send ERROR-level log records to Discord/Slack
-webhooks when ENABLE_ERROR_NOTIFICATIONS is True and webhook URLs are set.
+webhooks when ENABLE_ERROR_NOTIFICATIONS is True (default True if a webhook URL
+is configured in settings; see config.settings).
 """
 
 import json

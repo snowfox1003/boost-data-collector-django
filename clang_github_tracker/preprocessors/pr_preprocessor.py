@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from typing import Any
 
 from django.conf import settings
@@ -44,7 +44,7 @@ def preprocess_for_pinecone(
     else:
         fs = final_sync_at
         if timezone.is_naive(fs):
-            fs = timezone.make_aware(fs, timezone.utc)
+            fs = timezone.make_aware(fs, dt_timezone.utc)
         qs = ClangGithubIssueItem.objects.filter(
             is_pull_request=True, updated_at__gt=fs
         ).values_list("number", flat=True)

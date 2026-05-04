@@ -124,3 +124,153 @@ def test_run_scheduled_collectors_requires_schedule():
     with pytest.raises(CommandError) as exc_info:
         call_command("run_scheduled_collectors", stdout=out, stderr=err)
     assert "schedule" in str(exc_info.value).lower()
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_default_requires_group():
+    with pytest.raises(CommandError, match="default requires --group"):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "default",
+        )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_weekly_requires_day_of_week():
+    with pytest.raises(CommandError, match="weekly requires --day-of-week"):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "weekly",
+        )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_monthly_requires_day_of_month():
+    with pytest.raises(CommandError, match="monthly requires --day-of-month"):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "monthly",
+        )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_interval_requires_minutes():
+    with pytest.raises(CommandError, match="interval requires --interval-minutes"):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "interval",
+        )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_wraps_schedule_resolution_error(tmp_path, settings):
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text("groups: {}\n", encoding="utf-8")
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+    with patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+        side_effect=ValueError("bad yaml"),
+    ):
+        with pytest.raises(CommandError, match="bad yaml"):
+            call_command(
+                "run_scheduled_collectors",
+                "--schedule",
+                "daily",
+            )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_no_tasks_returns_zero(tmp_path, settings):
+    import yaml
+
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text(
+        yaml.dump({"groups": {"empty": {"tasks": []}}}),
+        encoding="utf-8",
+    )
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path",
+        return_value=yaml_path,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+        return_value=[],
+    ):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "daily",
+            "--group",
+            "empty",
+        )
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_child_system_exit_nonzero(tmp_path, settings):
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text("groups: {}\n", encoding="utf-8")
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+    fake_tasks = [
+        ("g", {"command": "run_foo", "schedule": "daily"}),
+    ]
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path",
+        return_value=yaml_path,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+        return_value=fake_tasks,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+        side_effect=SystemExit(5),
+    ):
+        with pytest.raises(SystemExit) as ei:
+            call_command(
+                "run_scheduled_collectors",
+                "--schedule",
+                "daily",
+                "--group",
+                "g",
+            )
+        assert ei.value.code == 5
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_stop_on_failure_short_circuits(tmp_path, settings):
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text("groups: {}\n", encoding="utf-8")
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+    fake_tasks = [
+        ("g", {"command": "run_a", "schedule": "daily"}),
+        ("g", {"command": "run_b", "schedule": "daily"}),
+    ]
+
+    def fail_first(name, *args, **kwargs):
+        if name == "run_a":
+            raise SystemExit(1)
+        return None
+
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path",
+        return_value=yaml_path,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+        return_value=fake_tasks,
+    ), patch(
+        "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+        side_effect=fail_first,
+    ) as mock_inner:
+        with pytest.raises(SystemExit) as ei:
+            call_command(
+                "run_scheduled_collectors",
+                "--schedule",
+                "daily",
+                "--group",
+                "g",
+                "--stop-on-failure",
+            )
+        assert ei.value.code == 1
+    assert mock_inner.call_count == 1

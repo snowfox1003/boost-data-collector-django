@@ -4,11 +4,12 @@ import logging
 from pathlib import Path
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
 
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 from discord_activity_tracker.models import DiscordServer, DiscordChannel
 from discord_activity_tracker.sync.chat_exporter import (
     export_guild_to_json,
@@ -31,56 +32,20 @@ from discord_activity_tracker.workspace import get_raw_dir
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
-    help = (
-        "Run Discord Activity Tracker using DiscordChatExporter CLI (user token method)"
-    )
+class DiscordExporterCollector(CollectorBase):
+    """DiscordChatExporter CLI sync + optional markdown export."""
 
-    def add_arguments(self, parser):
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Preview actions without writing to database",
-        )
-        parser.add_argument(
-            "--task",
-            type=str,
-            default="all",
-            choices=["sync", "export", "all", "import-only"],
-            help="Task to run: sync, export, all, or import-only (default: all)",
-        )
-        parser.add_argument(
-            "--full-sync",
-            action="store_true",
-            help="Sync all messages (ignore last_synced_at)",
-        )
-        parser.add_argument(
-            "--months",
-            type=int,
-            default=12,
-            help="Number of months to export to markdown (default: 12)",
-        )
-        parser.add_argument(
-            "--active-days",
-            type=int,
-            default=30,
-            help="Number of days to consider a channel active (default: 30)",
-        )
-        parser.add_argument(
-            "--days-back",
-            type=int,
-            default=30,
-            help="Number of days back to sync messages (default: 30, 0 for all history)",
-        )
+    def __init__(self, *, stdout, style, **opts) -> None:
+        self.stdout = stdout
+        self.style = style
+        self.dry_run = opts["dry_run"]
+        self.task = opts["task"]
+        self.full_sync = opts["full_sync"]
+        self.months = opts["months"]
+        self.active_days = opts["active_days"]
+        self.days_back = opts["days_back"]
 
-    def handle(self, *args, **options):
-        dry_run = options["dry_run"]
-        task = options["task"]
-        full_sync = options["full_sync"]
-        months = options["months"]
-        active_days = options["active_days"]
-        days_back = options["days_back"]
-
+    def run(self) -> None:
         try:
             user_token = getattr(settings, "DISCORD_USER_TOKEN", None)
             guild_id = getattr(settings, "DISCORD_SERVER_ID", None)
@@ -106,25 +71,25 @@ class Command(BaseCommand):
             context_repo_path = Path(context_repo_path)
             guild_id = int(guild_id)
 
-            if task in ["sync", "all"]:
+            if self.task in ["sync", "all"]:
                 self._sync_messages(
-                    dry_run=dry_run,
+                    dry_run=self.dry_run,
                     user_token=user_token,
                     guild_id=guild_id,
-                    full_sync=full_sync,
-                    days_back=days_back,
+                    full_sync=self.full_sync,
+                    days_back=self.days_back,
                 )
 
-            if task == "import-only":
-                self._import_json_files(dry_run=dry_run, guild_id=guild_id)
+            if self.task == "import-only":
+                self._import_json_files(dry_run=self.dry_run, guild_id=guild_id)
 
-            if task in ["export", "all", "import-only"]:
+            if self.task in ["export", "all", "import-only"]:
                 self._export_markdown(
-                    dry_run=dry_run,
+                    dry_run=self.dry_run,
                     guild_id=guild_id,
                     context_repo_path=context_repo_path,
-                    months=months,
-                    active_days=active_days,
+                    months=self.months,
+                    active_days=self.active_days,
                 )
 
             self.stdout.write(self.style.SUCCESS("✓ Discord exporter completed"))
@@ -379,3 +344,58 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"✓ Exported to {context_repo_path}"))
         else:
             self.stdout.write(self.style.WARNING("No files exported"))
+
+
+class Command(BaseCollectorCommand):
+    help = (
+        "Run Discord Activity Tracker using DiscordChatExporter CLI (user token method)"
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Preview actions without writing to database",
+        )
+        parser.add_argument(
+            "--task",
+            type=str,
+            default="all",
+            choices=["sync", "export", "all", "import-only"],
+            help="Task to run: sync, export, all, or import-only (default: all)",
+        )
+        parser.add_argument(
+            "--full-sync",
+            action="store_true",
+            help="Sync all messages (ignore last_synced_at)",
+        )
+        parser.add_argument(
+            "--months",
+            type=int,
+            default=12,
+            help="Number of months to export to markdown (default: 12)",
+        )
+        parser.add_argument(
+            "--active-days",
+            type=int,
+            default=30,
+            help="Number of days to consider a channel active (default: 30)",
+        )
+        parser.add_argument(
+            "--days-back",
+            type=int,
+            default=30,
+            help="Number of days back to sync messages (default: 30, 0 for all history)",
+        )
+
+    def get_collector(self, **options):
+        return DiscordExporterCollector(
+            stdout=self.stdout,
+            style=self.style,
+            dry_run=options["dry_run"],
+            task=options["task"],
+            full_sync=options["full_sync"],
+            months=options["months"],
+            active_days=options["active_days"],
+            days_back=options["days_back"],
+        )

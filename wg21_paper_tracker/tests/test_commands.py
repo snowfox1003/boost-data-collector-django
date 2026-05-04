@@ -33,13 +33,13 @@ def test_run_wg21_paper_tracker_posts_dispatch_when_enabled():
     mock_resp.text = ""
 
     with patch(
-        "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.run_tracker_pipeline",
+        "wg21_paper_tracker.collectors.run_tracker_pipeline",
         return_value=TrackerPipelineResult(
             new_paper_urls=("https://open-std.org/a.pdf", "https://open-std.org/b.pdf")
         ),
     ):
         with patch(
-            "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.requests.post",
+            "wg21_paper_tracker.collectors.requests.post",
             return_value=mock_resp,
         ) as m_post:
             with override_settings(
@@ -71,11 +71,11 @@ def test_run_wg21_paper_tracker_posts_dispatch_when_enabled():
 def test_run_wg21_paper_tracker_skips_post_when_no_new_papers():
     """No HTTP request when pipeline returns no new URLs."""
     with patch(
-        "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.run_tracker_pipeline",
+        "wg21_paper_tracker.collectors.run_tracker_pipeline",
         return_value=TrackerPipelineResult(),
     ):
         with patch(
-            "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.requests.post",
+            "wg21_paper_tracker.collectors.requests.post",
         ) as m_post:
             with override_settings(
                 WG21_GITHUB_DISPATCH_ENABLED=True,
@@ -90,11 +90,11 @@ def test_run_wg21_paper_tracker_skips_post_when_no_new_papers():
 def test_run_wg21_paper_tracker_skips_post_when_dispatch_disabled():
     """No HTTP request when WG21_GITHUB_DISPATCH_ENABLED is False."""
     with patch(
-        "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.run_tracker_pipeline",
+        "wg21_paper_tracker.collectors.run_tracker_pipeline",
         return_value=TrackerPipelineResult(new_paper_urls=("https://x/y",)),
     ):
         with patch(
-            "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.requests.post",
+            "wg21_paper_tracker.collectors.requests.post",
         ) as m_post:
             with override_settings(
                 WG21_GITHUB_DISPATCH_ENABLED=False,
@@ -115,7 +115,7 @@ def test_run_wg21_paper_tracker_rejects_invalid_from_date():
 @pytest.mark.django_db
 def test_run_wg21_paper_tracker_passes_from_date_to_pipeline():
     with patch(
-        "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.run_tracker_pipeline",
+        "wg21_paper_tracker.collectors.run_tracker_pipeline",
         return_value=TrackerPipelineResult(),
     ) as m:
         call_command(RUN_TRACKER_CMD, "--from-date=2025-03")
@@ -131,7 +131,7 @@ def test_run_wg21_paper_tracker_rejects_invalid_to_date():
 @pytest.mark.django_db
 def test_run_wg21_paper_tracker_passes_from_and_to_date_to_pipeline():
     with patch(
-        "wg21_paper_tracker.management.commands.run_wg21_paper_tracker.run_tracker_pipeline",
+        "wg21_paper_tracker.collectors.run_tracker_pipeline",
         return_value=TrackerPipelineResult(),
     ) as m:
         call_command(RUN_TRACKER_CMD, "--from-date=2025-01", "--to-date=2025-03")

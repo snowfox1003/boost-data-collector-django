@@ -50,13 +50,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.staticfiles",
-    # Project apps (github_ops before github_activity_tracker - tracker depends on ops)
+    # Project apps (GitHub/markdown/Slack utilities live under core.operations — not INSTALLED_APPS)
     "core",
-    "workflow",
     "boost_collector_runner",  # YAML-driven schedule; run_scheduled_collectors
     "cppa_user_tracker",
-    "github_ops",
-    "operations",
     "github_activity_tracker",
     "boost_library_tracker",
     "boost_library_docs_tracker",
@@ -480,9 +477,15 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 _LOG_FILE_PATH = LOG_DIR / LOG_FILE
 
 # Error notification settings (Discord/Slack)
-ENABLE_ERROR_NOTIFICATIONS = env.bool("ENABLE_ERROR_NOTIFICATIONS", default=False)
-DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
-SLACK_WEBHOOK_URL = env("SLACK_WEBHOOK_URL", default="")
+# Default: ERROR handlers attach when at least one webhook URL is set. Set
+# ENABLE_ERROR_NOTIFICATIONS=false to disable while keeping URLs in .env.
+DISCORD_WEBHOOK_URL = (env("DISCORD_WEBHOOK_URL", default="") or "").strip()
+SLACK_WEBHOOK_URL = (env("SLACK_WEBHOOK_URL", default="") or "").strip()
+_webhooks_configured_for_errors = bool(DISCORD_WEBHOOK_URL or SLACK_WEBHOOK_URL)
+ENABLE_ERROR_NOTIFICATIONS = env.bool(
+    "ENABLE_ERROR_NOTIFICATIONS",
+    default=_webhooks_configured_for_errors,
+)
 # Post to webhooks after deploy (see make notify / send_startup_notification)
 ENABLE_STARTUP_NOTIFICATIONS = env.bool("ENABLE_STARTUP_NOTIFICATIONS", default=True)
 
@@ -547,6 +550,13 @@ try:
     from boost_collector_runner.schedule_config import get_beat_schedule
 
     CELERY_BEAT_SCHEDULE = get_beat_schedule()
+except ImportError:
+    import logging
+
+    logging.getLogger(__name__).exception(
+        "Could not import boost_collector_runner schedule (missing dependency?).",
+    )
+    CELERY_BEAT_SCHEDULE = {}
 except Exception:
     import logging
 

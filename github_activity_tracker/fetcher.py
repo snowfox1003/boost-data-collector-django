@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 if TYPE_CHECKING:
-    from github_ops.client import GitHubAPIClient
+    from core.operations.github_ops.client import GitHubAPIClient
 
 logger = logging.getLogger(__name__)
 

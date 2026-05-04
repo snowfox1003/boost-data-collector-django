@@ -17,8 +17,10 @@ Two processing units:
 import logging
 from datetime import datetime, timedelta, timezone
 
-from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 
 from boost_usage_tracker.models import BoostExternalRepository
 from github_activity_tracker.models import GitHubRepository
@@ -36,8 +38,8 @@ from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
     get_or_create_repository,
 )
-from github_ops import get_github_client
-from github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops import get_github_client
+from core.operations.github_ops.client import ConnectionException, RateLimitException
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +317,54 @@ def task_monitor_stars(
 # ---------------------------------------------------------------------------
 
 
-class Command(BaseCommand):
+class BoostUsageTrackerCollector(CollectorBase):
+    """Run monitor_content and/or monitor_stars."""
+
+    def __init__(
+        self,
+        *,
+        task_filter: str,
+        dry_run: bool,
+        min_stars: int,
+        since,
+        until,
+        now,
+    ) -> None:
+        self.task_filter = task_filter
+        self.dry_run = dry_run
+        self.min_stars = min_stars
+        self.since = since
+        self.until = until
+        self.now = now
+
+    def run(self) -> None:
+        logger.info(
+            "run_boost_usage_tracker: starting (task=%s, dry_run=%s)",
+            self.task_filter or "all",
+            self.dry_run,
+        )
+        try:
+            if not self.task_filter or self.task_filter == "monitor_content":
+                task_monitor_content(
+                    self.since, self.until, self.min_stars, self.dry_run
+                )
+
+            if not self.task_filter or self.task_filter == "monitor_stars":
+                task_monitor_stars(self.min_stars, self.dry_run)
+
+            logger.info("run_boost_usage_tracker: finished successfully")
+        except (ConnectionException, RateLimitException) as e:
+            logger.exception(
+                "run_boost_usage_tracker failed (rate limit / connection): %s",
+                e,
+            )
+            raise
+        except Exception as e:
+            logger.exception("run_boost_usage_tracker failed: %s", e)
+            raise
+
+
+class Command(BaseCollectorCommand):
     help = (
         "Run Boost Usage Tracker: detect Boost library usage in external C++ "
         "repositories.\n\n"
@@ -359,7 +408,7 @@ class Command(BaseCommand):
             help="Only show what would be done; do not modify the database.",
         )
 
-    def handle(self, *args, **options):
+    def get_collector(self, **options):
         task_filter = (options["task"] or "").strip().lower()
         dry_run = options["dry_run"]
         min_stars = options["min_stars"]
@@ -382,26 +431,11 @@ class Command(BaseCommand):
             until - timedelta(days=1)
         )
 
-        logger.info(
-            "run_boost_usage_tracker: starting (task=%s, dry_run=%s)",
-            task_filter or "all",
-            dry_run,
+        return BoostUsageTrackerCollector(
+            task_filter=task_filter,
+            dry_run=dry_run,
+            min_stars=min_stars,
+            since=since,
+            until=until,
+            now=now,
         )
-
-        try:
-            if not task_filter or task_filter == "monitor_content":
-                task_monitor_content(since, until, min_stars, dry_run)
-
-            if not task_filter or task_filter == "monitor_stars":
-                task_monitor_stars(min_stars, dry_run)
-
-            logger.info("run_boost_usage_tracker: finished successfully")
-        except (ConnectionException, RateLimitException) as e:
-            logger.exception(
-                "run_boost_usage_tracker failed (rate limit / connection): %s",
-                e,
-            )
-            raise
-        except Exception as e:
-            logger.exception("run_boost_usage_tracker failed: %s", e)
-            raise

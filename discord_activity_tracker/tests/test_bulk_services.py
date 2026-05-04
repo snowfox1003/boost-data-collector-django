@@ -1,5 +1,7 @@
 """Tests for bulk DB operations in services.py."""
 
+import uuid
+
 import pytest
 from datetime import datetime, timezone
 
@@ -43,10 +45,14 @@ def _msg(mid, author_uid, content="", ts=None, **kwargs):
     }
 
 
+def _uniq_id() -> int:
+    return uuid.uuid4().int % (2**50)
+
+
 @pytest.fixture
 def server(db):
     return DiscordServer.objects.create(
-        server_id=100, server_name="TestServer", icon_url=""
+        server_id=_uniq_id(), server_name="TestServer", icon_url=""
     )
 
 
@@ -54,7 +60,7 @@ def server(db):
 def channel(server):
     return DiscordChannel.objects.create(
         server=server,
-        channel_id=200,
+        channel_id=_uniq_id(),
         channel_name="general",
         channel_type="text",
         topic="",
@@ -70,6 +76,7 @@ def channel(server):
 @pytest.mark.django_db
 class TestBulkUpsertUsers:
     def test_insert_new_users(self):
+        before = DiscordProfile.objects.count()
         user_data = [
             _user(1001, "alice", display="Alice"),
             _user(1002, "bob", display="Bob", bot=True),
@@ -80,7 +87,7 @@ class TestBulkUpsertUsers:
         assert 1001 in result
         assert 1002 in result
         assert result[1001].discord_user_id == 1001
-        assert DiscordProfile.objects.count() == 2
+        assert DiscordProfile.objects.count() == before + 2
 
     def test_update_existing_users(self):
         DiscordProfile.objects.create(
@@ -101,6 +108,7 @@ class TestBulkUpsertUsers:
         assert refreshed.display_name == "New Alice"
 
     def test_deduplicates_by_user_id(self):
+        before = DiscordProfile.objects.count()
         user_data = [
             _user(1001, "first"),
             _user(1001, "second"),
@@ -108,7 +116,7 @@ class TestBulkUpsertUsers:
         result = bulk_upsert_discord_users(user_data)
 
         assert len(result) == 1
-        assert DiscordProfile.objects.count() == 1
+        assert DiscordProfile.objects.count() == before + 1
         # Last-seen wins
         assert DiscordProfile.objects.get(discord_user_id=1001).username == "second"
 
@@ -139,9 +147,10 @@ class TestBulkUpsertMessages:
             ),
         ]
 
+        mc_before = DiscordMessage.objects.count()
         result = bulk_upsert_discord_messages(msg_data, channel, user_map)
         assert len(result) == 2
-        assert DiscordMessage.objects.count() == 2
+        assert DiscordMessage.objects.count() == mc_before + 2
 
         msg1 = DiscordMessage.objects.get(message_id=5001)
         assert msg1.content == "Hello world"
@@ -154,6 +163,7 @@ class TestBulkUpsertMessages:
     def test_update_existing_messages(self, channel):
         user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
+        mc_before = DiscordMessage.objects.count()
 
         # Insert first
         bulk_upsert_discord_messages(
@@ -178,7 +188,7 @@ class TestBulkUpsertMessages:
             user_map,
         )
 
-        assert DiscordMessage.objects.count() == 1
+        assert DiscordMessage.objects.count() == mc_before + 1
         msg = DiscordMessage.objects.get(message_id=5001)
         assert msg.content == "Edited content"
         assert msg.message_edited_at == edited_at
@@ -196,46 +206,54 @@ class TestBulkUpsertMessages:
 @pytest.mark.django_db
 class TestBulkUpsertReactions:
     def test_insert_reactions(self, channel):
+        mid = _uniq_id()
         user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
         message_map = bulk_upsert_discord_messages(
-            [_msg(5001, 1001, content="Test", ts=now)],
+            [_msg(mid, 1001, content="Test", ts=now)],
             channel,
             user_map,
         )
 
         reaction_data = [
-            {"discord_message_id": 5001, "emoji": "\U0001f44d", "count": 3},
-            {"discord_message_id": 5001, "emoji": "\U0001f389", "count": 1},
+            {"discord_message_id": mid, "emoji": "\U0001f44d", "count": 3},
+            {"discord_message_id": mid, "emoji": "\U0001f389", "count": 1},
         ]
+        rc_before = DiscordReaction.objects.count()
         bulk_upsert_discord_reactions(reaction_data, message_map)
 
-        assert DiscordReaction.objects.count() == 2
-        thumbs = DiscordReaction.objects.get(emoji="\U0001f44d")
+        assert DiscordReaction.objects.count() == rc_before + 2
+        db_msg = DiscordMessage.objects.get(message_id=mid)
+        thumbs = DiscordReaction.objects.get(message=db_msg, emoji="\U0001f44d")
         assert thumbs.count == 3
 
     def test_update_reaction_count(self, channel):
+        mid = _uniq_id()
         user_map = bulk_upsert_discord_users([_user(1001, "alice")])
         now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
         message_map = bulk_upsert_discord_messages(
-            [_msg(5001, 1001, content="Test", ts=now)],
+            [_msg(mid, 1001, content="Test", ts=now)],
             channel,
             user_map,
         )
 
+        rc_before = DiscordReaction.objects.count()
         # Insert
         bulk_upsert_discord_reactions(
-            [{"discord_message_id": 5001, "emoji": "\U0001f44d", "count": 1}],
+            [{"discord_message_id": mid, "emoji": "\U0001f44d", "count": 1}],
             message_map,
         )
         # Update
         bulk_upsert_discord_reactions(
-            [{"discord_message_id": 5001, "emoji": "\U0001f44d", "count": 5}],
+            [{"discord_message_id": mid, "emoji": "\U0001f44d", "count": 5}],
             message_map,
         )
 
-        assert DiscordReaction.objects.count() == 1
-        assert DiscordReaction.objects.get(emoji="\U0001f44d").count == 5
+        assert DiscordReaction.objects.count() == rc_before + 1
+        db_msg = DiscordMessage.objects.get(message_id=mid)
+        assert (
+            DiscordReaction.objects.get(message=db_msg, emoji="\U0001f44d").count == 5
+        )
 
 
 # -------------------------------------------------------------------
@@ -273,12 +291,15 @@ class TestBulkProcessMessageBatch:
             },
         ]
 
+        pc_before = DiscordProfile.objects.count()
+        mc_before = DiscordMessage.objects.count()
+        rc_before = DiscordReaction.objects.count()
         count = bulk_process_message_batch(messages, channel)
 
         assert count == 2
-        assert DiscordProfile.objects.count() == 2
-        assert DiscordMessage.objects.count() == 2
-        assert DiscordReaction.objects.count() == 2
+        assert DiscordProfile.objects.count() == pc_before + 2
+        assert DiscordMessage.objects.count() == mc_before + 2
+        assert DiscordReaction.objects.count() == rc_before + 2
 
         msg1 = DiscordMessage.objects.get(message_id=5001)
         assert msg1.content == "Hello!"
@@ -308,9 +329,12 @@ class TestBulkProcessMessageBatch:
             },
         ]
 
+        pc_before = DiscordProfile.objects.count()
+        mc_before = DiscordMessage.objects.count()
+        rc_before = DiscordReaction.objects.count()
         bulk_process_message_batch(messages, channel)
         bulk_process_message_batch(messages, channel)
 
-        assert DiscordProfile.objects.count() == 1
-        assert DiscordMessage.objects.count() == 1
-        assert DiscordReaction.objects.count() == 1
+        assert DiscordProfile.objects.count() == pc_before + 1
+        assert DiscordMessage.objects.count() == mc_before + 1
+        assert DiscordReaction.objects.count() == rc_before + 1

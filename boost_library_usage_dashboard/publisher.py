@@ -11,7 +11,12 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from github_ops.git_ops import clone_repo, prepare_repo_for_pull, pull, push
+from core.operations.github_ops.git_ops import (
+    clone_repo,
+    prepare_repo_for_pull,
+    pull,
+    push,
+)
 
 logger = logging.getLogger(__name__)
 

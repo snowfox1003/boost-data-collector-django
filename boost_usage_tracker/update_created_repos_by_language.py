@@ -15,8 +15,12 @@ from typing import Any
 
 from github_activity_tracker.models import Language
 from github_activity_tracker.services import create_or_update_created_repos_by_language
-from github_ops import get_github_client
-from github_ops.client import ConnectionException, GitHubAPIClient, RateLimitException
+from core.operations.github_ops import get_github_client
+from core.operations.github_ops.client import (
+    ConnectionException,
+    GitHubAPIClient,
+    RateLimitException,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -1,15 +1,19 @@
 """Tests for boost_usage_tracker.db_from_file."""
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from boost_usage_tracker.db_from_file import (
+    _load_all_json_records,
+    _load_json_records_from_path,
+    _normalize_account_type,
     get_github_account_dir,
     update_db_from_file,
 )
-from cppa_user_tracker.models import GitHubAccount
+from cppa_user_tracker.models import GitHubAccount, GitHubAccountType
 
 
 def test_get_github_account_dir_returns_path_under_workspace(tmp_path):
@@ -106,3 +110,91 @@ def test_update_db_from_file_github_account_skips_invalid_records(tmp_path):
     result = update_db_from_file(source=tmp_path, table="github_account")
     assert result["created"] == 1
     assert GitHubAccount.objects.filter(github_account_id=3001).exists()
+
+
+def test_normalize_account_type_variants():
+    assert _normalize_account_type(None) == GitHubAccountType.USER
+    assert _normalize_account_type("org") == GitHubAccountType.ORGANIZATION
+    assert _normalize_account_type("enterprise") == GitHubAccountType.ENTERPRISE
+    assert _normalize_account_type("unknown") == GitHubAccountType.USER
+
+
+def test_load_json_records_skips_dotfile(tmp_path):
+    p = tmp_path / ".secret.json"
+    p.write_text('{"github_account_id": 1}', encoding="utf-8")
+    assert _load_json_records_from_path(p) == []
+
+
+def test_load_json_records_non_dict_list_returns_empty(tmp_path):
+    p = tmp_path / "bad_shape.json"
+    p.write_text('"scalar"', encoding="utf-8")
+    assert _load_json_records_from_path(p) == []
+
+
+@pytest.mark.django_db
+def test_update_db_from_file_invalid_source_path(tmp_path):
+    bad = tmp_path / "not_json.txt"
+    bad.write_text("x", encoding="utf-8")
+    result = update_db_from_file(source=bad, table="github_account")
+    assert result["created"] == 0
+    assert "not a directory or a .json file" in result["errors"][0].lower()
+
+
+def test_load_all_json_records_missing_dir_logs(caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    assert _load_all_json_records(Path("/nonexistent/path/xyz")) == []
+    assert any("does not exist" in r.message for r in caplog.records)
+
+
+def test_load_all_json_records_skips_bad_json(tmp_path, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
+    assert _load_all_json_records(tmp_path) == []
+    assert any("Skipping" in r.message for r in caplog.records)
+
+
+@pytest.mark.django_db
+def test_update_db_from_file_skips_non_dict_record(tmp_path, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    (tmp_path / "mix.json").write_text(
+        json.dumps([{"github_account_id": 4001}, "skip"]), encoding="utf-8"
+    )
+    result = update_db_from_file(source=tmp_path, table="github_account")
+    assert result["created"] == 1
+    assert GitHubAccount.objects.filter(github_account_id=4001).exists()
+
+
+@pytest.mark.django_db
+def test_update_db_from_file_updates_existing_account(tmp_path):
+    (tmp_path / "one.json").write_text(
+        json.dumps({"github_account_id": 5001, "username": "first"}),
+        encoding="utf-8",
+    )
+    r1 = update_db_from_file(source=tmp_path, table="github_account")
+    assert r1["created"] == 1 and r1["updated"] == 0
+    (tmp_path / "one.json").write_text(
+        json.dumps({"github_account_id": 5001, "username": "second"}),
+        encoding="utf-8",
+    )
+    r2 = update_db_from_file(source=tmp_path, table="github_account")
+    assert r2["updated"] >= 1
+    assert GitHubAccount.objects.get(github_account_id=5001).username == "second"
+
+
+@pytest.mark.django_db
+def test_update_db_from_file_recursive_subdir(tmp_path):
+    sub = tmp_path / "nested"
+    sub.mkdir()
+    (sub / "deep.json").write_text(
+        json.dumps({"github_account_id": 6001, "username": "deep"}),
+        encoding="utf-8",
+    )
+    result = update_db_from_file(source=tmp_path, table="github_account")
+    assert result["created"] == 1
+    assert GitHubAccount.objects.filter(github_account_id=6001).exists()

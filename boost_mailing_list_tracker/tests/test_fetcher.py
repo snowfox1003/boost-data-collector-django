@@ -268,26 +268,32 @@ def test_get_start_date_from_db_uses_latest_sent_at(
 
 
 @pytest.mark.django_db
-def test_get_start_date_from_db_naive_datetime_assumed_utc(
+def test_get_start_date_from_db_utc_aware_sent_at_iso_format(
     mailing_list_profile,
     default_list_name,
 ):
-    """_get_start_date_from_db formats naive sent_at (no tz conversion)."""
+    """_get_start_date_from_db returns ISO UTC for timezone-aware sent_at (USE_TZ-safe)."""
     from boost_mailing_list_tracker import services
 
-    # Django may store naive as-is; strftime still produces the digits
-    dt_naive = datetime(2025, 3, 10, 12, 0, 0)  # no tzinfo
+    dt_utc = datetime(2025, 3, 10, 12, 0, 0, tzinfo=timezone.utc)
     services.get_or_create_mailing_list_message(
         mailing_list_profile,
-        msg_id="<naive@example.com>",
-        sent_at=dt_naive,
+        msg_id="<utc@example.com>",
+        sent_at=dt_utc,
         list_name=default_list_name,
     )
     result = fetcher._get_start_date_from_db()
-    # Should be formatted; if DB stores naive, we get "2025-03-10T12:00:00Z"
-    assert result.startswith("2025-03-10")
-    assert "T" in result
-    assert result.endswith("Z")
+    assert result == "2025-03-10T12:00:00Z"
+
+
+def test_get_start_date_from_db_naive_aggregate_value_gets_z_suffix():
+    """If Max(sent_at) is naive, strftime still emits ...Z (defensive path)."""
+    with patch(
+        "boost_mailing_list_tracker.models.MailingListMessage.objects.aggregate",
+        return_value={"sent_at__max": datetime(2025, 3, 10, 12, 0, 0)},
+    ):
+        result = fetcher._get_start_date_from_db()
+    assert result == "2025-03-10T12:00:00Z"
 
 
 # --- fetch_email_list (integration with mock) ---

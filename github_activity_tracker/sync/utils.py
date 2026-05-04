@@ -1,5 +1,5 @@
 """
-Sync utilities: parse user/datetime for GitHub data. GitHub client/tokens live in github_ops.
+Sync utilities: parse user/datetime for GitHub data. GitHub client/tokens live in core.operations.github_ops.
 """
 
 from __future__ import annotations
@@ -8,11 +8,11 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from github_ops import get_github_client, get_github_token
+from core.operations.github_ops import get_github_client, get_github_token
 
 logger = logging.getLogger(__name__)
 
-# Re-export for backward compatibility; prefer "from github_ops import ..."
+# Re-export for backward compatibility; prefer "from core.operations.github_ops import ..."
 __all__ = [
     "get_github_client",
     "get_github_token",

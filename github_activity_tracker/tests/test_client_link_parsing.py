@@ -1,6 +1,6 @@
 """Tests for GitHubAPIClient Link header parsing methods."""
 
-from github_ops.client import GitHubAPIClient
+from core.operations.github_ops.client import GitHubAPIClient
 
 
 def test_parse_link_rels_parses_all_rels():

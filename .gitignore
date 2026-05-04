@@ -22,6 +22,8 @@ media/
 
 # Testing / coverage
 .coverage
+coverage.xml
+coverage.json
 htmlcov/
 pytest-cache-files*/
 

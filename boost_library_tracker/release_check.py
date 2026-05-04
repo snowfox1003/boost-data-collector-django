@@ -16,8 +16,8 @@ import logging
 from core.utils.boost_version_operations import parse_stable_boost_release_tag
 
 from boost_library_tracker.models import BoostVersion
-from github_ops.client import GitHubAPIClient
-from github_ops.tokens import get_github_token
+from core.operations.github_ops.client import GitHubAPIClient
+from core.operations.github_ops.tokens import get_github_token
 
 logger = logging.getLogger(__name__)
 

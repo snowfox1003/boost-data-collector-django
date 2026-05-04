@@ -236,7 +236,6 @@ def format_email(item: dict[str, Any], source_url: str) -> dict[str, Any]:
 def _get_start_date_from_db() -> str:
     """Return start_date as ISO 8601 UTC (e.g. 2025-11-13T05:25:55Z): the latest sent_at in the DB. Empty if no messages."""
     from django.db.models import Max
-    from django.utils import timezone
 
     from boost_mailing_list_tracker.models import MailingListMessage
 

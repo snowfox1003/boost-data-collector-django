@@ -7,8 +7,8 @@ import json
 import logging
 import re
 
-from operations.md_ops import html_to_markdown
-from operations.md_ops.transcript import (
+from core.operations.md_ops import html_to_markdown
+from core.operations.md_ops.transcript import (
     generate_transcript_from_json,
     parse_html_summary,
     replace_channel_ids_with_names,
@@ -16,7 +16,7 @@ from operations.md_ops.transcript import (
     write_huddle_transcript_md,
 )
 
-from operations.slack_ops import SlackFetcher
+from core.operations.slack_ops import SlackFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +31,13 @@ def generate_huddle_markdown(
     try:
         with open(html_file_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-    except Exception as e:
+    except (OSError, UnicodeError) as e:
         logger.error("Error reading HTML file: %s", e)
         return None
     try:
         with open(result_json_path, "r", encoding="utf-8") as f:
             result_json = json.load(f)
-    except Exception as e:
+    except (OSError, UnicodeError, json.JSONDecodeError) as e:
         logger.error("Error reading JSON file: %s", e)
         return None
 

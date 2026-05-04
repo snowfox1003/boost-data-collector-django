@@ -14,7 +14,7 @@ import subprocess
 import threading
 from pathlib import Path
 
-from github_ops import clone_repo, get_commit_file_changes
+from core.operations.github_ops import clone_repo, get_commit_file_changes
 from github_activity_tracker.workspace import (
     get_clone_dir,
     register_clone,
@@ -119,7 +119,7 @@ def get_full_commit_files(
     Get full list of changed files for a commit via git (for commits with 300+ files).
 
     1. Ensures repo is cloned.
-    2. Calls github_ops.get_commit_file_changes to get full file list.
+    2. Calls core.operations.github_ops.get_commit_file_changes to get full file list.
     3. For initial commits (no parent), diffs against git's empty tree so we still get full file list + patches.
 
     Returns list of file dicts matching GitHub API shape.
@@ -147,7 +147,7 @@ def get_full_commit_files(
             commit_sha[:7],
         )
 
-    # Get full file list via github_ops
+    # Get full file list via core.operations.github_ops
     logger.info("Getting full file list for commit %s via git", commit_sha[:7])
     try:
         files = get_commit_file_changes(clone_path, parent_sha, commit_sha)

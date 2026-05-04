@@ -28,7 +28,7 @@ from boost_usage_tracker.services import (
     mark_usages_excepted_bulk,
 )
 from github_activity_tracker.services import create_or_update_github_file
-from github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops.client import ConnectionException, RateLimitException
 
 if TYPE_CHECKING:
     from github_activity_tracker.models import GitHubRepository

@@ -60,7 +60,7 @@ def test_sync_repos_calls_get_repository_info_with_owner_repo(
 @pytest.mark.django_db
 def test_sync_repos_raises_on_connection_exception(github_repository):
     """sync_repos re-raises ConnectionException from client."""
-    from github_ops.client import ConnectionException
+    from core.operations.github_ops.client import ConnectionException
 
     mock_client = MagicMock()
     mock_client.get_repository_info.side_effect = ConnectionException("network error")
@@ -75,7 +75,7 @@ def test_sync_repos_raises_on_connection_exception(github_repository):
 @pytest.mark.django_db
 def test_sync_repos_raises_on_rate_limit_exception(github_repository):
     """sync_repos re-raises RateLimitException from client."""
-    from github_ops.client import RateLimitException
+    from core.operations.github_ops.client import RateLimitException
 
     mock_client = MagicMock()
     mock_client.get_repository_info.side_effect = RateLimitException("rate limited")
@@ -84,6 +84,19 @@ def test_sync_repos_raises_on_rate_limit_exception(github_repository):
         return_value=mock_client,
     ):
         with pytest.raises(RateLimitException, match="rate limited"):
+            sync_repos(github_repository)
+
+
+@pytest.mark.django_db
+def test_sync_repos_raises_on_unexpected_exception(github_repository):
+    """sync_repos re-raises unexpected errors after logging."""
+    mock_client = MagicMock()
+    mock_client.get_repository_info.side_effect = RuntimeError("unexpected")
+    with patch(
+        "github_activity_tracker.sync.repos.get_github_client",
+        return_value=mock_client,
+    ):
+        with pytest.raises(RuntimeError, match="unexpected"):
             sync_repos(github_repository)
 
 
