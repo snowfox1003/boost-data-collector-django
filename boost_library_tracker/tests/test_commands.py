@@ -232,3 +232,151 @@ def test_run_boost_github_activity_tracker_invalid_since_errors():
                 stderr=StringIO(),
             )
     task_mock.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_check_new_boost_release_exits_zero_when_release_found():
+    """Exit code 0 when has_new_boost_release returns True."""
+    from io import StringIO
+
+    with patch(
+        "boost_library_tracker.management.commands.check_new_boost_release.has_new_boost_release",
+        return_value=True,
+    ):
+        with pytest.raises(SystemExit) as excinfo:
+            call_command(
+                "check_new_boost_release",
+                stdout=StringIO(),
+                stderr=StringIO(),
+            )
+    assert excinfo.value.code == 0
+
+
+@pytest.mark.django_db
+def test_check_new_boost_release_exits_one_when_none():
+    """Exit code 1 when no new release."""
+    from io import StringIO
+
+    with patch(
+        "boost_library_tracker.management.commands.check_new_boost_release.has_new_boost_release",
+        return_value=False,
+    ):
+        with pytest.raises(SystemExit) as excinfo:
+            call_command(
+                "check_new_boost_release",
+                stdout=StringIO(),
+                stderr=StringIO(),
+            )
+    assert excinfo.value.code == 1
+
+
+@pytest.mark.django_db
+def test_backfill_repo_filter_not_present(tmp_path, monkeypatch):
+    base = tmp_path / "workspace" / "raw" / "github_activity_tracker" / "boostorg"
+    base.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    out = StringIO()
+    call_command(BACKFILL_CMD, "--repo=missing-repo", stdout=out)
+    assert "not found" in out.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_backfill_skips_repo_without_commits_dir(tmp_path, monkeypatch):
+    repo_root = (
+        tmp_path / "workspace" / "raw" / "github_activity_tracker" / "boostorg" / "math"
+    )
+    repo_root.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    out = StringIO()
+    call_command(BACKFILL_CMD, stdout=out)
+    assert "no commits directory" in out.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_backfill_dry_run_prints_would_link(
+    tmp_path, monkeypatch, github_account, github_repository
+):
+    github_account.username = "boostorg"
+    github_account.save()
+    github_repository.repo_name = "math"
+    github_repository.owner_account = github_account
+    github_repository.save()
+
+    commits = (
+        tmp_path
+        / "workspace"
+        / "raw"
+        / "github_activity_tracker"
+        / "boostorg"
+        / "math"
+        / "commits"
+    )
+    commits.mkdir(parents=True)
+    sha_file = commits / "abcd.json"
+    sha_file.write_text(
+        json.dumps(
+            {
+                "sha": "abcd",
+                "files": [
+                    {
+                        "filename": "new.txt",
+                        "previous_filename": "old.txt",
+                        "status": "renamed",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    out = StringIO()
+    call_command(BACKFILL_CMD, "--dry-run", stdout=out)
+    assert "Would link" in out.getvalue()
+
+
+@pytest.mark.django_db
+def test_backfill_skips_workspace_repo_missing_from_db(tmp_path, monkeypatch):
+    commits = (
+        tmp_path
+        / "workspace"
+        / "raw"
+        / "github_activity_tracker"
+        / "boostorg"
+        / "ghostlib"
+        / "commits"
+    )
+    commits.mkdir(parents=True)
+    (commits / "z.json").write_text(
+        json.dumps({"sha": "z", "files": []}), encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    out = StringIO()
+    call_command(BACKFILL_CMD, stdout=out)
+    assert "not found in database" in out.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_backfill_reports_bad_commit_json(
+    tmp_path, monkeypatch, github_account, github_repository
+):
+    github_account.username = "boostorg"
+    github_account.save()
+    github_repository.repo_name = "brokenjson"
+    github_repository.owner_account = github_account
+    github_repository.save()
+
+    commits = (
+        tmp_path
+        / "workspace"
+        / "raw"
+        / "github_activity_tracker"
+        / "boostorg"
+        / "brokenjson"
+        / "commits"
+    )
+    commits.mkdir(parents=True)
+    (commits / "bad.json").write_text("{not-json", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    out = StringIO()
+    call_command(BACKFILL_CMD, stdout=out)
+    assert "Error processing bad.json" in out.getvalue()

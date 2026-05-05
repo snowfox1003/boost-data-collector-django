@@ -42,8 +42,8 @@ from boost_library_tracker.services import (
     get_or_create_boost_library_version,
     get_or_create_boost_version,
 )
-from github_ops.client import GitHubAPIClient
-from github_ops.tokens import get_github_client
+from core.operations.github_ops.client import GitHubAPIClient
+from core.operations.github_ops.tokens import get_github_client
 
 logger = logging.getLogger(__name__)
 

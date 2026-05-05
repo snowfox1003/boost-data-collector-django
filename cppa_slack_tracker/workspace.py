@@ -13,7 +13,7 @@ from pathlib import Path
 from django.conf import settings
 
 from config.workspace import get_workspace_path
-from operations.file_ops import sanitize_filename
+from core.operations.file_ops import sanitize_filename
 
 _APP_SLUG = "cppa_slack_tracker"
 

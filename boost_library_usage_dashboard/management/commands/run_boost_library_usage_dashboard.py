@@ -1,20 +1,12 @@
 """Build the Boost library usage dashboard from DB data and optionally publish to GitHub."""
 
-import logging
-
-from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
-
-from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
-from boost_library_usage_dashboard.publisher import publish_dashboard
-from boost_library_usage_dashboard.renderer import render_dashboard_html
-from boost_library_usage_dashboard.report import write_summary_report
-from config.workspace import get_workspace_path
-
-logger = logging.getLogger(__name__)
+from core.collectors.command_base import BaseCollectorCommand
+from boost_library_usage_dashboard.collectors import (
+    BoostLibraryUsageDashboardCollector,
+)
 
 
-class Command(BaseCommand):
+class Command(BaseCollectorCommand):
     """Django management command: collect metrics, render HTML, optionally push to GitHub."""
 
     help = (
@@ -23,7 +15,6 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Register skip flags and publish target overrides."""
         parser.add_argument(
             "--skip-collect",
             action="store_true",
@@ -58,71 +49,12 @@ class Command(BaseCommand):
             help="Branch to publish to (overrides BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH; default main).",
         )
 
-    def handle(self, *args, **options):
-        """Run collect/render steps, then publish when configured and artifacts exist."""
-        output_dir = get_workspace_path("boost_library_usage_dashboard").resolve()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        skip_collect = options["skip_collect"]
-        skip_render = options["skip_render"]
-        skip_publish = options["skip_publish"]
-
-        if not skip_collect:
-            logger.info("Step 1: Collecting dashboard data from PostgreSQL...")
-            analyzer = BoostUsageDashboardAnalyzer(output_dir=output_dir)
-            stats = analyzer.run()
-
-            logger.info("Step 2: Writing Markdown report...")
-            write_summary_report(
-                analyzer.report_file,
-                stats,
-                stars_min_threshold=analyzer.stars_min_threshold,
-            )
-
-        if not skip_render:
-            logger.info("Step 3: Rendering HTML files...")
-            render_dashboard_html(base_dir=settings.BASE_DIR, output_dir=output_dir)
-
-        if not skip_collect or not skip_render:
-            logger.info("Dashboard artifacts at: %s", output_dir)
-
-        if not skip_publish:
-            owner = (options["owner"] or "").strip() or (
-                getattr(settings, "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER", "")
-                or ""
-            ).strip()
-            repo = (options["repo"] or "").strip() or (
-                getattr(settings, "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO", "")
-                or ""
-            ).strip()
-            branch = (
-                (options["branch"] or "").strip()
-                or (
-                    getattr(
-                        settings,
-                        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
-                        "",
-                    )
-                    or ""
-                ).strip()
-                or "main"
-            )
-
-            if not owner or not repo:
-                logger.warning(
-                    "Skipping publish: set BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER "
-                    "and BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO in settings, or pass "
-                    "--owner and --repo."
-                )
-            else:
-                if not any(output_dir.rglob("*.html")):
-                    raise CommandError(
-                        "Refusing to publish: no HTML artifacts were found in "
-                        f"{output_dir}. Run without --skip-render first."
-                    )
-                publish_dashboard(
-                    output_dir=output_dir,
-                    owner=owner,
-                    repo=repo,
-                    branch=branch,
-                )
+    def get_collector(self, **options):
+        return BoostLibraryUsageDashboardCollector(
+            skip_collect=options["skip_collect"],
+            skip_render=options["skip_render"],
+            skip_publish=options["skip_publish"],
+            owner=options["owner"],
+            repo=options["repo"],
+            branch=options["branch"],
+        )

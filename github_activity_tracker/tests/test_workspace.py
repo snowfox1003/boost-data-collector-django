@@ -1,10 +1,14 @@
 """Tests for github_activity_tracker.workspace."""
 
+import os
+import stat
+
 import pytest
 from pathlib import Path
 from unittest.mock import patch
 
 from github_activity_tracker.workspace import (
+    clear_clone_registry,
     get_clone_dir,
     get_clones_root,
     get_commits_dir,
@@ -26,8 +30,17 @@ from github_activity_tracker.workspace import (
     iter_existing_commit_jsons,
     iter_existing_issue_jsons,
     iter_existing_pr_jsons,
+    get_registered_clones,
+    register_clone,
     remove_clone_dir,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_clone_registry():
+    clear_clone_registry()
+    yield
+    clear_clone_registry()
 
 
 @pytest.fixture
@@ -449,6 +462,22 @@ def test_get_clone_dir_returns_owner_repo_path(mock_workspace_path):
     assert path.parent.is_dir()
 
 
+# --- clone registry ---
+
+
+def test_register_clone_and_get_registered_clones(mock_workspace_path):
+    """register_clone adds path; get_registered_clones returns registered paths."""
+    p = mock_workspace_path / "clones" / "tracked"
+    register_clone(p)
+    assert get_registered_clones() == [p]
+
+
+def test_clear_clone_registry(mock_workspace_path):
+    register_clone(mock_workspace_path / "clones" / "a")
+    clear_clone_registry()
+    assert get_registered_clones() == []
+
+
 # --- remove_clone_dir (Windows Access denied fix) ---
 
 
@@ -466,6 +495,22 @@ def test_remove_clone_dir_removes_dir_and_returns_true(mock_workspace_path):
     result = remove_clone_dir(clone_path)
     assert result is True
     assert not clone_path.exists()
+
+
+def test_remove_clone_dir_clears_read_only_files(mock_workspace_path):
+    """onerror handler chmod helps delete read-only files (common on Windows)."""
+    clone_path = mock_workspace_path / "clones" / "readonly_repo"
+    nested = clone_path / "nested"
+    nested.mkdir(parents=True)
+    f = nested / "locked.txt"
+    f.write_text("x")
+    os.chmod(f, stat.S_IREAD)
+    try:
+        assert remove_clone_dir(clone_path) is True
+        assert not clone_path.exists()
+    finally:
+        if f.exists():
+            os.chmod(f, stat.S_IWRITE | stat.S_IREAD)
 
 
 def test_remove_clone_dir_returns_false_when_rmtree_raises(

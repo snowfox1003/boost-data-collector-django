@@ -24,7 +24,9 @@ from typing import Optional
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 from django.utils.dateparse import parse_datetime
 
 from cppa_user_tracker.services import get_or_create_youtube_speaker
@@ -406,7 +408,66 @@ def _run_pinecone_sync(app_id: str, namespace: str) -> None:
         )
 
 
-class Command(BaseCommand):
+class CppaYoutubeScriptTrackerCollector(CollectorBase):
+    """Phases 1–3 on the command; Pinecone in ``sync_pinecone``."""
+
+    def __init__(self, cmd: Command, options: dict) -> None:
+        self.cmd = cmd
+        self.options = options
+
+    def run(self) -> None:
+        o = self.options
+        start_time_arg = (o.get("start_time") or "").strip()
+        end_time_arg = (o.get("end_time") or "").strip()
+        channel_title = (o.get("channel_title") or "").strip()
+        dry_run: bool = o["dry_run"]
+        skip_transcript: bool = o["skip_transcript"]
+
+        logger.info(
+            "run_cppa_youtube_script_tracker: starting "
+            "(start_time=%s, end_time=%s, channel_title=%s, dry_run=%s, skip_transcript=%s)",
+            start_time_arg or "auto",
+            end_time_arg or "now",
+            channel_title or "all",
+            dry_run,
+            skip_transcript,
+        )
+
+        try:
+            self.cmd._phase_1(dry_run)
+            start_time = _resolve_start_time(start_time_arg, dry_run)
+            end_time = _resolve_end_time(end_time_arg)
+
+            self.cmd.stdout.write(
+                f"Phase 2: fetching videos {start_time.isoformat()} → {end_time.isoformat()} …"
+            )
+
+            if dry_run:
+                self.cmd.stdout.write(
+                    self.cmd.style.SUCCESS(
+                        f"Dry run: would fetch from {start_time.isoformat()} to "
+                        f"{end_time.isoformat()}. No API calls or DB writes."
+                    )
+                )
+                return
+
+            self.cmd._phase_2(start_time, end_time, channel_title)
+            self.cmd._phase_3(skip_transcript)
+
+        except Exception:
+            logger.exception("run_cppa_youtube_script_tracker: unhandled error")
+            raise
+
+    def sync_pinecone(self) -> None:
+        o = self.options
+        if o.get("dry_run"):
+            return
+        pinecone_app_id = (o.get("pinecone_app_id") or "").strip()
+        pinecone_namespace = (o.get("pinecone_namespace") or "").strip()
+        _run_pinecone_sync(app_id=pinecone_app_id, namespace=pinecone_namespace)
+
+
+class Command(BaseCollectorCommand):
     help = (
         "Fetch YouTube C++ video metadata and transcripts, persist to DB, "
         "then optionally upsert to Pinecone. "
@@ -458,50 +519,8 @@ class Command(BaseCommand):
             help=f"Pinecone namespace. Default from env {PINECONE_NAMESPACE_ENV_KEY}.",
         )
 
-    def handle(self, *args, **options):
-        start_time_arg = (options.get("start_time") or "").strip()
-        end_time_arg = (options.get("end_time") or "").strip()
-        channel_title = (options.get("channel_title") or "").strip()
-        dry_run: bool = options["dry_run"]
-        skip_transcript: bool = options["skip_transcript"]
-        pinecone_app_id = (options.get("pinecone_app_id") or "").strip()
-        pinecone_namespace = (options.get("pinecone_namespace") or "").strip()
-
-        logger.info(
-            "run_cppa_youtube_script_tracker: starting "
-            "(start_time=%s, end_time=%s, channel_title=%s, dry_run=%s, skip_transcript=%s)",
-            start_time_arg or "auto",
-            end_time_arg or "now",
-            channel_title or "all",
-            dry_run,
-            skip_transcript,
-        )
-
-        try:
-            self._phase_1(dry_run)
-            start_time = _resolve_start_time(start_time_arg, dry_run)
-            end_time = _resolve_end_time(end_time_arg)
-
-            self.stdout.write(
-                f"Phase 2: fetching videos {start_time.isoformat()} → {end_time.isoformat()} …"
-            )
-
-            if dry_run:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Dry run: would fetch from {start_time.isoformat()} to "
-                        f"{end_time.isoformat()}. No API calls or DB writes."
-                    )
-                )
-                return
-
-            self._phase_2(start_time, end_time, channel_title)
-            self._phase_3(skip_transcript)
-            _run_pinecone_sync(app_id=pinecone_app_id, namespace=pinecone_namespace)
-
-        except Exception:
-            logger.exception("run_cppa_youtube_script_tracker: unhandled error")
-            raise
+    def get_collector(self, **options):
+        return CppaYoutubeScriptTrackerCollector(cmd=self, options=dict(options))
 
     def _phase_1(self, dry_run: bool) -> None:
         if dry_run:

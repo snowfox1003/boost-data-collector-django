@@ -19,7 +19,7 @@ from django.conf import settings
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from operations.slack_ops import (
+from core.operations.slack_ops import (
     get_slack_app_token,
 )
 

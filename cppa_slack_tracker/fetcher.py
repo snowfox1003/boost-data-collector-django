@@ -1,7 +1,7 @@
 """
 Slack API fetcher for cppa_slack_tracker.
 
-All functions use the Slack client from operations.slack_ops (REST requests only).
+All functions use the Slack client from core.operations.slack_ops (REST requests only).
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from operations.slack_ops.tokens import get_slack_client
+from core.operations.slack_ops.tokens import get_slack_client
 
 logger = logging.getLogger(__name__)
 

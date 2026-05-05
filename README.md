@@ -2,7 +2,7 @@
 
 ## Overview
 
-Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_boost_library_tracker`). The main workflow runs these commands in a fixed order (e.g. via `python manage.py run_all_collectors` or a Celery task). See [docs/Workflow.md](docs/Workflow.md) for workflow details.
+Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_boost_library_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
 
 ## Quick start
 
@@ -51,14 +51,14 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
-Each project app has a `migrations/` package; if you previously saw "No changes detected" but `migrate` only listed `admin, auth, contenttypes, sessions`, ensure those packages exist and run the commands again. After a successful `migrate` you should see migrations for `cppa_user_tracker`, `github_activity_tracker`, `boost_library_tracker`, `workflow` (and optionally `github_ops`).
+Each project app has a `migrations/` package; if you previously saw "No changes detected" but `migrate` only listed `admin, auth, contenttypes, sessions`, ensure those packages exist and run the commands again. After a successful `migrate` you should see migrations for `cppa_user_tracker`, `github_activity_tracker`, `boost_library_tracker`, `core`, and other installed apps (GitHub utilities under `core.operations.github_ops` are not Django apps and have no migrations).
 
 If you see `relation "cppa_user_tracker_githubaccount" does not exist` (or similar), the database tables are missing — run the two commands above.
 
 6. Run a single app command or the full workflow to confirm the project works:
 
 ```bash
-python manage.py run_all_collectors
+python manage.py run_scheduled_collectors --schedule daily --group github
 ```
 
 For local development you can start the dev server: `python manage.py runserver`.
@@ -75,7 +75,7 @@ The daily workflow runs as a Celery task (see [docs/Celery_test.md](docs/Celery_
 # Worker (executes tasks)
 celery -A config worker -l info
 
-# Beat (schedules the daily task at 1:00 AM Pacific)
+# Beat (schedules YAML-driven tasks per group / interval)
 celery -A config beat -l info
 ```
 
@@ -97,10 +97,19 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-3. Optional: run with coverage and a short traceback:
+3. Optional: run with coverage (uses repo-root `.coveragerc`) and enforce the same gate as CI:
 
 ```bash
-python -m pytest --tb=short --cov=. --cov-report=term-missing
+python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=90
+```
+
+Coverage writes a local **`.coverage`** file (binary SQLite data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
+
+**PostgreSQL parity (recommended before merging DB-sensitive changes):** CI sets `DATABASE_URL` to Postgres. Locally, `pytest.ini` defaults to SQLite in-memory when `DATABASE_URL` is unset (`config.test_settings`). Run the full suite against Postgres when you touch JSONB, enums, or locks, for example:
+
+```bash
+set DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+python -m pytest
 ```
 
 4. Run a subset of tests (e.g. one app or one file):
@@ -109,6 +118,8 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing
 python -m pytest cppa_user_tracker/tests/ -v
 python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 ```
+
+CI runs pytest with **`--cov-fail-under=90`**. If the job fails on coverage, add tests (tracker B3) or run `python -m pytest --cov=. --cov-report=term` locally to find gaps. If your DB test schema is stale (e.g. after model changes), run once with `python -m pytest --create-db`.
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 
@@ -138,7 +149,7 @@ boost-data-collector/
 |   (Django Apps)
 ├── cppa_user_tracker/
 ├── github_activity_tracker/
-├── workflow/
+├── core/                         # Shared utilities (e.g. collector base types)
 └──     ...
 ```
 
@@ -147,7 +158,7 @@ Each Django app can expose management commands in `management/commands/`. All ap
 ## How it works
 
 - Django project: One Django project with multiple Django apps; all apps share the same settings and database.
-- Workflow: The main task runs app commands in a fixed order (e.g. `run_all_collectors` or a Celery task). Scheduling is done with Celery Beat or by running commands by hand.
+- Workflow: **`boost_collector_runner`** runs app commands from **`config/boost_collector_schedule.yaml`** (via **`run_scheduled_collectors`** and Celery). You can also run individual `manage.py` commands by hand.
 - Database: One PostgreSQL database (e.g. `boost_dashboard`); Django ORM and migrations for all apps.
 - Configuration: Django settings (`settings.py`) and environment variables (e.g. via `django-environ` or `python-decouple`).
 
@@ -159,7 +170,7 @@ The project supports multiple GitHub tokens for different operations (see `.env.
 - **GITHUB_TOKENS_SCRAPING** – Comma-separated list for API read/scraping; tokens are used in round-robin to spread rate limits.
 - **GITHUB_TOKEN_WRITE** – Used for create PR, create issue, comment on issue, and git push (falls back to GITHUB_TOKEN).
 
-**Operations (shared I/O):** External integrations (GitHub, Discord, etc.) live in dedicated apps (e.g. **github_ops**) and are used by other apps. See **[docs/operations/](docs/operations/)** for the group and **[docs/operations/github.md](docs/operations/github.md)** for GitHub usage and token mapping.
+**Operations (shared I/O):** External integrations (GitHub, Slack/markdown helpers, etc.) live under **`core.operations`** (for example **`core.operations.github_ops`**) and are not separate Django apps. See **[docs/operations/](docs/operations/)** and **[docs/operations/github.md](docs/operations/github.md)** for GitHub usage and token mapping.
 
 ## Workspace (raw/processed files)
 
@@ -174,7 +185,8 @@ Docs are organized **by topic** (one doc per concern: workflow, workspace, servi
 - [Celery](#celery) – How to start the Celery worker and Beat.
 - [Celery_test.md](docs/Celery_test.md) – Testing the Celery task (run once, Beat, Redis).
 - [operations/](docs/operations/README.md) – **Operations group:** shared I/O (GitHub, Discord, etc.); index and per-operation docs.
-- [Workflow.md](docs/Workflow.md) – Main application workflow, execution order, and project details.
+- [Architecture_data_flow.md](docs/Architecture_data_flow.md) – High-level data flow (collectors, DB, Pinecone).
+- [How_to_add_a_collector.md](docs/How_to_add_a_collector.md) – Checklist for adding a new collector command.
 - [operations/github.md](docs/operations/github.md) – GitHub layer (clone, push, fetch file, create PR/issue/comment) and token use.
 - [Deployment.md](docs/Deployment.md) – CI/CD pipeline, GitHub secrets, server setup, and deploy script behavior.
 - [Workspace.md](docs/Workspace.md) – Workspace layout and usage for file processing.

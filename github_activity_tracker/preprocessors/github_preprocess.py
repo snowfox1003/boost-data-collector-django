@@ -41,8 +41,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Literal
 
-from operations.md_ops.issue_to_md import issue_json_to_md
-from operations.md_ops.pr_to_md import pr_json_to_md
+from core.operations.md_ops.issue_to_md import issue_json_to_md
+from core.operations.md_ops.pr_to_md import pr_json_to_md
 
 from github_activity_tracker.workspace import (
     get_raw_source_issues_dir,

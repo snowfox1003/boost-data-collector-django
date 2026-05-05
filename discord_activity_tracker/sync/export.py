@@ -3,7 +3,7 @@
 import logging
 import re
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 from collections import defaultdict
@@ -91,10 +91,10 @@ def generate_markdown_content(
     lines.append(f"active_users: {active_users}")
 
     if first_msg:
-        first_utc = first_msg.message_created_at.astimezone(django_timezone.utc)
+        first_utc = first_msg.message_created_at.astimezone(timezone.utc)
         lines.append(f"first_message: {first_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     if last_msg:
-        last_utc = last_msg.message_created_at.astimezone(django_timezone.utc)
+        last_utc = last_msg.message_created_at.astimezone(timezone.utc)
         lines.append(f"last_message: {last_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
 
     discord_url = format_discord_url(
@@ -115,7 +115,7 @@ def generate_markdown_content(
     # Group by date (UTC)
     messages_by_date = defaultdict(list)
     for msg in messages:
-        utc_time = msg.message_created_at.astimezone(django_timezone.utc)
+        utc_time = msg.message_created_at.astimezone(timezone.utc)
         d = utc_time.strftime("%Y-%m-%d")
         messages_by_date[d].append(msg)
 
@@ -127,7 +127,7 @@ def generate_markdown_content(
 
         for msg in messages_by_date[d]:
             # UTC timestamp (with ms)
-            utc_time = msg.message_created_at.astimezone(django_timezone.utc)
+            utc_time = msg.message_created_at.astimezone(timezone.utc)
             timestamp = utc_time.strftime("%H:%M:%S")
             if utc_time.microsecond:
                 timestamp += f".{utc_time.microsecond // 1000:03d}"
@@ -149,9 +149,7 @@ def generate_markdown_content(
                     reply_to = DiscordMessage.objects.get(
                         message_id=msg.reply_to_message_id
                     )
-                    reply_utc = reply_to.message_created_at.astimezone(
-                        django_timezone.utc
-                    )
+                    reply_utc = reply_to.message_created_at.astimezone(timezone.utc)
                     reply_time = reply_utc.strftime("%H:%M:%S")
                     if reply_utc.microsecond:
                         reply_time += f".{reply_utc.microsecond // 1000:03d}"
@@ -257,7 +255,7 @@ def export_channel_to_markdown(
     # Per-day: yyyy/yyyy-MM/yyyy-MM-DD/channel.md
     messages_by_date = defaultdict(list)
     for msg in message_list:
-        utc_time = msg.message_created_at.astimezone(django_timezone.utc)
+        utc_time = msg.message_created_at.astimezone(timezone.utc)
         d = utc_time.strftime("%Y-%m-%d")
         messages_by_date[d].append(msg)
 

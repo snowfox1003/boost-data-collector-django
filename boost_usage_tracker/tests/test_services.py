@@ -600,6 +600,34 @@ def test_get_or_create_missing_header_usage_without_last_commit_date(
     assert usage.last_commit_date is None
 
 
+@pytest.mark.django_db
+def test_get_or_create_missing_header_usage_clears_excepted_at(
+    ext_repo,
+    external_github_file,
+):
+    """Existing placeholder usage with excepted_at is cleared when re-seen with new commit."""
+    usage, _, _ = services.get_or_create_missing_header_usage(
+        ext_repo,
+        external_github_file,
+        "boost/reappear.hpp",
+        last_commit_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+    services.mark_usage_excepted(usage)
+    usage.refresh_from_db()
+    assert usage.excepted_at is not None
+
+    usage2, _, _ = services.get_or_create_missing_header_usage(
+        ext_repo,
+        external_github_file,
+        "boost/reappear.hpp",
+        last_commit_date=datetime(2024, 9, 1, tzinfo=timezone.utc),
+    )
+    assert usage2.pk == usage.pk
+    usage2.refresh_from_db()
+    assert usage2.excepted_at is None
+    assert usage2.last_commit_date == datetime(2024, 9, 1, tzinfo=timezone.utc)
+
+
 # --- bulk_create_or_update_boost_usage ---
 
 

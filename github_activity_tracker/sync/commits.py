@@ -25,8 +25,8 @@ from github_activity_tracker.workspace import (
     get_commit_json_path,
     iter_existing_commit_jsons,
 )
-from github_ops import get_github_client
-from github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops import get_github_client
+from core.operations.github_ops.client import ConnectionException, RateLimitException
 from .raw_source import save_commit_raw_source
 from .etag_cache import RedisListETagCache
 from github_activity_tracker.sync.utils import (

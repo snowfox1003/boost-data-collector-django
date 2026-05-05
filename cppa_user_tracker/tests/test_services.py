@@ -3,12 +3,15 @@
 import pytest
 
 from cppa_user_tracker.models import (
+    DiscordProfile,
     Email,
     GitHubAccount,
     GitHubAccountType,
     Identity,
+    SlackUser,
     TempProfileIdentityRelation,
     WG21PaperAuthorProfile,
+    YoutubeSpeaker,
 )
 from cppa_user_tracker import services
 
@@ -670,3 +673,90 @@ def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_no
     assert profile.id not in (first.id, second.id)
     assert profile.display_name == "Other Name"
     assert profile.emails.filter(email="nomatch@example.com").exists()
+
+
+# --- get_or_create_slack_user ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_slack_user_requires_id():
+    """Raise ValueError when Slack payload has no usable id."""
+    with pytest.raises(ValueError, match="Slack user ID"):
+        services.get_or_create_slack_user({})
+    with pytest.raises(ValueError, match="Slack user ID"):
+        services.get_or_create_slack_user({"id": "   "})
+
+
+@pytest.mark.django_db
+def test_get_or_create_slack_user_updates_existing():
+    """Existing SlackUser row gets username, display_name, avatar, optional email."""
+    SlackUser.objects.create(
+        slack_user_id="U123",
+        username="old",
+        display_name="Old Name",
+        avatar_url="",
+    )
+    user, created = services.get_or_create_slack_user(
+        {
+            "id": "U123",
+            "name": "newuser",
+            "real_name": "Real New",
+            "profile": {"image_72": "https://ava", "email": "slack@example.com"},
+        }
+    )
+    assert created is False
+    user.refresh_from_db()
+    assert user.username == "newuser"
+    assert user.display_name == "Real New"
+    assert user.avatar_url == "https://ava"
+    assert user.emails.filter(email="slack@example.com").exists()
+
+
+# --- get_or_create_discord_profile ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_discord_profile_updates_existing():
+    """Updating paths merge username, display_name, avatar_url, is_bot."""
+    DiscordProfile.objects.create(
+        discord_user_id=999,
+        username="u",
+        display_name="d",
+        avatar_url="",
+        is_bot=False,
+    )
+    profile, created = services.get_or_create_discord_profile(
+        999,
+        username="newu",
+        display_name="newd",
+        avatar_url="http://img",
+        is_bot=True,
+    )
+    assert created is False
+    profile.refresh_from_db()
+    assert profile.username == "newu"
+    assert profile.display_name == "newd"
+    assert profile.avatar_url == "http://img"
+    assert profile.is_bot is True
+
+
+# --- get_or_create_youtube_speaker ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_youtube_speaker_requires_external_id():
+    with pytest.raises(ValueError, match="external_id"):
+        services.get_or_create_youtube_speaker("", display_name="x")
+    with pytest.raises(ValueError, match="external_id"):
+        services.get_or_create_youtube_speaker("   ", display_name="x")
+
+
+@pytest.mark.django_db
+def test_get_or_create_youtube_speaker_updates_display_name():
+    YoutubeSpeaker.objects.create(external_id="yt1", display_name="Old Title")
+    speaker, created = services.get_or_create_youtube_speaker(
+        "yt1", display_name="New Title"
+    )
+    assert created is False
+    speaker.refresh_from_db()
+    assert speaker.display_name == "New Title"

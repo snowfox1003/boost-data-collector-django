@@ -5,6 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cppa_slack_tracker.workspace import (
+    get_channels_json_path,
+    get_members_json_path,
+    get_messages_dir,
+    get_users_json_path,
     get_workspace_root,
     get_raw_root,
     get_team_channel_dir,
@@ -14,6 +18,7 @@ from cppa_slack_tracker.workspace import (
     iter_existing_message_jsons,
 )
 from cppa_slack_tracker.workspace import _slug  # noqa: PLC2701
+from cppa_slack_tracker.workspace import _validate_date_str  # noqa: PLC2701
 
 
 @pytest.fixture
@@ -93,6 +98,32 @@ class TestSlugAndPaths:
         assert path.is_dir()
 
 
+class TestValidateDateStr:
+    def test_rejects_path_traversal(self):
+        with pytest.raises(ValueError, match="YYYY-MM-DD"):
+            _validate_date_str("../etc/passwd")
+
+    def test_rejects_bad_format(self):
+        with pytest.raises(ValueError, match="YYYY-MM-DD"):
+            _validate_date_str("01-15-2026")
+
+
+class TestSlugAndExtraPaths:
+    def test_slug_empty_returns_unknown(self):
+        assert _slug("") == "unknown"
+        assert _slug("   ") == "unknown"
+
+    def test_json_path_helpers(self, _mock_get_workspace_path):
+        assert get_users_json_path("Team").name == "users.json"
+        assert get_channels_json_path("Team").name == "channels.json"
+        assert get_members_json_path("Team", "general").name == "members.json"
+
+    def test_get_messages_dir(self, _mock_get_workspace_path):
+        d = get_messages_dir()
+        assert d.name == "messages"
+        assert d.exists()
+
+
 class TestIterExistingMessageJsons:
     def test_yields_nothing_when_workspace_missing(self, _mock_get_workspace_path):
         with patch("cppa_slack_tracker.workspace.get_workspace_root") as m:
@@ -116,3 +147,30 @@ class TestIterExistingMessageJsons:
         assert "2026-01-15" in stems
         assert "2026-01-16" in stems
         assert "not-a-date" not in stems
+
+    def test_team_only_walks_channels(self, _mock_get_workspace_path):
+        root = _mock_get_workspace_path.return_value
+        team = root / _slug("Team")
+        ch = team / _slug("general")
+        ch.mkdir(parents=True)
+        (ch / "2026-02-01.json").write_text("[]")
+        with patch(
+            "cppa_slack_tracker.workspace.get_workspace_root", return_value=root
+        ):
+            paths = list(iter_existing_message_jsons("Team"))
+        assert len(paths) == 1
+
+    def test_full_tree_skips_messages_dir(self, _mock_get_workspace_path):
+        root = _mock_get_workspace_path.return_value
+        messages_legacy = root / "messages"
+        messages_legacy.mkdir(parents=True)
+        (messages_legacy / "noise.json").write_text("{}")
+        team = root / "myteam"
+        ch = team / "chan"
+        ch.mkdir(parents=True)
+        (ch / "2026-03-01.json").write_text("[]")
+        with patch(
+            "cppa_slack_tracker.workspace.get_workspace_root", return_value=root
+        ):
+            paths = list(iter_existing_message_jsons())
+        assert len(paths) == 1

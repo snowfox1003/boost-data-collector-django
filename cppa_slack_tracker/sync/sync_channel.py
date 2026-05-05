@@ -75,7 +75,7 @@ def sync_channels(
 
     # Single channel: fetch from API only
     if channel_id:
-        from operations.slack_ops.tokens import get_slack_client
+        from core.operations.slack_ops.tokens import get_slack_client
 
         tid = team_id or team.team_id
         try:

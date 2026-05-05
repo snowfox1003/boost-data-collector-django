@@ -83,7 +83,7 @@ Contains all HTTP and HTML logic. Makes no database writes.
 
 **Command name:** `run_boost_library_docs_tracker`
 
-Added to `COLLECTOR_COMMANDS` in `workflow/management/commands/run_all_collectors.py` after `run_boost_library_tracker`.
+Registered in `config/boost_collector_schedule.yaml` under the `boost_library_docs` group (after `run_boost_github_activity_tracker` in the overall pipeline).
 
 ### Arguments
 
@@ -131,7 +131,7 @@ One Pinecone vector per **BoostDocContent** row. The preprocessor selects rows w
 
 ## Scheduling
 
-The app runs inside the existing daily Celery Beat schedule (1:00 AM Pacific) via `run_all_collectors`. On most days there is no new version and the command finishes quickly; on a release day a full scrape runs for the new version. Pinecone upserts run for any **BoostDocContent** with `is_upserted=False` or in the failure retry list.
+The app runs on the **`on_release`** schedule in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md)). On most days there is no new version and the command finishes quickly; on a release day a full scrape runs for the new version. Pinecone upserts run for any **BoostDocContent** with `is_upserted=False` or in the failure retry list.
 
 For a manual backfill of specific versions, pass values that match **BoostVersion.version** in the database (often the GitHub tag form with a `boost-` prefix):
 
@@ -167,7 +167,7 @@ When adding this app to the project, do all of the following:
 1. Add `"boost_library_docs_tracker"` to `INSTALLED_APPS` in `settings.py`.
 2. Add `"boost_library_docs_tracker"` to `_WORKSPACE_APP_SLUGS` in `settings.py`.
 3. Add the five `BOOST_DOCS_*` settings to `settings.py` and their env var defaults to `.env.example`.
-4. Add `"run_boost_library_docs_tracker"` to `COLLECTOR_COMMANDS` in `workflow/management/commands/run_all_collectors.py` (after `"run_boost_library_tracker"`).
+4. Add `"run_boost_library_docs_tracker"` to `config/boost_collector_schedule.yaml` under the `boost_library_docs` group (see [Workflow.md](Workflow.md)).
 5. Add `beautifulsoup4` and `lxml` to `requirements.txt` (if not already present).
 6. Run `python manage.py migrate` to apply the app’s committed migrations.
 

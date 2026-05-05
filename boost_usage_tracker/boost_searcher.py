@@ -28,7 +28,7 @@ from core.utils.boost_version_operations import (
     normalize_boost_version_string,
 )
 
-from github_ops.client import GitHubAPIClient
+from core.operations.github_ops.client import GitHubAPIClient
 
 logger = logging.getLogger(__name__)
 

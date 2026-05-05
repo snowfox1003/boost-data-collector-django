@@ -7,6 +7,9 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | Topic | Doc | Purpose |
 |-------|-----|---------|
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
+| **Architecture** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow diagram: sources → collectors → DB / workspace → Pinecone. |
+| **Add a collector** | [How_to_add_a_collector.md](How_to_add_a_collector.md) | Checklist: new command, registration, tests, docs. |
+| **Core API** | [Core_public_API.md](Core_public_API.md) | Stable `core` imports: collectors, error classification. |
 | **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
 | → GitHub | [operations/github.md](operations/github.md) | Clone, push, fetch file, create PR/issue/comment; token use. |
 | **Workspace** | [Workspace.md](Workspace.md) | Workspace layout and usage for file processing (`workspace/<app>/...`). |
@@ -22,7 +25,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 
 **Operations** = external integrations used by many apps (not the same as **Service API**, which is for DB writes). See **[operations/README.md](operations/README.md)** for the full list and when to add one.
 
-- **GitHub:** [operations/github.md](operations/github.md) — `github_ops` app (clone, push, PR, issue, comment).
+- **GitHub:** [operations/github.md](operations/github.md) — `core.operations.github_ops` (clone, push, PR, issue, comment).
 - **Discord:** *(add operations/discord.md when you add Discord notifications.)*
 
 ## Finding app-specific info

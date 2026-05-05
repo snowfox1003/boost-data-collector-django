@@ -9,8 +9,9 @@ import threading
 
 from django.conf import settings
 
+from config.workspace import WORKSPACE_PATH_SETUP_ERRORS
 from slack_event_handler.workspace import get_workspace_root
-from operations.slack_ops import get_slack_app_token
+from core.operations.slack_ops import get_slack_app_token
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,11 @@ def run_slack_event_handler(bot_token=None, app_token=None):
     If multiple teams are configured (SLACK_TEAM_IDS + SLACK_BOT_TOKEN_<id>), starts one
     listener per team in a separate thread. Otherwise uses default team key (single/first in SLACK_TEAM_IDS).
     """
+    # Best-effort debug log only; matches exceptions from config.workspace.get_workspace_path.
     try:
         root = get_workspace_root()
         logger.debug("Slack Event Handler workspace root: %s", root)
-    except Exception as e:
+    except WORKSPACE_PATH_SETUP_ERRORS as e:
         logger.exception("Failed to resolve workspace root: %s", e)
 
     tokens_map = getattr(settings, "SLACK_BOT_TOKEN", None) or {}

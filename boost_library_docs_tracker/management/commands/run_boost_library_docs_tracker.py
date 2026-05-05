@@ -35,11 +35,16 @@ Usage examples:
   python manage.py run_boost_library_docs_tracker --skip-pinecone
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 
 from boost_library_docs_tracker import fetcher, services, workspace
 from boost_library_docs_tracker.preprocessor import preprocess_for_pinecone
@@ -52,7 +57,39 @@ PINECONE_NAMESPACE = "boost-library-documentation"
 DEFAULT_MAX_PAGES = 10
 
 
-class Command(BaseCommand):
+class BoostLibraryDocsTrackerCollector(CollectorBase):
+    """Scrape docs to DB/workspace; Pinecone upsert in ``sync_pinecone``."""
+
+    def __init__(self, cmd: "Command", options: dict) -> None:
+        self.cmd = cmd
+        self.options = options
+
+    def run(self) -> None:
+        o = self.options
+        try:
+            self.cmd._run(
+                versions_arg=o["versions"],
+                library_filter=o["library"],
+                dry_run=o["dry_run"],
+                skip_pinecone=o["skip_pinecone"],
+                max_pages=o["max_pages"],
+                use_local=o["use_local"],
+                cleanup_extract=o["cleanup_extract"],
+            )
+        except CommandError:
+            raise
+        except Exception as exc:
+            logger.exception("run_boost_library_docs_tracker failed: %s", exc)
+            raise CommandError(str(exc)) from exc
+
+    def sync_pinecone(self) -> None:
+        o = self.options
+        if o.get("dry_run") or o.get("skip_pinecone"):
+            return
+        self.cmd._sync_pinecone()
+
+
+class Command(BaseCollectorCommand):
     help = (
         "Scrape Boost library documentation for given versions and upsert to Pinecone."
     )
@@ -108,24 +145,9 @@ class Command(BaseCommand):
             ),
         )
 
-    def handle(self, *args, **options):
-        try:
-            self._run(
-                versions_arg=options["versions"],
-                library_filter=options["library"],
-                dry_run=options["dry_run"],
-                skip_pinecone=options["skip_pinecone"],
-                max_pages=options["max_pages"],
-                use_local=options["use_local"],
-                cleanup_extract=options["cleanup_extract"],
-            )
-        except CommandError:
-            raise
-        except Exception as exc:
-            logger.exception("run_boost_library_docs_tracker failed: %s", exc)
-            raise CommandError(str(exc)) from exc
+    def get_collector(self, **options):
+        return BoostLibraryDocsTrackerCollector(cmd=self, options=dict(options))
 
-    # ------------------------------------------------------------------
     # Top-level flow
     # ------------------------------------------------------------------
 
@@ -160,9 +182,6 @@ class Command(BaseCommand):
         if dry_run or skip_pinecone:
             reason = "dry run" if dry_run else "--skip-pinecone set"
             self.stdout.write(f"Skipping Pinecone sync ({reason}).")
-            return
-
-        self._sync_pinecone()
 
     def _process_version(
         self, *, version, library_filter, dry_run, max_pages, use_local, cleanup_extract

@@ -402,7 +402,10 @@ class PineconeIngestion:
         else:
             original_doc_id = f"{original_doc_id}_{text[:50]}_{len(text)}"
 
-        return hashlib.md5(original_doc_id.encode()).hexdigest()
+        return hashlib.md5(
+            original_doc_id.encode(),
+            usedforsecurity=False,
+        ).hexdigest()
 
     @staticmethod
     def _mark_batch_failed(

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from .models import MailingListMessage, MailingListName
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from datetime import datetime
 
     from cppa_user_tracker.models import MailingListProfile

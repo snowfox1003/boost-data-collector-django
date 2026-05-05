@@ -35,8 +35,8 @@ from github_activity_tracker.workspace import (
 )
 
 from core.utils.datetime_parsing import parse_iso_datetime as parse_datetime
-from github_ops import get_github_client
-from github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops import get_github_client
+from core.operations.github_ops.client import ConnectionException, RateLimitException
 
 from clang_github_tracker import services as clang_services
 from clang_github_tracker.workspace import OWNER, REPO

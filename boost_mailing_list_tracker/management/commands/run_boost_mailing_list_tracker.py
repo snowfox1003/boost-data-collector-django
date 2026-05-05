@@ -13,8 +13,10 @@ import logging
 
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_datetime
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
 
 from boost_mailing_list_tracker.email_formatter import format_email
 from boost_mailing_list_tracker.fetcher import (
@@ -177,7 +179,151 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
     return processed, skipped
 
 
-class Command(BaseCommand):
+class BoostMailingListTrackerCollector(CollectorBase):
+    """Fetch mailing lists via workspace pipeline."""
+
+    def __init__(
+        self,
+        *,
+        stdout,
+        style,
+        start_date: str,
+        end_date: str,
+        dry_run: bool,
+        pinecone_app_type: str,
+        pinecone_namespace: str,
+    ) -> None:
+        self.stdout = stdout
+        self.style = style
+        self.start_date = start_date
+        self.end_date = end_date
+        self.dry_run = dry_run
+        self.pinecone_app_type = pinecone_app_type
+        self.pinecone_namespace = pinecone_namespace
+
+    def run(self) -> None:
+        start_date = self.start_date
+        end_date = self.end_date
+        dry_run = self.dry_run
+
+        logger.info(
+            "run_boost_mailing_list_tracker: starting (start_date=%s, end_date=%s, dry_run=%s)",
+            start_date or "none",
+            end_date or "none",
+            dry_run,
+        )
+
+        list_names = [u.split("/")[-3] for u in BOOST_LIST_URLS]
+
+        if not dry_run:
+            total_existing = 0
+            total_skipped = 0
+            for list_name in list_names:
+                processed, skipped = _process_existing_workspace_json(list_name)
+                total_existing += processed
+                total_skipped += skipped
+
+            self.stdout.write(
+                f"Processed {total_existing} existing message JSON(s) from workspace. {total_skipped} skipped."
+            )
+            logger.info(
+                "run_boost_mailing_list_tracker: processed %s existing JSON(s)",
+                total_existing,
+            )
+
+        if not (start_date and start_date.strip()):
+            start_date = _get_start_date_from_db()
+            if start_date:
+                logger.info(
+                    "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
+                    start_date,
+                )
+
+        self.stdout.write("Fetching emails from Boost mailing list archives...")
+        emails = fetch_all_emails(start_date=start_date, end_date=end_date)
+
+        if not emails:
+            self.stdout.write(self.style.WARNING("No emails fetched from API."))
+            logger.info("run_boost_mailing_list_tracker: no emails fetched")
+            emails = []
+
+        self.stdout.write(f"Fetched {len(emails)} emails from API.")
+
+        if dry_run:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Dry run: would process {len(emails)} emails. No DB or workspace writes."
+                )
+            )
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        for email_data in emails:
+            msg_id = email_data.get("msg_id", "")
+            list_name = email_data.get("list_name", "")
+            if not msg_id:
+                skipped_count += 1
+                continue
+
+            json_path = get_message_json_path(list_name, msg_id)
+            try:
+                raw_path = get_raw_json_path(list_name, msg_id)
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_path.write_text(
+                    json.dumps(email_data, indent=2, default=str),
+                    encoding="utf-8",
+                )
+
+                json_path.parent.mkdir(parents=True, exist_ok=True)
+                json_path.write_text(
+                    json.dumps(email_data, indent=2, default=str),
+                    encoding="utf-8",
+                )
+
+                was_created, skipped = _persist_email(email_data)
+                if was_created:
+                    created_count += 1
+                elif skipped:
+                    skipped_count += 1
+                json_path.unlink(missing_ok=True)
+            except (
+                json.JSONDecodeError,
+                TypeError,
+                ValueError,
+                KeyError,
+                AttributeError,
+            ) as e:
+                skipped_count += 1
+                logger.warning(
+                    "Skipping malformed email list_name=%s msg_id=%s: %s",
+                    list_name,
+                    msg_id,
+                    e,
+                )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Done: {created_count} created, {skipped_count} skipped (already existed or empty)."
+            )
+        )
+        logger.info(
+            "run_boost_mailing_list_tracker: finished; created=%d, skipped=%d",
+            created_count,
+            skipped_count,
+        )
+
+    def sync_pinecone(self) -> None:
+        if self.dry_run:
+            return
+        _run_pinecone_sync(
+            app_type=self.pinecone_app_type,
+            namespace=self.pinecone_namespace,
+        )
+
+
+class Command(BaseCollectorCommand):
     help = (
         "Fetch Boost mailing list emails and save to the database via workspace. "
         "Process existing workspace JSONs first, then fetch from API (write JSON → persist → remove)."
@@ -214,7 +360,7 @@ class Command(BaseCommand):
             help=f"Pinecone namespace for sync. Default from env {PINECONE_NAMESPACE_ENV_KEY}.",
         )
 
-    def handle(self, *args, **options):
+    def get_collector(self, **options):
         start_date = options["start_date"]
         end_date = options["end_date"]
         dry_run = options["dry_run"]
@@ -224,122 +370,12 @@ class Command(BaseCommand):
         pinecone_namespace = (
             options.get("pinecone_namespace") or ""
         ).strip() or settings.BOOST_MAILING_LIST_PINECONE_NAMESPACE
-
-        logger.info(
-            "run_boost_mailing_list_tracker: starting (start_date=%s, end_date=%s, dry_run=%s)",
-            start_date or "none",
-            end_date or "none",
-            dry_run,
+        return BoostMailingListTrackerCollector(
+            stdout=self.stdout,
+            style=self.style,
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=dry_run,
+            pinecone_app_type=pinecone_app_type,
+            pinecone_namespace=pinecone_namespace,
         )
-
-        list_names = [u.split("/")[-3] for u in BOOST_LIST_URLS]
-
-        try:
-            # Phase 1: process existing workspace JSONs
-            if not dry_run:
-                total_existing = 0
-                total_skipped = 0
-                for list_name in list_names:
-                    processed, skipped = _process_existing_workspace_json(list_name)
-                    total_existing += processed
-                    total_skipped += skipped
-
-                self.stdout.write(
-                    f"Processed {total_existing} existing message JSON(s) from workspace. {total_skipped} skipped."
-                )
-                logger.info(
-                    "run_boost_mailing_list_tracker: processed %s existing JSON(s)",
-                    total_existing,
-                )
-
-            # Phase 2: fetch from API
-            if not (start_date and start_date.strip()):
-                start_date = _get_start_date_from_db()
-                if start_date:
-                    logger.info(
-                        "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
-                        start_date,
-                    )
-
-            self.stdout.write("Fetching emails from Boost mailing list archives...")
-            emails = fetch_all_emails(start_date=start_date, end_date=end_date)
-
-            if not emails:
-                self.stdout.write(self.style.WARNING("No emails fetched from API."))
-                logger.info("run_boost_mailing_list_tracker: no emails fetched")
-                emails = []
-
-            self.stdout.write(f"Fetched {len(emails)} emails from API.")
-
-            if dry_run:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Dry run: would process {len(emails)} emails. No DB or workspace writes."
-                    )
-                )
-                return
-
-            # Phase 3: process new JSONs in workspace
-            created_count = 0
-            skipped_count = 0
-
-            for email_data in emails:
-                msg_id = email_data.get("msg_id", "")
-                list_name = email_data.get("list_name", "")
-                if not msg_id:
-                    skipped_count += 1
-                    continue
-
-                json_path = get_message_json_path(list_name, msg_id)
-                try:
-                    # Provisional raw archive for Phase 3:
-                    # workspace/raw/boost_mailing_list_tracker/<list_name>/<msg_id>.json
-                    # Keep these files (do not delete).
-                    raw_path = get_raw_json_path(list_name, msg_id)
-                    raw_path.parent.mkdir(parents=True, exist_ok=True)
-                    raw_path.write_text(
-                        json.dumps(email_data, indent=2, default=str),
-                        encoding="utf-8",
-                    )
-
-                    # Write to workspace (like github_activity_tracker: save JSON then persist then remove)
-                    json_path.parent.mkdir(parents=True, exist_ok=True)
-                    json_path.write_text(
-                        json.dumps(email_data, indent=2, default=str),
-                        encoding="utf-8",
-                    )
-
-                    was_created, skipped = _persist_email(email_data)
-                    if was_created:
-                        created_count += 1
-                    elif skipped:
-                        skipped_count += 1
-                    json_path.unlink(missing_ok=True)
-                except Exception as e:
-                    skipped_count += 1
-                    logger.warning(
-                        "Skipping malformed email list_name=%s msg_id=%s: %s",
-                        list_name,
-                        msg_id,
-                        e,
-                    )
-
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Done: {created_count} created, {skipped_count} skipped (already existed or empty)."
-                )
-            )
-            logger.info(
-                "run_boost_mailing_list_tracker: finished; created=%d, skipped=%d",
-                created_count,
-                skipped_count,
-            )
-            # Phase 4: upsert to Pinecone as final processing.
-            _run_pinecone_sync(
-                app_type=pinecone_app_type,
-                namespace=pinecone_namespace,
-            )
-
-        except Exception as e:
-            logger.exception("run_boost_mailing_list_tracker failed: %s", e)
-            raise

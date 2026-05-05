@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from github_ops.client import GitHubAPIClient
+from core.operations.github_ops.client import GitHubAPIClient
 
 logger = logging.getLogger(__name__)
 

@@ -8,9 +8,9 @@ import os
 
 from django.conf import settings
 
-from github_ops import upload_file
-from operations.file_ops import sanitize_filename
-from operations.slack_ops import SlackFetcher, fetch_huddle_transcript
+from core.operations.github_ops import upload_file
+from core.operations.file_ops import sanitize_filename
+from core.operations.slack_ops import SlackFetcher, fetch_huddle_transcript
 
 from slack_event_handler.workspace import get_data_dir
 

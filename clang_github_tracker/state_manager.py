@@ -7,7 +7,7 @@ Uses DB watermarks on ClangGithubIssueItem / ClangGithubCommit (not state.json).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 
 from django.utils import timezone
 
@@ -25,8 +25,8 @@ def _aware_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if timezone.is_naive(dt):
-        return timezone.make_aware(dt, timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return timezone.make_aware(dt, dt_timezone.utc)
+    return dt.astimezone(dt_timezone.utc)
 
 
 def resolve_start_end_dates(
