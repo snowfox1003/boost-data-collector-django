@@ -80,10 +80,7 @@ def test_classify_os_error_network_errno():
 
 
 def test_classify_os_error_connection_error_subclass():
-    assert (
-        classify_failure(ConnectionResetError())
-        is CollectorFailureCategory.NETWORK
-    )
+    assert classify_failure(ConnectionResetError()) is CollectorFailureCategory.NETWORK
 
 
 def test_classify_os_error_io_ambiguous_is_unknown():
