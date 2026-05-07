@@ -167,9 +167,11 @@ def test_pr_preprocessor_naive_final_sync_and_bad_json(mock_build, tmp_path, set
     assert mock_build.call_count >= 1
 
     p.write_text("{", encoding="utf-8")
+    calls_before = mock_build.call_count
     with patch(
         "clang_github_tracker.preprocessors.pr_preprocessor.get_raw_source_pr_path",
         return_value=p,
     ):
         docs, _ = pr_preprocessor.preprocess_for_pinecone([], None)
     assert docs == []
+    assert mock_build.call_count == calls_before

@@ -22,6 +22,8 @@ def test_clean_text_remove_extra_spaces_false_keeps_newlines():
     out = clean_text(raw, remove_extra_spaces=False)
     assert "line1" in out
     assert "line2" in out
+    assert "\n" in out
+    assert out.splitlines() == ["line1", "", "", "line2"]
 
 
 def test_clean_text_unescapes_html_and_invisible_chars():

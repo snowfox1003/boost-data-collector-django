@@ -4,19 +4,32 @@ Imports base settings, then overrides for fast and isolated tests.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from .settings import *  # noqa: F401, F403
 
-# Use SQLite in-memory for speed when DATABASE_URL not set (e.g. local pytest).
-# CI can set DATABASE_URL=sqlite:///test.sqlite3 or leave unset for :memory:
-if not os.environ.get("DATABASE_URL", "").strip():
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:",
-        }
+_SQLITE_TEST_DB = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
     }
+}
+
+# Prefer SQLite for pytest so a developer .env DATABASE_URL (Docker Postgres) does not
+# require a running server. CI Postgres jobs set USE_POSTGRES_TESTS=1 so DATABASE_URL
+# still applies under pytest.
+_under_pytest = "pytest" in sys.modules
+_use_postgres_tests = os.environ.get("USE_POSTGRES_TESTS", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+_want_sqlite = (not os.environ.get("DATABASE_URL", "").strip()) or (
+    _under_pytest and not _use_postgres_tests
+)
+if _want_sqlite:
+    DATABASES = _SQLITE_TEST_DB
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",

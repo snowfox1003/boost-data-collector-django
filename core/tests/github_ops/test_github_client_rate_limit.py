@@ -75,7 +75,8 @@ def test_parse_rate_limit_wait_graphql_errors_in_200_body():
     client = GitHubAPIClient("t")
     r = _resp(200, {"errors": [{"message": "throttled"}]})
     wait = client._parse_rate_limit_wait(r)
-    assert wait is None or isinstance(wait, (int, float))
+    # Throttled GraphQL body without rate-limit headers falls through to None.
+    assert wait is None
 
 
 def test_parse_rate_limit_wait_200_json_decode_error():
@@ -94,7 +95,8 @@ def test_parse_rate_limit_wait_retry_after_http_date():
     client = GitHubAPIClient("t")
     r = _resp(429, headers={"Retry-After": "Wed, 21 Oct 2099 07:28:00 GMT"})
     w = client._parse_rate_limit_wait(r)
-    assert w is None or w > 0
+    assert isinstance(w, (int, float))
+    assert w > 0
 
 
 def test_parse_rate_limit_wait_retry_after_invalid_then_x_ratelimit():
@@ -109,7 +111,8 @@ def test_parse_rate_limit_wait_retry_after_invalid_then_x_ratelimit():
         },
     )
     w = client._parse_rate_limit_wait(r)
-    assert w is not None and w >= 0
+    assert isinstance(w, int)
+    assert w > 0
 
 
 def test_parse_rate_limit_wait_non_403_429_returns_none():
@@ -125,9 +128,12 @@ def test_parse_rate_limit_remaining_nonzero_returns_none():
 
 def test_update_rate_limit_from_response_skips_invalid_int():
     client = GitHubAPIClient("t")
+    client.rate_limit_remaining = 77
+    client.rate_limit_reset_time = 88
     r = _resp(200, headers={"X-RateLimit-Remaining": "x", "X-RateLimit-Reset": "1"})
     client._update_rate_limit_from_response(r)
-    assert client.rate_limit_remaining is None or client.rate_limit_reset_time is None
+    assert client.rate_limit_remaining == 77
+    assert client.rate_limit_reset_time == 88
 
 
 def test_raise_if_error_http_error_propagates():

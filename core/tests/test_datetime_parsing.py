@@ -42,6 +42,8 @@ def test_parse_iso_datetime_z_suffix():
     assert dt.month == 3
     assert dt.day == 15
     assert dt.hour == 10
+    assert dt.minute == 30
+    assert dt.second == 0
 
 
 def test_parse_iso_datetime_date_only():
@@ -54,8 +56,12 @@ def test_parse_iso_datetime_with_offset_strips_tz_to_naive_utc():
     dt = parse_iso_datetime("2024-01-01T00:00:00+05:00")
     assert dt is not None
     assert dt.tzinfo is None
-    assert dt.day == 31
+    assert dt.year == 2023
     assert dt.month == 12
+    assert dt.day == 31
+    assert dt.hour == 19
+    assert dt.minute == 0
+    assert dt.second == 0
 
 
 def test_parse_iso_datetime_invalid_raises():

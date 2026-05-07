@@ -18,16 +18,23 @@ def fake_token():
 def test_clone_repo_timeout_reraises_with_redacted_cmd(
     mock_run, _mock_token, tmp_path, fake_token
 ):
+    dest = tmp_path / "dest"
     mock_run.side_effect = subprocess.TimeoutExpired(
-        cmd=["git", "clone", "x", str(tmp_path / "d")],
+        cmd=[
+            "git",
+            "clone",
+            f"https://x-access-token:{fake_token}@github.com/o/r.git",
+            str(dest),
+        ],
         timeout=1,
         output="out",
         stderr="err",
     )
-    dest = tmp_path / "dest"
     with pytest.raises(subprocess.TimeoutExpired) as ei:
         git_ops.clone_repo("https://github.com/o/r.git", dest, token=fake_token)
-    assert fake_token not in str(ei.value.cmd)
+    cmd_joined = " ".join(map(str, ei.value.cmd))
+    assert fake_token not in cmd_joined
+    assert "https://github.com/o/r.git" in ei.value.cmd[2]
 
 
 @patch("core.operations.github_ops.git_ops.get_github_token", return_value="tok")
@@ -35,14 +42,26 @@ def test_clone_repo_timeout_reraises_with_redacted_cmd(
 def test_clone_repo_called_process_error_reraises_sanitized_stderr(
     mock_run, _mock_token, tmp_path, fake_token
 ):
+    dest = tmp_path / "dest2"
     mock_run.side_effect = subprocess.CalledProcessError(
         1,
-        ["git", "clone"],
+        [
+            "git",
+            "clone",
+            f"https://x-access-token:{fake_token}@github.com/o/r.git",
+            str(dest),
+            "--depth",
+            "1",
+        ],
         output=None,
-        stderr=f"fatal: auth failed x-access-token:{fake_token}\n",
+        stderr=(
+            f"fatal: unable to access "
+            f"'https://x-access-token:{fake_token}@github.com/o/r.git/': denied\n"
+        ),
     )
-    dest = tmp_path / "dest2"
     with pytest.raises(subprocess.CalledProcessError) as ei:
         git_ops.clone_repo("o/r", dest, token=fake_token, depth=1)
-    assert fake_token not in " ".join(ei.value.cmd)
-    assert "--depth" in " ".join(ei.value.cmd)
+    cmd_joined = " ".join(map(str, ei.value.cmd))
+    assert fake_token not in cmd_joined
+    assert fake_token not in (ei.value.stderr or "")
+    assert "--depth" in cmd_joined

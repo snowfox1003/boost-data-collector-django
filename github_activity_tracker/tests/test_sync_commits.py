@@ -1,5 +1,6 @@
 from concurrent.futures import Future
 import json
+import logging
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -442,8 +443,13 @@ def test_sync_commits_skips_fetch_item_without_sha(github_repository, tmp_path):
         sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
     ), patch.object(
         sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
-    ):
+    ), patch.object(
+        sync_commits_mod,
+        "_process_commit_data",
+    ) as mock_process_commit_data:
         sync_commits_mod.sync_commits(github_repository)
+
+    mock_process_commit_data.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -479,6 +485,7 @@ def test_sync_commits_raises_rate_limit(github_repository):
 def test_sync_commits_future_result_exception_logged(
     github_repository,
     tmp_path,
+    caplog,
 ):
     sha = "f" * 40
     commit_data = {
@@ -522,8 +529,13 @@ def test_sync_commits_future_result_exception_logged(
         sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
     ), patch.object(
         sync_commits_mod, "_process_existing_commit_jsons", return_value=0
+    ), caplog.at_level(
+        logging.ERROR, logger="github_activity_tracker.sync.commits"
     ):
         sync_commits_mod.sync_commits(github_repository)
+
+    logged = " ".join(r.message for r in caplog.records)
+    assert "Big commit task" in logged and "worker boom" in logged
 
 
 @pytest.mark.django_db
@@ -641,7 +653,7 @@ def test_process_big_commit_worker_primary_write_fails_then_fallback():
 
 
 @pytest.mark.django_db
-def test_sync_commits_logs_existing_json_count(github_repository):
+def test_sync_commits_logs_existing_json_count(github_repository, caplog):
     class _Exec:
         def submit(self, *a, **k):
             fut = Future()
@@ -663,8 +675,13 @@ def test_sync_commits_logs_existing_json_count(github_repository):
         sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
     ), patch.object(
         sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
+    ), caplog.at_level(
+        logging.INFO, logger="github_activity_tracker.sync.commits"
     ):
         sync_commits_mod.sync_commits(github_repository)
+
+    logged = " ".join(r.message for r in caplog.records)
+    assert "processed 4 existing commit JSON" in logged
 
 
 @pytest.mark.django_db

@@ -65,7 +65,7 @@ def test_converter_get_markdown_collapses_blank_lines():
 def test_img_inside_control_tag_does_not_emit_markdown():
     html = "<html><body><control><img src='/x.png' alt='y'/></control></body></html>"
     md = html_to_markdown(html)
-    assert "![" not in md or "x.png" not in md
+    assert "![" not in md and "x.png" not in md
 
 
 def test_anchor_empty_text_still_emits_url():

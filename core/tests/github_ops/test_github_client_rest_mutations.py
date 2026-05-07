@@ -99,7 +99,11 @@ def test_delete_file_calls_rest_delete_when_sha_present():
     c.get_file_sha = MagicMock(return_value="sha1")
     c.rest_delete = MagicMock(return_value={"commit": {}})
     c.delete_file("o", "r", "f.txt", "m", branch="dev")
-    assert c.rest_delete.called
+    c.get_file_sha.assert_called_once_with("o", "r", "f.txt", ref="dev")
+    c.rest_delete.assert_called_once_with(
+        "/repos/o/r/contents/f.txt",
+        json_data={"message": "m", "sha": "sha1", "branch": "dev"},
+    )
 
 
 def test_rest_request_url_with_all_links_hits_do_request():
@@ -109,11 +113,12 @@ def test_rest_request_url_with_all_links_hits_do_request():
         headers={"Link": '<https://api.github.com/repos/o/r?page=2>; rel="next"'},
     )
     c._rest_get_url = MagicMock(return_value=r)
-    data, links = c.rest_request_url_with_all_links(
-        "https://api.github.com/repos/o/r/issues?page=1"
-    )
+    start = "https://api.github.com/repos/o/r/issues?page=1"
+    data, links = c.rest_request_url_with_all_links(start)
     assert data == {"items": []}
-    assert "next" in links
+    assert links["next"] == "https://api.github.com/repos/o/r?page=2"
+    # Single GET only; callers follow ``links["next"]`` themselves (no auto-traverse).
+    c._rest_get_url.assert_called_once_with(start)
 
 
 def test_rest_request_url_returns_data_and_next():

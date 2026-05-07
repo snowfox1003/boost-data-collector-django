@@ -168,7 +168,7 @@ def test_sync_users_malformed_payload():
         "cppa_slack_tracker.sync.sync_user.fetch_user_list",
         return_value=["not-a-dict"],
     ):
-        ok, err = sync_users("slug", team_id="T1")
+        _ok, err = sync_users("slug", team_id="T1")
     assert err >= 1
 
 
@@ -260,7 +260,7 @@ def test_process_workspace_jsons_not_list(tmp_path, sample_slack_channel, monkey
     )
     p = tmp_path / "x.json"
     p.write_text('{"not":"list"}', encoding="utf-8")
-    s, e = _process_workspace_jsons(sample_slack_channel)
+    s, _e = _process_workspace_jsons(sample_slack_channel)
     assert not p.exists()
     assert s == 0
 
@@ -325,7 +325,7 @@ def test_sync_messages_derived_start_none_messages_without_ts(sample_slack_chann
             start_date=None,
             end_date=date(2025, 1, 1),
         )
-    assert ok == 0
+    assert ok == 0 and err == 0
 
 
 @pytest.mark.django_db
@@ -407,6 +407,7 @@ def test_sync_messages_corrupt_raw_file_still_merges(
             end_date=d,
         )
     assert ok == 1
+    assert err == 0
     data = json.loads(raw.read_text(encoding="utf-8"))
     assert any(m.get("text") == "recovered" for m in data)
 
@@ -441,6 +442,7 @@ def test_sync_messages_write_oserror_skips_day(sample_slack_channel):
             end_date=d,
         )
     assert ok == 0
+    assert err == 0
 
 
 @pytest.mark.django_db
@@ -479,6 +481,7 @@ def test_sync_messages_unlink_failure_after_process(sample_slack_channel):
             end_date=d,
         )
     assert ok == 1
+    assert err == 0
 
 
 @pytest.mark.django_db
