@@ -49,6 +49,14 @@ def test_detect_renames_from_dirs_non_numbered_md_ignored(
     assert detect_renames_from_dirs("o", "r", "main", new_files, token="t") == []
 
 
+@patch("core.operations.md_ops.github_export.list_remote_directory")
+def test_detect_renames_from_dirs_repo_root_relative_paths(mock_list_remote: MagicMock):
+    mock_list_remote.return_value = ["#2 - Old title.md"]
+    new_files = {"#2 - New title.md": "/tmp/x"}
+    out = detect_renames_from_dirs("o", "r", "main", new_files, token="t")
+    assert out == ["#2 - Old title.md"]
+
+
 def test_detect_renames_success_matches_tree():
     """detect_renames uses same semantics as directory listing."""
     tree = [
@@ -91,6 +99,15 @@ def test_detect_stale_titled_paths_missing_month_dir(tmp_path: Path):
 
 def test_detect_stale_titled_paths_empty_new_files(tmp_path: Path):
     assert detect_stale_titled_paths(tmp_path, {}) == []
+
+
+def test_detect_stale_titled_paths_at_repo_root_skips_non_md(tmp_path: Path):
+    (tmp_path / "#3 - Old title.md").write_text("a", encoding="utf-8")
+    new_md = tmp_path / "#3 - New title.md"
+    new_md.write_text("b", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("x", encoding="utf-8")
+    stale = detect_stale_titled_paths(tmp_path, {"#3 - New title.md": str(new_md)})
+    assert stale == ["#3 - Old title.md"]
 
 
 def test_detect_stale_titled_paths_union_two_dirs(tmp_path: Path):

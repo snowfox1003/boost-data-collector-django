@@ -1,8 +1,12 @@
 """Tests for sync_issues_and_prs unified sync function."""
 
+import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from github_activity_tracker.sync import issues_and_prs as issues_mod
 from github_activity_tracker.sync.issues_and_prs import (
     sync_issues_and_prs,
 )
@@ -198,3 +202,454 @@ def test_sync_issues_and_prs_saves_and_removes_json_files(
     mock_json_path.parent.mkdir.assert_called_once()
     mock_json_path.write_text.assert_called_once()
     mock_json_path.unlink.assert_called_once()
+
+
+@pytest.mark.django_db
+def test_process_issue_data_skips_without_user(github_repository):
+    issue = {"number": 1, "user": None}
+    issues_mod._process_issue_data(github_repository, issue)
+
+
+@pytest.mark.django_db
+def test_process_pr_data_skips_without_user(github_repository):
+    pr = {"pr_info": {"number": 2, "user": None}}
+    issues_mod._process_pr_data(github_repository, pr)
+
+
+@pytest.mark.django_db
+def test_process_existing_issue_jsons_bad_file(github_repository, tmp_path):
+    p = tmp_path / "x.json"
+    p.write_text("{", encoding="utf-8")
+    with patch.object(
+        issues_mod,
+        "iter_existing_issue_jsons",
+        lambda owner, repo: [p],
+    ):
+        n, nums = issues_mod._process_existing_issue_jsons(github_repository)
+    assert n == 0 and nums == []
+
+
+@pytest.mark.django_db
+def test_process_existing_pr_jsons_bad_file(github_repository, tmp_path):
+    p = tmp_path / "p.json"
+    p.write_text("{", encoding="utf-8")
+    with patch.object(
+        issues_mod,
+        "iter_existing_pr_jsons",
+        lambda owner, repo: [p],
+    ):
+        n, nums = issues_mod._process_existing_pr_jsons(github_repository)
+    assert n == 0 and nums == []
+
+
+@pytest.mark.django_db
+def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository):
+    item = {"issue_info": {"number": None}, "comments": []}
+
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", return_value=MagicMock()
+    ), patch.object(
+        issues_mod.fetcher,
+        "fetch_issues_and_prs_from_github",
+        lambda *a, **k: [item],
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
+        out = issues_mod.sync_issues_and_prs(github_repository)
+    assert out["issues"] == []
+
+
+@pytest.mark.django_db
+def test_sync_issues_and_prs_unexpected_error_wraps(github_repository):
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", side_effect=RuntimeError("boom")
+    ):
+        with pytest.raises(RuntimeError, match="boom"):
+            issues_mod.sync_issues_and_prs(github_repository)
+
+
+@pytest.mark.django_db
+def test_sync_issues_start_date_issue_only_branch(github_repository):
+    """When only last_issue exists, start_date is issue_date + 1s."""
+    from github_activity_tracker.models import Issue
+
+    Issue.objects.create(
+        repo=github_repository,
+        account=github_repository.owner_account,
+        issue_id=900002,
+        issue_number=2,
+        title="t",
+        body="",
+        state="open",
+        state_reason="",
+        issue_created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        issue_updated_at=datetime(2024, 4, 10, tzinfo=timezone.utc),
+    )
+
+    mock_fetch = MagicMock(return_value=[])
+
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", return_value=MagicMock()
+    ), patch.object(
+        issues_mod.fetcher,
+        "fetch_issues_and_prs_from_github",
+        mock_fetch,
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
+        issues_mod.sync_issues_and_prs(github_repository)
+
+    start = mock_fetch.call_args[0][3]
+    assert start == datetime(2024, 4, 10, 0, 0, 1, tzinfo=timezone.utc)
+
+
+@pytest.mark.django_db
+def test_sync_issues_start_date_pr_only_branch(github_repository):
+    from github_activity_tracker.models import PullRequest
+
+    PullRequest.objects.create(
+        repo=github_repository,
+        account=github_repository.owner_account,
+        pr_id=800001,
+        pr_number=3,
+        title="p",
+        body="",
+        state="open",
+        head_hash="",
+        base_hash="",
+        pr_created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        pr_updated_at=datetime(2024, 5, 5, tzinfo=timezone.utc),
+    )
+
+    mock_fetch = MagicMock(return_value=[])
+
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", return_value=MagicMock()
+    ), patch.object(
+        issues_mod.fetcher,
+        "fetch_issues_and_prs_from_github",
+        mock_fetch,
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
+        issues_mod.sync_issues_and_prs(github_repository)
+
+    start = mock_fetch.call_args[0][3]
+    assert start == datetime(2024, 5, 5, 0, 0, 1, tzinfo=timezone.utc)
+
+
+@pytest.mark.django_db
+def test_process_issue_data_assignees_labels_and_comments(
+    github_repository, make_github_account
+):
+    owner_acc = github_repository.owner_account
+    other = make_github_account(
+        github_account_id=888001,
+        username="assignee-user",
+    )
+    data = {
+        "number": 601,
+        "id": 9000601,
+        "title": "Issue T",
+        "body": "body",
+        "state": "open",
+        "state_reason": "",
+        "user": {
+            "id": owner_acc.github_account_id,
+            "login": owner_acc.username,
+            "name": "",
+            "avatar_url": "",
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T00:00:00Z",
+        "closed_at": None,
+        "comments": [
+            {
+                "id": 77001,
+                "body": "c1",
+                "user": {
+                    "id": other.github_account_id,
+                    "login": other.username,
+                    "name": "",
+                    "avatar_url": "",
+                },
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+            },
+            {
+                "id": 77002,
+                "body": "no user",
+                "user": None,
+            },
+        ],
+        "assignees": [
+            {
+                "id": owner_acc.github_account_id,
+                "login": owner_acc.username,
+                "name": "",
+                "avatar_url": "",
+            },
+            {
+                "id": other.github_account_id,
+                "login": other.username,
+                "name": "",
+                "avatar_url": "",
+            },
+        ],
+        "labels": [{"name": "bug"}, {"name": "docs"}],
+    }
+    issues_mod._process_issue_data(github_repository, data)
+    issue = github_repository.issues.get(issue_number=601)
+    assert issue.comments.count() == 1
+    assert issue.assignees.count() == 2
+    assert {il.label_name for il in issue.labels.all()} == {"bug", "docs"}
+
+    data2 = {
+        **data,
+        "comments": [
+            {
+                "id": 77001,
+                "body": "updated",
+                "user": {
+                    "id": other.github_account_id,
+                    "login": other.username,
+                    "name": "",
+                    "avatar_url": "",
+                },
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-03T00:00:00Z",
+            }
+        ],
+        "assignees": [data["assignees"][0]],
+        "labels": [{"name": "bug"}],
+    }
+    issues_mod._process_issue_data(github_repository, data2)
+    issue.refresh_from_db()
+    assert issue.comments.get(issue_comment_id=77001).body == "updated"
+    assert issue.assignees.count() == 1
+    assert {il.label_name for il in issue.labels.all()} == {"bug"}
+
+
+@pytest.mark.django_db
+def test_process_pr_data_reviews_comments_labels(
+    github_repository, make_github_account
+):
+    owner_acc = github_repository.owner_account
+    reviewer = make_github_account(github_account_id=888002, username="rev")
+    pr_payload = {
+        "number": 701,
+        "id": 8000701,
+        "title": "PR",
+        "body": "",
+        "state": "open",
+        "user": {
+            "id": owner_acc.github_account_id,
+            "login": owner_acc.username,
+            "name": "",
+            "avatar_url": "",
+        },
+        "head": {"sha": "abc"},
+        "base": {"sha": "def"},
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T00:00:00Z",
+        "merged_at": None,
+        "closed_at": None,
+        "comments": [
+            {
+                "id": 88001,
+                "body": "pc",
+                "user": {
+                    "id": reviewer.github_account_id,
+                    "login": reviewer.username,
+                    "name": "",
+                    "avatar_url": "",
+                },
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+            }
+        ],
+        "reviews": [
+            {
+                "id": 99001,
+                "body": "lgtm",
+                "in_reply_to_id": None,
+                "user": {
+                    "id": reviewer.github_account_id,
+                    "login": reviewer.username,
+                    "name": "",
+                    "avatar_url": "",
+                },
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+            },
+            {
+                "id": 99002,
+                "body": "skip",
+                "user": None,
+            },
+        ],
+        "assignees": [
+            {
+                "id": owner_acc.github_account_id,
+                "login": owner_acc.username,
+                "name": "",
+                "avatar_url": "",
+            },
+            {
+                "id": reviewer.github_account_id,
+                "login": reviewer.username,
+                "name": "",
+                "avatar_url": "",
+            },
+        ],
+        "labels": [{"name": "pr-label"}],
+    }
+    issues_mod._process_pr_data(github_repository, pr_payload)
+    pr = github_repository.pull_requests.get(pr_number=701)
+    assert pr.comments.count() == 1
+    assert pr.reviews.count() == 1
+    assert pr.assignees.count() == 2
+
+    pr_payload2 = {
+        **pr_payload,
+        "assignees": [pr_payload["assignees"][0]],
+        "labels": [],
+    }
+    issues_mod._process_pr_data(github_repository, pr_payload2)
+    pr.refresh_from_db()
+    assert pr.assignees.count() == 1
+    assert list(pr.labels.all()) == []
+
+
+@pytest.mark.django_db
+def test_sync_issues_and_prs_rate_limit(github_repository):
+    from core.operations.github_ops.client import RateLimitException
+
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", side_effect=RateLimitException("rl")
+    ):
+        with pytest.raises(RateLimitException):
+            issues_mod.sync_issues_and_prs(github_repository)
+
+
+@pytest.mark.django_db
+def test_process_existing_issue_jsons_success_nested(
+    github_repository,
+    tmp_path,
+):
+    owner_acc = github_repository.owner_account
+    body = {
+        "issue_info": {
+            "number": 602,
+            "id": 9000602,
+            "title": "nested",
+            "body": "",
+            "state": "open",
+            "state_reason": "",
+            "user": {
+                "id": owner_acc.github_account_id,
+                "login": owner_acc.username,
+                "name": "",
+                "avatar_url": "",
+            },
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-02T00:00:00Z",
+            "closed_at": None,
+            "comments": [],
+            "assignees": [],
+            "labels": [],
+        },
+        "comments": [],
+    }
+    p = tmp_path / "602.json"
+    p.write_text(json.dumps(body), encoding="utf-8")
+    with patch.object(
+        issues_mod,
+        "iter_existing_issue_jsons",
+        lambda owner, repo: [p],
+    ), patch.object(issues_mod, "save_issue_raw_source"):
+        n, nums = issues_mod._process_existing_issue_jsons(github_repository)
+    assert n == 1 and nums == [602]
+    assert not p.exists()
+
+
+@pytest.mark.django_db
+def test_sync_issues_pr_info_present_but_number_none(github_repository):
+    item = {"pr_info": {}, "comments": []}
+    with patch.object(
+        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
+    ), patch.object(
+        issues_mod, "get_github_client", return_value=MagicMock()
+    ), patch.object(
+        issues_mod.fetcher,
+        "fetch_issues_and_prs_from_github",
+        lambda *a, **k: [item],
+    ), patch.object(
+        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    ):
+        out = issues_mod.sync_issues_and_prs(github_repository)
+    assert out["pull_requests"] == []
+
+
+@pytest.mark.django_db
+def test_process_existing_pr_jsons_success_nested(github_repository, tmp_path):
+    owner_acc = github_repository.owner_account
+    body = {
+        "pr_info": {
+            "number": 703,
+            "id": 8000703,
+            "title": "pr nested",
+            "body": "",
+            "state": "open",
+            "user": {
+                "id": owner_acc.github_account_id,
+                "login": owner_acc.username,
+                "name": "",
+                "avatar_url": "",
+            },
+            "head": {"sha": "a"},
+            "base": {"sha": "b"},
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-02T00:00:00Z",
+            "merged_at": None,
+            "closed_at": None,
+            "comments": [],
+            "reviews": [],
+            "assignees": [],
+            "labels": [],
+        },
+        "comments": [],
+        "reviews": [],
+    }
+    p = tmp_path / "703.json"
+    p.write_text(json.dumps(body), encoding="utf-8")
+    with patch.object(
+        issues_mod,
+        "iter_existing_pr_jsons",
+        lambda owner, repo: [p],
+    ), patch.object(issues_mod, "save_pr_raw_source"):
+        n, nums = issues_mod._process_existing_pr_jsons(github_repository)
+    assert n == 1 and nums == [703]
+    assert not p.exists()

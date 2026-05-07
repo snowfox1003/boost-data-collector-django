@@ -1,5 +1,7 @@
 """Tests for core.utils.boost_version_operations."""
 
+from unittest.mock import patch
+
 import pytest
 
 from core.utils.boost_version_operations import (
@@ -31,6 +33,11 @@ def test_encode_boost_version_string():
 def test_parse_invalid_returns_none():
     assert parse_boost_version_string("") is None
     assert parse_boost_version_string("not-a-version") is None
+    assert parse_boost_version_string("x.1.0") is None
+    assert parse_boost_version_string("1.1000.0") is None
+    assert parse_boost_version_string("1.0.100") is None
+    assert parse_boost_version_string("-1.0.0") is None
+    assert parse_boost_version_string(".1.0") is None
 
 
 def test_encode_rejects_out_of_range():
@@ -38,6 +45,16 @@ def test_encode_rejects_out_of_range():
         encode_boost_version(1, 1000, 0)
     with pytest.raises(ValueError):
         encode_boost_version(1, 0, 100)
+
+
+def test_encode_rejects_negative_components():
+    with pytest.raises(ValueError):
+        encode_boost_version(-1, 0, 0)
+
+
+def test_decode_rejects_negative_encoded():
+    with pytest.raises(ValueError):
+        decode_boost_version(-1)
 
 
 def test_loose_version_tuple_empty_and_digits():
@@ -67,6 +84,15 @@ def test_compare_loose_version_strings():
 def test_compare_encoded_versions():
     assert compare_encoded_versions(100_000, 200_000) == -1
     assert compare_encoded_versions(108_600, 108_600) == 0
+    assert compare_encoded_versions(200_000, 100_000) == 1
+
+
+def test_encode_boost_version_string_returns_none_when_encode_raises():
+    with patch(
+        "core.utils.boost_version_operations.encode_boost_version",
+        side_effect=ValueError("x"),
+    ):
+        assert encode_boost_version_string("1.0.0") is None
 
 
 def test_parse_stable_boost_release_tag():

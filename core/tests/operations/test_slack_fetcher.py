@@ -230,6 +230,16 @@ def test_update_tokens_in_env_updates_existing(tmp_path, monkeypatch):
     assert "newc" in text and "newd" in text
 
 
+def test_update_tokens_in_env_appends_missing_xoxc(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    env = tmp_path / ".env"
+    env.write_text("SLACK_XOXD_TOKEN=oldd\nOTHER=1\n", encoding="utf-8")
+    _update_tokens_in_env("xc", "xd")
+    text = env.read_text(encoding="utf-8")
+    assert "SLACK_XOXC_TOKEN=xc" in text
+    assert "SLACK_XOXD_TOKEN=xd" in text
+
+
 @override_settings(SLACK_XOXC_TOKEN="xc", SLACK_XOXD_TOKEN="xd")
 @patch("core.operations.slack_ops.fetcher.requests.post")
 @patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
@@ -304,6 +314,15 @@ def test_download_file_generic_exception(mock_get, tmp_path):
     assert f.download_file("https://x", save_path=str(tmp_path)) is None
 
 
+@patch("core.operations.slack_ops.fetcher.requests.get")
+def test_download_file_zero_max_retries_returns_none_without_request(
+    mock_get, tmp_path
+):
+    f = SlackFetcher(bot_token="tok")
+    assert f.download_file("https://x", save_path=str(tmp_path), max_retries=0) is None
+    mock_get.assert_not_called()
+
+
 def test_get_file_and_download_when_get_file_info_fails():
     f = SlackFetcher(bot_token="t")
     with patch.object(f, "get_file_info", return_value=None):
@@ -368,6 +387,14 @@ def test_fetch_huddle_missing_tokens_and_no_team(_mock_team):
 @patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
 def test_fetch_huddle_extract_returns_invalid(mock_extract, _mock_team):
     mock_extract.return_value = {}
+    assert fetch_huddle_transcript("F1") is None
+
+
+@override_settings(SLACK_XOXC_TOKEN="", SLACK_XOXD_TOKEN="")
+@patch("slack_event_handler.utils.slack_tokens.extract_slack_tokens_auto")
+@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
+def test_fetch_huddle_extract_returns_only_xoxc(mock_extract, _mock_team):
+    mock_extract.return_value = {"xoxc": "xc-only"}
     assert fetch_huddle_transcript("F1") is None
 
 

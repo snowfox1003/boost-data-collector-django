@@ -237,3 +237,27 @@ def test_upsert_issue_items_batch_merge_with_db_keeps_pr_once_true():
     clang_services.upsert_issue_items_batch([(21, True, t0, t0)])
     clang_services.upsert_issue_items_batch([(21, False, t0, t0)])
     assert ClangGithubIssueItem.objects.get(number=21).is_pull_request is True
+
+
+@pytest.mark.django_db
+def test_upsert_commit_rejects_non_40_char_sha():
+    with pytest.raises(ValueError, match="40 hex"):
+        clang_services.upsert_commit("abc", github_committed_at=timezone.now())
+
+
+@pytest.mark.django_db
+def test_flush_commits_and_issue_chunks_empty_return_zero():
+    assert clang_services._flush_commits_chunk([]) == (0, 0)
+    assert clang_services._flush_issue_items_chunk([]) == (0, 0)
+
+
+@pytest.mark.django_db
+def test_upsert_commits_batch_invalid_batch_size_and_skips_short_sha():
+    sha = "f" * 40
+    t0 = timezone.now()
+    ins, upd = clang_services.upsert_commits_batch(
+        [(sha, t0), ("short", t0)], batch_size=0
+    )
+    assert ins == 1 and upd == 0
+    ins2, upd2 = clang_services.upsert_commits_batch([(sha, t0)], batch_size=99_999)
+    assert ins2 == 0 and upd2 == 1

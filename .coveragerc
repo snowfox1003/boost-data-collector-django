@@ -1,0 +1,36 @@
+# Coverage.py — used by pytest-cov (`pytest --cov`, CI), Makefile `test-cov`, and:
+#   python -m pytest --cov=. --cov-report=term-missing --cov-fail-under=90
+# Docs: https://coverage.readthedocs.io/en/latest/config.html
+
+[run]
+source = .
+branch = false
+omit =
+    */migrations/*
+    */tests/*
+    .venv/*
+    venv/*
+    env/*
+    .eggs/*
+    */site-packages/*
+    staticfiles/*
+    htmlcov/*
+    .test_artifacts/*
+    manage.py
+
+[report]
+precision = 2
+show_missing = true
+skip_empty = true
+exclude_lines =
+    pragma: no cover
+    pragma: no branch
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+    @overload
+    @abstractmethod
+    @abc.abstractmethod
+    if __name__ == .__main__.:

@@ -90,6 +90,16 @@ _WIN_SOCK_WINERRORS: frozenset[int] = frozenset(
 )
 
 
+def _os_error_windows_code(exc: OSError) -> int | None:
+    """Windows code from ``exc.winerror``, or from ``exc.args[3]`` on POSIX (ignored slot)."""
+    win = getattr(exc, "winerror", None)
+    if isinstance(win, int):
+        return win
+    if len(exc.args) >= 4 and isinstance(exc.args[3], int):
+        return exc.args[3]
+    return None
+
+
 def _classify_os_error(exc: OSError) -> CollectorFailureCategory:
     """
     ``OSError`` spans sockets/pipes and filesystem/disk; only classify clear network
@@ -117,8 +127,8 @@ def _classify_os_error(exc: OSError) -> CollectorFailureCategory:
         if errno_val in _LOCAL_IO_ERRNOS:
             return CollectorFailureCategory.UNKNOWN
 
-    winerror = getattr(exc, "winerror", None)
-    if winerror is not None and winerror in _WIN_SOCK_WINERRORS:
+    win_code = _os_error_windows_code(exc)
+    if win_code is not None and win_code in _WIN_SOCK_WINERRORS:
         return CollectorFailureCategory.NETWORK
 
     return CollectorFailureCategory.UNKNOWN

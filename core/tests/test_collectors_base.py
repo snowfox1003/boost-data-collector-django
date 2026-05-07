@@ -19,6 +19,11 @@ def test_django_command_collector_run_calls_call_command():
     m.assert_called_once_with("run_boost_usage_tracker")
 
 
+def test_django_command_collector_sync_pinecone_default_noop():
+    c = DjangoCommandCollector("check")
+    assert c.sync_pinecone() is None
+
+
 def test_base_collector_command_runs_then_sync_pinecone():
     phases = []
 

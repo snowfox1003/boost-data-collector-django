@@ -2,6 +2,9 @@
 Tests for cppa_slack_tracker.services.
 """
 
+from datetime import datetime, timezone
+from unittest.mock import patch
+
 import pytest
 
 from cppa_user_tracker.services import get_or_create_slack_user
@@ -305,3 +308,183 @@ class TestSlackService:
         calls = [c[0][0] for c in mock_fetch.call_args_list]
         assert "U99999999" in calls
         assert "-1" not in calls
+
+    def test_get_or_create_slack_team_requires_team_id(self):
+        with pytest.raises(ValueError, match="Slack team ID is required"):
+            get_or_create_slack_team({})
+
+    def test_parse_slack_ts_string_invalid_returns_now_utc(self):
+        before = datetime.now(timezone.utc)
+        dt = _parse_slack_ts_string("not-a-valid-ts")
+        after = datetime.now(timezone.utc)
+        assert before <= dt <= after
+
+    def test_get_or_create_slack_channel_skips_private(self, sample_slack_team):
+        ch, created = get_or_create_slack_channel(
+            {
+                "id": "Cprivate01",
+                "name": "secret",
+                "is_channel": True,
+                "is_private": True,
+            },
+            sample_slack_team,
+        )
+        assert ch is None
+        assert created is False
+
+    def test_get_or_create_slack_channel_topic_when_no_purpose(
+        self, sample_slack_team, sample_slack_user
+    ):
+        cid = "Ctopiconly01"
+        ch, created = get_or_create_slack_channel(
+            {
+                "id": cid,
+                "name": "announcements",
+                "is_channel": True,
+                "is_private": False,
+                "topic": {"value": "Read this first"},
+                "creator": "U12345678",
+            },
+            sample_slack_team,
+        )
+        assert created is True
+        assert ch.description == "Read this first"
+        assert ch.creator == sample_slack_user
+
+    def test_get_or_create_slack_channel_updates_existing(
+        self, sample_slack_team, sample_slack_user, sample_slack_channel
+    ):
+        data = {
+            "id": sample_slack_channel.channel_id,
+            "name": "renamed",
+            "is_channel": True,
+            "is_private": False,
+            "purpose": {"value": "new purpose"},
+            "creator": "U12345678",
+        }
+        ch, created = get_or_create_slack_channel(data, sample_slack_team)
+        assert created is False
+        assert ch.channel_name == "renamed"
+        assert ch.description == "new purpose"
+
+    def test_save_slack_message_channel_join_without_ts_logs(
+        self, sample_slack_channel, caplog
+    ):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            msg = save_slack_message(
+                sample_slack_channel,
+                {"subtype": "channel_join", "user": "U12345678"},
+            )
+        assert msg is None
+        assert "Skipping channel_join without ts" in caplog.text
+
+    def test_save_slack_message_channel_leave_without_ts_logs(
+        self, sample_slack_channel, caplog
+    ):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            msg = save_slack_message(
+                sample_slack_channel,
+                {"subtype": "channel_leave", "user": "U12345678"},
+            )
+        assert msg is None
+        assert "Skipping channel_leave without ts" in caplog.text
+
+    def test_save_slack_message_file_comment_with_comment_dict(
+        self, sample_slack_channel, sample_slack_user
+    ):
+        message_data = {
+            "user": "U12345678",
+            "subtype": "file_comment",
+            "text": "Nice file",
+            "ts": "1609459200.555555",
+            "comment": {"comment": "nested text"},
+        }
+        msg = save_slack_message(sample_slack_channel, message_data)
+        assert msg is not None
+        assert "Nice file" in msg.message
+        assert "nested text" in msg.message
+
+    def test_save_slack_message_file_placeholder_without_user_returns_none(
+        self, sample_slack_channel
+    ):
+        msg = save_slack_message(
+            sample_slack_channel,
+            {"text": "A file was commented on", "ts": "1609459200.666666"},
+        )
+        assert msg is None
+
+    def test_save_slack_message_requires_user_for_normal_message(
+        self, sample_slack_channel
+    ):
+        with pytest.raises(ValueError, match="User not found"):
+            save_slack_message(
+                sample_slack_channel,
+                {"text": "hello", "ts": "1609459200.777777"},
+            )
+
+    def test_add_channel_membership_change_updates_existing_log_is_joined(
+        self, sample_slack_channel, sample_slack_user
+    ):
+        ts = "1609459200.888888"
+        log1 = add_channel_membership_change(
+            sample_slack_channel, "U12345678", ts, is_joined=True
+        )
+        assert log1.is_joined is True
+        log2 = add_channel_membership_change(
+            sample_slack_channel, "U12345678", ts, is_joined=False
+        )
+        assert log2.pk == log1.pk
+        log1.refresh_from_db()
+        assert log1.is_joined is False
+
+    def test_add_channel_membership_rejoin_restores_deleted_membership(
+        self, sample_slack_channel, sample_slack_user, sample_slack_membership
+    ):
+        sample_slack_membership.is_deleted = True
+        sample_slack_membership.save()
+        add_channel_membership_change(
+            sample_slack_channel,
+            "U12345678",
+            "1609459200.999999",
+            is_joined=True,
+        )
+        sample_slack_membership.refresh_from_db()
+        assert not sample_slack_membership.is_deleted
+
+    def test_sync_channel_memberships_skips_unknown_user_ids(
+        self, sample_slack_channel, sample_slack_user
+    ):
+        SlackChannelMembership.objects.create(
+            channel=sample_slack_channel,
+            user=sample_slack_user,
+        )
+        sync_channel_memberships(
+            sample_slack_channel,
+            ["U12345678", "Unonexistent"],
+        )
+        m = SlackChannelMembership.objects.get(
+            channel=sample_slack_channel, user=sample_slack_user
+        )
+        assert not m.is_deleted
+
+    def test_sync_channel_memberships_remove_continues_if_user_missing(
+        self, sample_slack_channel, sample_slack_user
+    ):
+        SlackChannelMembership.objects.create(
+            channel=sample_slack_channel,
+            user=sample_slack_user,
+        )
+        with patch.object(
+            SlackUser.objects,
+            "get",
+            side_effect=SlackUser.DoesNotExist,
+        ):
+            sync_channel_memberships(sample_slack_channel, [])
+        m = SlackChannelMembership.objects.get(
+            channel=sample_slack_channel, user=sample_slack_user
+        )
+        assert not m.is_deleted

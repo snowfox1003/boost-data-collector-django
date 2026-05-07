@@ -117,7 +117,8 @@ jobs:
 
       - name: Test with pytest
         env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          USE_POSTGRES_TESTS: "1"
           SECRET_KEY: for-testing-only
           DJANGO_SETTINGS_MODULE: config.test_settings
         run: |

@@ -62,6 +62,30 @@ def test_issue_json_to_md_closed():
     assert "> Closed at: 2024-01-02 12:00:00 UTC" in md
 
 
+def test_issue_json_to_md_comment_includes_updated_at_when_different():
+    data = {
+        "issue_info": {
+            "number": 1,
+            "title": "T",
+            "state": "open",
+            "user": {"login": "a"},
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "body": "",
+        },
+        "comments": [
+            {
+                "user": {"login": "b"},
+                "created_at": "2024-01-02T10:00:00Z",
+                "updated_at": "2024-01-02T11:00:00Z",
+                "body": "Edited reply.",
+            },
+        ],
+    }
+    md = issue_json_to_md(data)
+    assert "> Updated at: 2024-01-02 11:00:00 UTC" in md
+
+
 def test_issue_json_to_md_with_comments():
     """Issue with comments includes Comment 1, Comment 2 sections."""
     data = {

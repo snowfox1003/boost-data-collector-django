@@ -4,19 +4,33 @@ Imports base settings, then overrides for fast and isolated tests.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from .settings import *  # noqa: F401, F403
 
-# Use SQLite in-memory when DATABASE_URL is unset (typical local pytest).
-# GitHub Actions test job sets DATABASE_URL to the workflow's postgres service (see .github/workflows/actions.yml).
-if not os.environ.get("DATABASE_URL", "").strip():
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:",
-        }
+# In-memory SQLite for fast, isolated tests when we are not targeting Postgres (see below).
+_SQLITE_TEST_DB = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
     }
+}
+
+# Prefer SQLite when DATABASE_URL is unset, or under pytest without USE_POSTGRES_TESTS so a
+# developer .env DATABASE_URL (Docker Postgres) does not require a running server.
+# GitHub Actions Postgres jobs set USE_POSTGRES_TESTS=1 so DATABASE_URL still applies under pytest.
+_under_pytest = "pytest" in sys.modules
+_use_postgres_tests = os.environ.get("USE_POSTGRES_TESTS", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+_want_sqlite = (not os.environ.get("DATABASE_URL", "").strip()) or (
+    _under_pytest and not _use_postgres_tests
+)
+if _want_sqlite:
+    DATABASES = _SQLITE_TEST_DB
 
 # When tests target PostgreSQL (e.g. CI), prefer short-lived connections and a bounded
 # connect timeout so flaky networking fails fast instead of hanging pytest.

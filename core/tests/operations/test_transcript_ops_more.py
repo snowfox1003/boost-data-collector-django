@@ -139,3 +139,55 @@ def test_write_huddle_transcript_md_write_error(tmp_path):
             summary_markdown="",
         )
     assert out is None
+
+
+def test_parse_datetime_range_with_utc_suffix():
+    out = parse_datetime_range(
+        "10:00:00 AM - 11:00:00 AM UTC",
+        date_str="01/15/2024",
+    )
+    assert "PST" in out
+
+
+def test_parse_datetime_range_end_before_start_crosses_midnight():
+    out = parse_datetime_range(
+        "11:00:00 PM - 01:00:00 AM PST",
+        date_str="06/01/24",
+    )
+    assert "PST" in out and "_" in out
+
+
+def test_parse_datetime_range_invalid_date_str_falls_back():
+    out = parse_datetime_range(
+        "10:00:00 AM - 11:00:00 AM PST",
+        date_str="not-a-date",
+    )
+    assert "PST" in out
+
+
+def test_replace_channel_ids_noop_without_channel_id():
+    assert replace_channel_ids_with_names("#C1 here", None, "general") == "#C1 here"
+
+
+def test_generate_transcript_skips_non_dict_block():
+    payload = {
+        "file": {
+            "huddle_transcription": {
+                "blocks": ["bad", {"elements": []}],
+            }
+        }
+    }
+    assert generate_transcript_from_json(payload) == []
+
+
+def test_generate_transcript_non_dict_file_data_returns_empty():
+    assert generate_transcript_from_json({"file": object()}) == []
+
+
+def test_replace_user_ids_prefers_real_name_when_no_display():
+    md = "Hi @U55"
+    out = replace_user_ids_with_usernames(
+        md,
+        {"U55": {"real_name": "Real N", "name": "u55"}},
+    )
+    assert "Real N" in out

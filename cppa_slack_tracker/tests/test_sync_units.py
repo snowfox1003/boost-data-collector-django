@@ -1,5 +1,6 @@
 """Unit tests for cppa_slack_tracker.sync modules (mocked API / DB edges)."""
 
+import json
 import uuid
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -167,7 +168,7 @@ def test_sync_users_malformed_payload():
         "cppa_slack_tracker.sync.sync_user.fetch_user_list",
         return_value=["not-a-dict"],
     ):
-        ok, err = sync_users("slug", team_id="T1")
+        _ok, err = sync_users("slug", team_id="T1")
     assert err >= 1
 
 
@@ -259,7 +260,7 @@ def test_process_workspace_jsons_not_list(tmp_path, sample_slack_channel, monkey
     )
     p = tmp_path / "x.json"
     p.write_text('{"not":"list"}', encoding="utf-8")
-    s, e = _process_workspace_jsons(sample_slack_channel)
+    s, _e = _process_workspace_jsons(sample_slack_channel)
     assert not p.exists()
     assert s == 0
 
@@ -324,4 +325,221 @@ def test_sync_messages_derived_start_none_messages_without_ts(sample_slack_chann
             start_date=None,
             end_date=date(2025, 1, 1),
         )
+    assert ok == 0 and err == 0
+
+
+@pytest.mark.django_db
+def test_last_message_date_accepts_plain_date_from_db(sample_slack_channel):
+    import cppa_slack_tracker.sync.sync_message as sm
+
+    qs = MagicMock()
+    qs.annotate.return_value = qs
+    qs.order_by.return_value = qs
+    qs.values_list.return_value = qs
+    qs.first.return_value = date(2024, 6, 1)
+    with patch.object(sm.SlackMessage.objects, "filter", return_value=qs):
+        assert sm._last_message_date(sample_slack_channel) == date(2024, 6, 1)
+
+
+@pytest.mark.django_db
+def test_process_workspace_jsons_invalid_json_keeps_file(
+    tmp_path, sample_slack_channel, monkeypatch
+):
+    p = tmp_path / "broken.json"
+    p.write_text("{not-json", encoding="utf-8")
+    monkeypatch.setattr(
+        "cppa_slack_tracker.sync.sync_message.iter_existing_message_jsons",
+        lambda **_: iter([p]),
+    )
+    s, e = _process_workspace_jsons(sample_slack_channel)
+    assert s == 0 and e == 0
+    assert p.exists()
+
+
+@pytest.mark.django_db
+def test_process_workspace_jsons_per_message_error_increments_errors(
+    tmp_path, sample_slack_channel, monkeypatch
+):
+    p = tmp_path / "day.json"
+    p.write_text(
+        json.dumps([{"ts": "1609459200.1", "text": "x", "user": "U12345678"}]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "cppa_slack_tracker.sync.sync_message.iter_existing_message_jsons",
+        lambda **_: iter([p]),
+    )
+    with patch(
+        "cppa_slack_tracker.sync.sync_message._process_message",
+        side_effect=RuntimeError("save failed"),
+    ):
+        s, e = _process_workspace_jsons(sample_slack_channel)
+    assert s == 0 and e == 1
+    assert not p.exists()
+
+
+@pytest.mark.django_db
+def test_sync_messages_corrupt_raw_file_still_merges(
+    sample_slack_channel,
+):
+    from cppa_slack_tracker.workspace import get_raw_message_json_path
+
+    d = date(2021, 1, 1)
+    raw = get_raw_message_json_path(
+        sample_slack_channel.team.team_name,
+        sample_slack_channel.channel_name,
+        d.strftime("%Y-%m-%d"),
+    )
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_text("{broken-json", encoding="utf-8")
+    msg = {
+        "ts": "1609459200.000001",
+        "user": "U12345678",
+        "text": "recovered",
+    }
+    with patch(
+        "cppa_slack_tracker.sync.sync_message.fetch_messages",
+        return_value=[msg],
+    ):
+        ok, err = sync_messages(
+            sample_slack_channel,
+            start_date=d,
+            end_date=d,
+        )
+    assert ok == 1
+    assert err == 0
+    data = json.loads(raw.read_text(encoding="utf-8"))
+    assert any(m.get("text") == "recovered" for m in data)
+
+
+@pytest.mark.django_db
+def test_sync_messages_write_oserror_skips_day(sample_slack_channel):
+    d = date(2021, 1, 1)
+    ws = MagicMock()
+    ws.parent.mkdir = MagicMock()
+    ws.write_text.side_effect = OSError("no space")
+    raw = MagicMock()
+    raw.parent.mkdir = MagicMock()
+    raw.exists.return_value = False
+    msg = {"ts": "1609459200.000002", "user": "U12345678", "text": "x"}
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_message.get_message_json_path",
+            return_value=ws,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_message.get_raw_message_json_path",
+            return_value=raw,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_message.fetch_messages",
+            return_value=[msg],
+        ),
+    ):
+        ok, err = sync_messages(
+            sample_slack_channel,
+            start_date=d,
+            end_date=d,
+        )
     assert ok == 0
+    assert err == 0
+
+
+@pytest.mark.django_db
+def test_sync_messages_unlink_failure_after_process(sample_slack_channel):
+    d = date(2021, 1, 1)
+    ws = MagicMock()
+    ws.parent.mkdir = MagicMock()
+    ws.write_text = MagicMock()
+    ws.unlink.side_effect = RuntimeError("unlink blocked")
+    raw = MagicMock()
+    raw.parent.mkdir = MagicMock()
+    raw.exists.return_value = False
+    raw.write_text = MagicMock()
+    msg = {"ts": "1609459200.000003", "user": "U12345678", "text": "y"}
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_message.get_message_json_path",
+            return_value=ws,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_message.get_raw_message_json_path",
+            return_value=raw,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_message.fetch_messages",
+            return_value=[msg],
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_message._process_message",
+            return_value=True,
+        ),
+    ):
+        ok, err = sync_messages(
+            sample_slack_channel,
+            start_date=d,
+            end_date=d,
+        )
+    assert ok == 1
+    assert err == 0
+
+
+@pytest.mark.django_db
+def test_sync_channels_single_channel_process_raises(
+    sample_slack_team, sample_slack_channel_data
+):
+    mock_client = MagicMock()
+    mock_client.conversations_info.return_value = {
+        "ok": True,
+        "channel": sample_slack_channel_data,
+    }
+    with (
+        patch(
+            "core.operations.slack_ops.tokens.get_slack_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
+            side_effect=RuntimeError("db"),
+        ),
+    ):
+        ok, err = sync_channels(
+            sample_slack_team,
+            channel_id=sample_slack_channel_data["id"],
+            team_id=sample_slack_team.team_id,
+        )
+    assert ok == 0 and err == 1
+
+
+@pytest.mark.django_db
+def test_sync_channels_list_item_process_raises(
+    sample_slack_team, sample_slack_channel_data
+):
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.fetch_channel_list",
+            return_value=[sample_slack_channel_data],
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
+            side_effect=RuntimeError("sync one channel"),
+        ),
+    ):
+        ok, err = sync_channels(sample_slack_team, team_id=sample_slack_team.team_id)
+    assert ok == 0 and err == 1
+
+
+@pytest.mark.django_db
+def test_sync_users_process_user_raises():
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_user.fetch_user_list",
+            return_value=[{"id": "Ubad", "name": "x"}],
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_user.get_or_create_slack_user",
+            side_effect=RuntimeError("user sync"),
+        ),
+    ):
+        ok, err = sync_users("slug", team_id="T1")
+    assert ok == 0 and err == 1

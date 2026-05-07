@@ -9,7 +9,11 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.core.management.base import CommandError
 
-from core.errors import CollectorFailureCategory, classify_failure
+from core.errors import (
+    CollectorFailureCategory,
+    _classify_os_error,
+    classify_failure,
+)
 
 _swapped: dict[tuple[str, str], type[BaseException]] = {}
 
@@ -77,6 +81,43 @@ def test_classify_os_error_network_errno():
         classify_failure(OSError(errno.EPIPE, "Broken pipe"))
         is CollectorFailureCategory.NETWORK
     )
+
+
+def test_classify_os_error_direct_errno_network():
+    assert (
+        _classify_os_error(OSError(errno.ENOTCONN, "not connected"))
+        is CollectorFailureCategory.NETWORK
+    )
+
+
+def test_classify_os_error_direct_winerror_network():
+    exc = OSError(0, "wsa", None, 10061)
+    assert _classify_os_error(exc) is CollectorFailureCategory.NETWORK
+
+
+def test_classify_os_error_winerror_network_when_errno_not_in_sets():
+    exc = OSError(999999, "generic message")
+    exc.winerror = 10061
+    assert classify_failure(exc) is CollectorFailureCategory.NETWORK
+
+
+def test_classify_os_error_network_errno_connrefused():
+    assert (
+        classify_failure(OSError(errno.ECONNREFUSED, "refused"))
+        is CollectorFailureCategory.NETWORK
+    )
+
+
+def test_classify_os_error_local_io_errno_unknown():
+    assert (
+        classify_failure(OSError(errno.ENOSPC, "no space"))
+        is CollectorFailureCategory.UNKNOWN
+    )
+
+
+def test_classify_os_error_winerror_network():
+    exc = OSError(0, "wsa", None, 10054)
+    assert classify_failure(exc) is CollectorFailureCategory.NETWORK
 
 
 def test_classify_os_error_connection_error_subclass():

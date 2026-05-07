@@ -109,6 +109,38 @@ def test_cleanup_workspace_orphans_includes_nested_orphan(tmp_path):
 
 
 @pytest.mark.django_db
+def test_cleanup_workspace_orphans_skips_file_when_stat_fails(tmp_path):
+    stale = tmp_path / "badstat.tmp"
+    stale.write_text("x", encoding="utf-8")
+    old = time.time() - 48 * 3600
+    os.utime(stale, (old, old))
+    other = tmp_path / "other.tmp"
+    other.write_text("y", encoding="utf-8")
+    os.utime(other, (old, old))
+    out = StringIO()
+    real_stat = Path.stat
+    real_is_file = Path.is_file
+
+    def selective_is_file(self):
+        if self.name in ("badstat.tmp", "other.tmp"):
+            return True
+        return real_is_file(self)
+
+    def selective_stat(self, *a, **kw):
+        if self.name == "badstat.tmp":
+            raise OSError("stat fail")
+        return real_stat(self, *a, **kw)
+
+    with patch("django.conf.settings.WORKSPACE_DIR", tmp_path):
+        with patch.object(Path, "is_file", selective_is_file):
+            with patch.object(Path, "stat", selective_stat):
+                call_command("cleanup_workspace_orphans", stdout=out)
+    text = out.getvalue()
+    assert "badstat.tmp" not in text
+    assert "other.tmp" in text
+
+
+@pytest.mark.django_db
 def test_cleanup_workspace_orphans_execute_logs_when_unlink_fails(tmp_path):
     stale = tmp_path / "locked.part"
     stale.write_text("x", encoding="utf-8")

@@ -19,6 +19,23 @@ def test_parse_diff_hunk_header_and_get_last_n_lines():
     assert m._parse_diff_hunk_header("@@ -5 +7 @@")[0] == 5
 
 
+def test_parse_diff_hunk_header_no_match_returns_default():
+    assert m._parse_diff_hunk_header("no hunk here") == (1, 1)
+
+
+def test_get_last_n_lines_empty_input():
+    assert m.get_last_n_lines("", n=3) == ""
+
+
+def test_get_last_n_lines_only_headers_yields_empty():
+    assert m.get_last_n_lines("@@ -1 +1 @@\n", n=2) == ""
+
+
+def test_parse_plus_lines_with_numbers_empty():
+    assert m._parse_plus_lines_with_numbers("") == []
+    assert m._parse_plus_lines_with_numbers("   ") == []
+
+
 def test_build_comment_tree():
     comments = [
         {"id": 1, "body": "root"},

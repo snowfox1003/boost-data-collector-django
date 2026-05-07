@@ -1,8 +1,14 @@
-"""Tests for github_activity_tracker.sync utils (parse_github_user, parse_datetime)."""
+"""Tests for github_activity_tracker.sync.utils (normalize, parse_github_user, parse_datetime)."""
 
 import pytest
 from datetime import datetime, timezone
-from github_activity_tracker.sync.utils import parse_github_user, parse_datetime
+
+from github_activity_tracker.sync.utils import (
+    normalize_issue_json,
+    normalize_pr_json,
+    parse_datetime,
+    parse_github_user,
+)
 
 
 def test_parse_github_user_none():
@@ -71,3 +77,33 @@ def test_parse_datetime_parametrized(date_str, expected_year):
     result = parse_datetime(date_str)
     assert result is not None
     assert result.year == expected_year
+
+
+def test_normalize_issue_json_non_dict_issue_info():
+    out = normalize_issue_json({"issue_info": "bad", "number": 1})
+    assert out["issue_info"] == "bad"
+
+
+def test_normalize_pr_json_non_dict_pr_info():
+    out = normalize_pr_json({"pr_info": None, "number": 2})
+    assert out["pr_info"] is None
+
+
+def test_normalize_issue_nested_non_list_comments_becomes_empty():
+    data = {
+        "issue_info": {"number": 3, "title": "t"},
+        "comments": "not-a-list",
+    }
+    out = normalize_issue_json(data)
+    assert out["comments"] == []
+
+
+def test_normalize_pr_nested_non_list_comments_and_reviews():
+    data = {
+        "pr_info": {"number": 4},
+        "comments": {},
+        "reviews": "x",
+    }
+    out = normalize_pr_json(data)
+    assert out["comments"] == []
+    assert out["reviews"] == []

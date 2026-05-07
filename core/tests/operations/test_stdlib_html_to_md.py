@@ -60,3 +60,15 @@ def test_converter_get_markdown_collapses_blank_lines():
     c.feed("<p>a</p><p>b</p>")
     m = c.get_markdown()
     assert "a" in m and "b" in m
+
+
+def test_img_inside_control_tag_does_not_emit_markdown():
+    html = "<html><body><control><img src='/x.png' alt='y'/></control></body></html>"
+    md = html_to_markdown(html)
+    assert "![" not in md and "x.png" not in md
+
+
+def test_anchor_empty_text_still_emits_url():
+    html = '<html><body><p><a href="https://example.com/path"></a></p></body></html>'
+    md = html_to_markdown(html)
+    assert "example.com" in md

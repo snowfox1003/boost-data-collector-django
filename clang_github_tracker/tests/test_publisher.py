@@ -8,7 +8,11 @@ import pytest
 from django.core.management.base import CommandError
 from django.test import override_settings
 
-from clang_github_tracker.publisher import publish_clang_markdown
+from clang_github_tracker.publisher import (
+    _redacted_git_subprocess_error,
+    _reset_hard_to_upstream,
+    publish_clang_markdown,
+)
 
 
 @pytest.fixture
@@ -187,3 +191,117 @@ def test_publish_clang_markdown_clones_when_no_git_dir(
     with _author_settings(raw):
         publish_clang_markdown(md, "acme", "priv", "main", {})
     mock_clone.assert_called_once()
+
+
+def test_redacted_git_subprocess_error_falls_back_to_str():
+    err = subprocess.CalledProcessError(1, ["git"])
+    err.stderr = None
+    err.stdout = None
+    text = _redacted_git_subprocess_error(err)
+    assert "CalledProcessError" in text or "1" in text
+
+
+@pytest.mark.django_db
+def test_publish_clang_markdown_empty_repo_slug(raw_and_md):
+    raw, md, _ = raw_and_md
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="Invalid GitHub repo"):
+            publish_clang_markdown(md, "acme", "", "main", {})
+
+
+@pytest.mark.django_db
+def test_publish_invalid_owner_dot(raw_and_md):
+    raw, md, _ = raw_and_md
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="Invalid GitHub owner"):
+            publish_clang_markdown(md, ".", "priv", "main", {})
+
+
+@pytest.mark.django_db
+def test_publish_invalid_repo_backslash(raw_and_md):
+    raw, md, _ = raw_and_md
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="Invalid GitHub repo"):
+            publish_clang_markdown(md, "acme", r"a\b", "main", {})
+
+
+@pytest.mark.django_db
+@patch(
+    "clang_github_tracker.publisher.get_github_token",
+    side_effect=ValueError("no token"),
+)
+def test_publish_clang_token_error_wraps(_tok, raw_and_md):
+    raw, md, _ = raw_and_md
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="no token"):
+            publish_clang_markdown(md, "acme", "priv", "main", {})
+
+
+@pytest.mark.django_db
+@patch("clang_github_tracker.publisher.git_push")
+@patch("clang_github_tracker.publisher._reset_hard_to_upstream")
+@patch("clang_github_tracker.publisher.pull")
+@patch("clang_github_tracker.publisher.prepare_repo_for_pull")
+@patch("clang_github_tracker.publisher.get_github_token", return_value="tok")
+def test_publish_prepare_clone_fails(
+    _token, mock_prepare, _pull, _reset, _push, raw_and_md
+):
+    raw, md, _clone_root = raw_and_md
+    err = subprocess.CalledProcessError(1, ["git"])
+    err.stderr = "prep failed"
+    err.stdout = ""
+    mock_prepare.side_effect = err
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="prepare clone"):
+            publish_clang_markdown(md, "acme", "priv", "main", {})
+
+
+@pytest.mark.django_db
+@patch("clang_github_tracker.publisher.git_push")
+@patch("clang_github_tracker.publisher._reset_hard_to_upstream")
+@patch("clang_github_tracker.publisher.pull")
+@patch("clang_github_tracker.publisher.prepare_repo_for_pull")
+@patch("clang_github_tracker.publisher.get_github_token", return_value="tok")
+def test_publish_pull_fails(_token, _prepare, mock_pull, _reset, _push, raw_and_md):
+    raw, md, _clone_root = raw_and_md
+    err = subprocess.CalledProcessError(1, ["git"])
+    err.stderr = "pull failed"
+    err.stdout = ""
+    mock_pull.side_effect = err
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="Git pull failed"):
+            publish_clang_markdown(md, "acme", "priv", "main", {})
+
+
+@pytest.mark.django_db
+@patch("clang_github_tracker.publisher.git_push")
+@patch("clang_github_tracker.publisher.pull")
+@patch("clang_github_tracker.publisher.prepare_repo_for_pull")
+@patch("clang_github_tracker.publisher.clone_repo")
+@patch("clang_github_tracker.publisher.get_github_token", return_value="tok")
+def test_publish_clone_repo_fails(
+    _token, mock_clone, _prepare, _pull, _push, tmp_path: Path
+):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    md = tmp_path / "md"
+    md.mkdir()
+    clone = raw / "clang_github_tracker" / "acme" / "priv"
+    clone.mkdir(parents=True)
+    err = subprocess.CalledProcessError(1, ["git", "clone"])
+    err.stderr = "not found"
+    err.stdout = ""
+    mock_clone.side_effect = err
+    with _author_settings(raw):
+        with pytest.raises(CommandError, match="Git clone failed"):
+            publish_clang_markdown(md, "acme", "priv", "main", {})
+
+
+def test_reset_hard_to_upstream_failure(tmp_path: Path):
+    (tmp_path / ".git").mkdir()
+    err = subprocess.CalledProcessError(1, ["git"])
+    err.stderr = "reset bad"
+    err.stdout = ""
+    with patch("clang_github_tracker.publisher.subprocess.run", side_effect=err):
+        with pytest.raises(CommandError, match="Could not reset"):
+            _reset_hard_to_upstream(tmp_path, "origin", "main")
