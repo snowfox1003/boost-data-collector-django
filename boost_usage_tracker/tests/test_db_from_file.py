@@ -198,3 +198,36 @@ def test_update_db_from_file_recursive_subdir(tmp_path):
     result = update_db_from_file(source=tmp_path, table="github_account")
     assert result["created"] == 1
     assert GitHubAccount.objects.filter(github_account_id=6001).exists()
+
+
+@pytest.mark.django_db
+def test_update_db_from_file_defaults_to_github_account_dir(tmp_path):
+    (tmp_path / "acc.json").write_text(
+        json.dumps({"github_account_id": 92009999, "username": "from-default-dir"}),
+        encoding="utf-8",
+    )
+    with patch(
+        "boost_usage_tracker.db_from_file.get_github_account_dir", return_value=tmp_path
+    ):
+        result = update_db_from_file(source=None, table="github_account")
+    assert result["created"] == 1
+    assert GitHubAccount.objects.filter(github_account_id=92009999).exists()
+
+
+def test_load_all_json_records_skips_rglob_entry_that_is_not_file(tmp_path):
+    """Coverage for ``if not path.is_file(): continue`` in _load_all_json_records."""
+    good = tmp_path / "keep.json"
+    good.write_text(json.dumps({"github_account_id": 7001}), encoding="utf-8")
+    ghost = tmp_path / "ghost.json"
+    ghost.write_text("{}", encoding="utf-8")
+    orig_is_file = Path.is_file
+
+    def selective_is_file(self):
+        if self.resolve() == ghost.resolve():
+            return False
+        return orig_is_file(self)
+
+    with patch.object(Path, "is_file", selective_is_file):
+        recs = _load_all_json_records(tmp_path)
+    assert len(recs) == 1
+    assert recs[0]["github_account_id"] == 7001

@@ -6,6 +6,7 @@ Covers service layer in detail including edge cases and boundaries:
 """
 
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -694,6 +695,45 @@ def test_bulk_create_or_update_boost_usage_updates_existing(
     usage.refresh_from_db()
     assert usage.last_commit_date == new_dt
     assert usage.excepted_at is None
+
+
+@pytest.mark.django_db
+def test_get_or_create_boost_external_repo_integrity_error_returns_existing(
+    external_github_repository,
+):
+    """INSERT races another writer; IntegrityError handler loads existing row."""
+    from django.db import IntegrityError
+
+    ext_existing, _ = services.get_or_create_boost_external_repo(
+        external_github_repository,
+        boost_version="1.0",
+        is_boost_used=False,
+    )
+
+    cursor = MagicMock()
+    cursor.execute.side_effect = IntegrityError("duplicate key value")
+
+    conn_cm = MagicMock()
+    conn_cm.__enter__.return_value = cursor
+    conn_cm.__exit__.return_value = False
+
+    mock_objects = MagicMock()
+    mock_objects.filter.return_value.first.return_value = None
+    mock_objects.get.return_value = ext_existing
+
+    with patch("django.db.connection.cursor", return_value=conn_cm):
+        with patch(
+            "boost_usage_tracker.services.BoostExternalRepository.objects", mock_objects
+        ):
+            repo, created = services.get_or_create_boost_external_repo(
+                external_github_repository,
+                boost_version="2.0",
+                is_boost_used=True,
+            )
+
+    assert created is False
+    assert repo.pk == ext_existing.pk
+    mock_objects.get.assert_called_once_with(pk=external_github_repository.pk)
 
 
 # --- mark_usages_excepted_bulk ---

@@ -188,7 +188,7 @@ def test_search_boost_include_files_batch_splits_on_large_total(mock_search, _sl
     mock_search.return_value = []
     state = {"probe_calls": 0}
 
-    def rest_side_effect(path, params=None):
+    def rest_side_effect(_path, params=None):
         if params and params.get("per_page") == 1:
             state["probe_calls"] += 1
             # Parent probe: huge → split; child probes: small → single query path
@@ -247,3 +247,155 @@ def test_extract_boost_version_more_patterns():
         'GIT_TAG "boost-1.70.0"', "CMakeLists.txt"
     )
     assert extract_boost_version_from_content("boost/1.2.3", "conanfile.txt")
+
+
+def test_extract_boost_version_from_empty_content():
+    assert extract_boost_version_from_content("", "boost/version.hpp") is None
+
+
+def test_graphql_file_info_missing_repository():
+    client = MagicMock()
+    client.graphql_request.return_value = {"data": {"repository": None}}
+    assert _get_file_info_graphql(client, "o", "r", "p.txt") is None
+
+
+def test_graphql_file_info_blob_without_text():
+    client = MagicMock()
+    client.graphql_request.return_value = {
+        "data": {
+            "repository": {
+                "object": {"oid": "x"},
+                "defaultBranchRef": {"target": {"history": {"edges": []}}},
+            }
+        }
+    }
+    assert _get_file_info_graphql(client, "o", "r", "p.txt") is None
+
+
+def test_batch_graphql_missing_repository():
+    client = MagicMock()
+    client.graphql_request.return_value = {"data": {"repository": None}}
+    assert _get_files_info_graphql_batch(client, "o", "r", ["a.cpp"]) == {}
+
+
+def test_batch_graphql_request_failure_returns_empty():
+    client = MagicMock()
+    client.graphql_request.side_effect = RuntimeError("gql")
+    assert _get_files_info_graphql_batch(client, "o", "r", ["a.cpp"]) == {}
+
+
+def test_batch_graphql_skips_blob_without_text():
+    client = MagicMock()
+    client.graphql_request.return_value = {
+        "data": {
+            "repository": {
+                "f0": {"oid": "only"},
+                "h0": {"target": {"history": {"edges": []}}},
+            }
+        }
+    }
+    assert _get_files_info_graphql_batch(client, "o", "r", ["z.hpp"]) == {}
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+def test_search_boost_include_files_batch_empty(_sleep):
+    client = MagicMock()
+    assert search_boost_include_files_batch(client, []) == []
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch("boost_usage_tracker.boost_searcher.search_boost_include_files")
+def test_search_boost_include_files_batch_single_repo(mock_single, _sleep):
+    client = MagicMock()
+    mock_single.return_value = ["x"]
+    assert search_boost_include_files_batch(client, ["only/repo"]) == ["x"]
+    mock_single.assert_called_once_with(client, "only/repo")
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+def test_search_boost_include_files_batch_probe_failure_returns_empty(_sleep):
+    client = MagicMock()
+    client.rest_request.side_effect = RuntimeError("probe failed")
+    assert search_boost_include_files_batch(client, ["a/z", "b/y"]) == []
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+def test_search_boost_include_files_batch_zero_total(_sleep):
+    client = MagicMock()
+    client.rest_request.return_value = {"total_count": 0}
+    assert search_boost_include_files_batch(client, ["a/z", "b/y"]) == []
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch("boost_usage_tracker.boost_searcher.ThreadPoolExecutor")
+def test_search_boost_include_by_query_code_search_error(mock_exec, _sleep):
+    mock_exec.return_value.__enter__.return_value.submit.side_effect = RuntimeError(
+        "no worker"
+    )
+    client = MagicMock()
+    client.rest_request.side_effect = RuntimeError("search down")
+    assert _search_boost_include_by_query(client, "q") == []
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch(
+    "boost_usage_tracker.boost_searcher.as_completed",
+    lambda futures: iter(futures),
+)
+@patch("boost_usage_tracker.boost_searcher.wait", return_value=(set(), set()))
+@patch("boost_usage_tracker.boost_searcher.ThreadPoolExecutor")
+def test_search_boost_include_by_query_skips_boost_paths_and_boostorg(
+    mock_exec, _mock_wait, _sleep
+):
+    bad_fut = MagicMock()
+    bad_fut.result.side_effect = RuntimeError("task")
+    good_fut = MagicMock()
+    good_fut.result.return_value = []
+    mock_exec.return_value.__enter__.return_value.submit.side_effect = [
+        good_fut,
+        bad_fut,
+    ]
+    client = MagicMock()
+    client.rest_request.return_value = {
+        "items": [
+            {"path": "third_party/boost/foo.hpp", "repository": {"full_name": "u/r"}},
+            {"path": "src/x.cpp", "repository": {"full_name": "boostorg/boost"}},
+            {
+                "path": "app.cpp",
+                "repository": {"full_name": "me/proj"},
+            },
+        ]
+    }
+    _search_boost_include_by_query(client, "q")
+    assert mock_exec.return_value.__enter__.return_value.submit.call_count == 1
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch("boost_usage_tracker.boost_searcher.get_file_content_with_commit_date")
+def test_check_repo_has_vendored_boost_search_fails(mock_gfc, _sleep):
+    client = MagicMock()
+    client.rest_request.side_effect = RuntimeError("code search")
+    assert check_repo_has_vendored_boost(client, "u/r") == (False, None)
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch("boost_usage_tracker.boost_searcher.get_file_content_with_commit_date")
+def test_check_repo_has_vendored_boost_zero_hits(_mock_gfc, _sleep):
+    client = MagicMock()
+    client.rest_request.return_value = {"total_count": 0, "items": []}
+    assert check_repo_has_vendored_boost(client, "u/r") == (False, None)
+    _mock_gfc.assert_not_called()
+
+
+@patch("boost_usage_tracker.boost_searcher.time.sleep", return_value=None)
+@patch("boost_usage_tracker.boost_searcher.get_file_content_with_commit_date")
+def test_detect_boost_version_no_build_file_version(mock_gfc, _sleep):
+    mock_gfc.return_value = None
+    client = MagicMock()
+    with patch(
+        "boost_usage_tracker.boost_searcher.check_repo_has_vendored_boost",
+        return_value=(False, None),
+    ):
+        embed, ver = detect_boost_version_in_repo(client, "u/r")
+    assert embed is False
+    assert ver is None

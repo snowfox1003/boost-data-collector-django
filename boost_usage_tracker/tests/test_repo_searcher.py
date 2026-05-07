@@ -134,3 +134,93 @@ def test_search_repos_with_date_splitting_dedupes():
     end = datetime(2024, 1, 1, tzinfo=timezone.utc)
     out = search_repos_with_date_splitting(client, start, end, date_field="pushed")
     assert len(out) == 1
+
+
+def _repo_item(name: str) -> dict:
+    return {
+        "full_name": name,
+        "stargazers_count": 1,
+        "description": "",
+        "license": None,
+        "created_at": "",
+        "updated_at": "",
+        "pushed_at": "",
+        "forks_count": 0,
+    }
+
+
+def test_process_date_range_splits_over_1000_merges_deduped_names():
+    """Probe returns >1000 once, children return small counts; merge drops dup full_name."""
+    client = MagicMock()
+    responses = iter(
+        [
+            {"total_count": 1500, "items": []},
+            {"total_count": 10, "items": []},
+            {"items": [_repo_item("u/a")]},
+            {"total_count": 10, "items": []},
+            {
+                "items": [
+                    _repo_item("u/a"),
+                    _repo_item("u/b"),
+                ]
+            },
+        ]
+    )
+
+    def rest_side_effect(_path, params=None):
+        return next(responses)
+
+    client.rest_request.side_effect = rest_side_effect
+    start = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    end = datetime(2024, 6, 10, tzinfo=timezone.utc)
+    repos = _process_date_range(client, (start, end), date_field="pushed")
+    names = sorted(r.full_name for r in repos)
+    assert names == ["u/a", "u/b"]
+
+
+def test_process_date_range_cannot_split_returns_first_1000_query():
+    """Same-day primary + same-day secondary => no split; falls back to search."""
+    client = MagicMock()
+    same_day = datetime(2024, 3, 1, tzinfo=timezone.utc)
+
+    def rest_side_effect(_path, params=None):
+        if params.get("per_page") == 1:
+            return {"total_count": 2000, "items": []}
+        return {"items": [_repo_item("only/one")]}
+
+    client.rest_request.side_effect = rest_side_effect
+    repos = _process_date_range(
+        client,
+        (same_day, same_day),
+        second_range=(same_day, same_day),
+        date_field="pushed",
+    )
+    assert [r.full_name for r in repos] == ["only/one"]
+
+
+def test_process_date_range_splits_second_created_range_when_primary_single_day():
+    """When primary span is one day, split uses *second_range* if wide enough."""
+    client = MagicMock()
+    day = datetime(2024, 4, 1, tzinfo=timezone.utc)
+    sec_lo = datetime(2024, 5, 1, tzinfo=timezone.utc)
+    sec_hi = datetime(2024, 5, 20, tzinfo=timezone.utc)
+
+    responses = iter(
+        [
+            {"total_count": 1200, "items": []},
+            {"total_count": 5, "items": []},
+            {"items": [_repo_item("left/repo")]},
+            {"total_count": 5, "items": []},
+            {"items": [_repo_item("right/repo")]},
+        ]
+    )
+
+    client.rest_request.side_effect = lambda _p, params=None: next(responses)
+    repos = _process_date_range(
+        client,
+        (day, day),
+        second_range=(sec_lo, sec_hi),
+        date_field="pushed",
+    )
+    names = {r.full_name for r in repos}
+    assert names == {"left/repo", "right/repo"}
