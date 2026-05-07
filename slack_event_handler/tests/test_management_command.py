@@ -51,3 +51,36 @@ def test_command_keyboard_interrupt_logs(settings):
                 with patch(f"{cmd_mod}.get_slack_app_token", return_value="a"):
                     call_command("run_slack_event_handler", stdout=StringIO())
     assert log.info.called
+
+
+@pytest.mark.django_db
+def test_command_tokens_map_not_dict_becomes_empty(settings):
+    settings.SLACK_BOT_TOKEN = ["not-a-dict"]
+    cmd_mod = "slack_event_handler.management.commands.run_slack_event_handler"
+    with patch(f"{cmd_mod}.logger") as log:
+        call_command("run_slack_event_handler", "--dry-run", stdout=StringIO())
+    assert log.warning.called
+
+
+@pytest.mark.django_db
+def test_command_dry_run_value_error_from_token_helpers(settings):
+    settings.SLACK_BOT_TOKEN = {"T1": "x"}
+    cmd_mod = "slack_event_handler.management.commands.run_slack_event_handler"
+    with patch(f"{cmd_mod}.logger"):
+        with patch(f"{cmd_mod}.get_slack_bot_token", side_effect=ValueError("bad")):
+            with patch(f"{cmd_mod}.get_slack_app_token", side_effect=ValueError("bad")):
+                call_command("run_slack_event_handler", "--dry-run", stdout=StringIO())
+
+
+@pytest.mark.django_db
+def test_command_runner_exception_reraises(settings):
+    settings.SLACK_BOT_TOKEN = {"T1": "x"}
+    cmd_mod = "slack_event_handler.management.commands.run_slack_event_handler"
+    with patch(
+        "slack_event_handler.runner.run_slack_event_handler",
+        side_effect=RuntimeError("runner boom"),
+    ):
+        with patch(f"{cmd_mod}.get_slack_bot_token", return_value="b"):
+            with patch(f"{cmd_mod}.get_slack_app_token", return_value="a"):
+                with pytest.raises(RuntimeError, match="runner boom"):
+                    call_command("run_slack_event_handler", stdout=StringIO())

@@ -7,6 +7,27 @@ from unittest.mock import patch
 import pytest
 
 
+class ImmediateThread:
+    """Drop-in threading.Thread replacement that runs target synchronously on start()."""
+
+    def __init__(
+        self,
+        group=None,
+        target=None,
+        name=None,
+        args=(),
+        kwargs=None,
+        *,
+        daemon=None,
+    ):
+        self._target = target
+        self._args = args
+
+    def start(self):
+        if self._target:
+            self._target(*self._args)
+
+
 @pytest.fixture
 def fake_slack_bolt():
     """Minimal slack_bolt package in sys.modules so slack_listener can import."""
