@@ -22,3 +22,7 @@ def test_format_percent():
 
 def test_sanitize_library_name_replaces_irregular_chars():
     assert sanitize_library_name("asio/io") == "asio_io"
+
+
+def test_sanitize_library_name_empty_returns_unknown():
+    assert sanitize_library_name("") == "unknown"
