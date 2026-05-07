@@ -3,6 +3,7 @@ Django settings for Boost Data Collector project.
 Uses django-environ for environment variables.
 """
 
+import sys
 from pathlib import Path
 
 import environ
@@ -442,13 +443,76 @@ SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS = int(
 # Discord configuration (for discord_activity_tracker)
 DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()
 DISCORD_USER_TOKEN = (env("DISCORD_USER_TOKEN", default="") or "").strip()
-DISCORD_SERVER_ID = (env("DISCORD_SERVER_ID", default="") or "").strip()
+_discord_server_id_str = (env("DISCORD_SERVER_ID", default="") or "").strip()
+DISCORD_SERVER_ID: int | None = (
+    int(_discord_server_id_str) if _discord_server_id_str.isdigit() else None
+)
+# Comma-separated channel snowflake IDs to scrape; empty = scrape all channels
+_discord_channel_ids_str = (env("DISCORD_CHANNEL_IDS", default="") or "").strip()
+DISCORD_CHANNEL_IDS: list[int] = [
+    int(c.strip()) for c in _discord_channel_ids_str.split(",") if c.strip().isdigit()
+]
 DISCORD_CONTEXT_REPO_PATH = Path(
     env(
         "DISCORD_CONTEXT_REPO_PATH",
-        default=str(BASE_DIR.parent / "discord-cplusplus-together-context"),
+        default=str(
+            WORKSPACE_DIR
+            / "discord_activity_tracker"
+            / "discord-cplusplus-together-context"
+        ),
     )
 ).resolve()
+# Full path to DiscordChatExporter CLI executable (optional).
+# Default: workspace/discord_activity_tracker/script/DiscordChatExporter.Cli.exe (Windows)
+# or .../DiscordChatExporter.Cli (macOS/Linux)
+# Releases: https://github.com/Tyrrrz/DiscordChatExporter/releases/latest
+_discord_chat_exporter_cli = (
+    env("DISCORD_CHAT_EXPORTER_CLI", default="") or ""
+).strip()
+DISCORD_CHAT_EXPORTER_CLI: str | None = (
+    _discord_chat_exporter_cli if _discord_chat_exporter_cli else None
+)
+# Run via ``dotnet /path/to/DiscordChatExporter.Cli.dll`` (uses system .NET host; avoids blocked
+# bundled libhostfxr on macOS external volumes / quarantine). Requires ``dotnet`` on PATH or
+# DISCORD_CHAT_EXPORTER_DOTNET below.
+_discord_chat_exporter_dotnet_dll = (
+    env("DISCORD_CHAT_EXPORTER_DOTNET_DLL", default="") or ""
+).strip()
+DISCORD_CHAT_EXPORTER_DOTNET_DLL: str | None = (
+    _discord_chat_exporter_dotnet_dll if _discord_chat_exporter_dotnet_dll else None
+)
+_discord_chat_exporter_dotnet = (
+    env("DISCORD_CHAT_EXPORTER_DOTNET", default="") or ""
+).strip()
+DISCORD_CHAT_EXPORTER_DOTNET: str | None = (
+    _discord_chat_exporter_dotnet if _discord_chat_exporter_dotnet else None
+)
+# macOS: run ``xattr -cr`` on the CLI bundle directory before export (helps when Gatekeeper
+# blocks downloaded binaries; use only if you trust the DiscordChatExporter files).
+DISCORD_CHAT_EXPORTER_MACOS_CLEAR_QUARANTINE = env.bool(
+    "DISCORD_CHAT_EXPORTER_MACOS_CLEAR_QUARANTINE", default=False
+)
+# DiscordChatExporter --parallel (default 1: lower RAM; 3+ can SIGKILL/OOM on small machines).
+DISCORD_CHAT_EXPORTER_PARALLEL: int = env.int(
+    "DISCORD_CHAT_EXPORTER_PARALLEL", default=1
+)
+# Voice channels are rarely needed for text analytics; excluding them cuts exportguild work.
+DISCORD_CHAT_EXPORTER_INCLUDE_VC = env.bool(
+    "DISCORD_CHAT_EXPORTER_INCLUDE_VC", default=False
+)
+# One CLI process per channel after `channels` listing — slower but avoids macOS SIGKILL on exportguild.
+DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = env.bool(
+    "DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT",
+    default=(sys.platform == "darwin"),
+)
+PINECONE_DISCORD_APP_TYPE: str = (
+    env("PINECONE_DISCORD_APP_TYPE", default="discord-together-c-cpp")
+    or "discord-together-c-cpp"
+).strip()
+PINECONE_DISCORD_NAMESPACE: str = (
+    env("PINECONE_DISCORD_NAMESPACE", default="discord-together-c-cpp")
+    or "discord-together-c-cpp"
+).strip()
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)

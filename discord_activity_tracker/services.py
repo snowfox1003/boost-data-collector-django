@@ -58,6 +58,8 @@ def get_or_create_discord_channel(
     channel_type: str,
     topic: str = "",
     position: int = 0,
+    category_id: Optional[int] = None,
+    category_name: str = "",
 ) -> Tuple[DiscordChannel, bool]:
     """Get or create channel, update fields if changed."""
     channel, created = DiscordChannel.objects.get_or_create(
@@ -68,11 +70,12 @@ def get_or_create_discord_channel(
             "channel_type": channel_type,
             "topic": topic,
             "position": position,
+            "category_id": category_id,
+            "category_name": category_name,
         },
     )
 
     if not created:
-        # Update fields if changed
         updated = False
         if channel.channel_name != channel_name:
             channel.channel_name = channel_name
@@ -86,6 +89,12 @@ def get_or_create_discord_channel(
         if channel.position != position:
             channel.position = position
             updated = True
+        if category_id is not None and channel.category_id != category_id:
+            channel.category_id = category_id
+            updated = True
+        if category_name and channel.category_name != category_name:
+            channel.category_name = category_name
+            updated = True
 
         if updated:
             channel.save(
@@ -94,6 +103,8 @@ def get_or_create_discord_channel(
                     "channel_type",
                     "topic",
                     "position",
+                    "category_id",
+                    "category_name",
                     "updated_at",
                 ]
             )
@@ -111,6 +122,8 @@ def create_or_update_discord_message(
     message_edited_at: Optional[datetime] = None,
     reply_to_message_id: Optional[int] = None,
     attachment_urls: Optional[list] = None,
+    message_type: str = "Default",
+    is_pinned: bool = False,
 ) -> Tuple[DiscordMessage, bool]:
     """Create or update message."""
     if attachment_urls is None:
@@ -122,6 +135,8 @@ def create_or_update_discord_message(
             "channel": channel,
             "author": author,
             "content": content,
+            "message_type": message_type or "Default",
+            "is_pinned": is_pinned,
             "message_created_at": message_created_at,
             "message_edited_at": message_edited_at,
             "reply_to_message_id": reply_to_message_id,
@@ -182,15 +197,24 @@ def update_channel_last_synced(
     return channel
 
 
-def get_active_channels(server: DiscordServer, days: int = 30) -> list:
-    """Get channels with activity in last N days."""
+def get_active_channels(
+    server: DiscordServer,
+    days: int = 30,
+    channel_ids: Optional[List[int]] = None,
+) -> list:
+    """Get channels with activity in last N days, optionally filtered by channel_ids allowlist."""
     from datetime import timedelta
 
     cutoff = django_timezone.now() - timedelta(days=days)
 
-    return DiscordChannel.objects.filter(
+    qs = DiscordChannel.objects.filter(
         server=server, last_activity_at__gte=cutoff
     ).order_by("position", "channel_name")
+
+    if channel_ids:
+        qs = qs.filter(channel_id__in=channel_ids)
+
+    return qs
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +304,8 @@ def bulk_upsert_discord_messages(
                 channel=channel,
                 author=author,
                 content=d.get("content", ""),
+                message_type=d.get("message_type") or "Default",
+                is_pinned=bool(d.get("is_pinned", False)),
                 message_created_at=d["message_created_at"],
                 message_edited_at=d.get("message_edited_at"),
                 reply_to_message_id=d.get("reply_to_message_id"),
@@ -302,6 +328,8 @@ def bulk_upsert_discord_messages(
             "channel",
             "author",
             "content",
+            "message_type",
+            "is_pinned",
             "message_created_at",
             "message_edited_at",
             "reply_to_message_id",

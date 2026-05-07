@@ -43,7 +43,7 @@ celerybeat.pid
 *.swo
 .cursor/
 
-# DiscordChatExporter CLI (download to workspace/discord_activity_tracker/tools/)
+# Optional legacy CLI folder under the Django app (default CLI lives in workspace/.../script/)
 discord_activity_tracker/tools/
 # macOS
 .DS_Store

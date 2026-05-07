@@ -79,6 +79,10 @@ for _slug in (
     "shared",
 ):
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
+# Base settings computed DISCORD_CONTEXT_REPO_PATH before WORKSPACE_DIR was overridden above.
+DISCORD_CONTEXT_REPO_PATH = (
+    WORKSPACE_DIR / "discord_activity_tracker" / "discord-cplusplus-together-context"
+).resolve()
 LOG_DIR = _test_dir / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -93,3 +97,6 @@ CLANG_GITHUB_REPO = "llvm-project"
 CLANG_GITHUB_CONTEXT_REPO_OWNER = ""
 CLANG_GITHUB_CONTEXT_REPO_NAME = ""
 CLANG_GITHUB_CONTEXT_REPO_BRANCH = ""
+
+# Tests patch a single subprocess.Popen for DiscordChatExporter.
+DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = False

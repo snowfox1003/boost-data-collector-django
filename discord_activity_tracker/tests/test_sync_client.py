@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from discord_activity_tracker.sync.client import DiscordSyncClient, run_async
+from discord_activity_tracker.sync.client import (
+    DiscordSyncClient,
+    discord_message_to_sync_dict,
+    run_async,
+)
 
 
 @pytest.fixture
@@ -302,31 +306,71 @@ def test_context_manager_calls_close(mock_discord_pkg):
     inner.login = AsyncMock()
     inner.close = AsyncMock()
 
-    with patch("discord_activity_tracker.sync.client.asyncio.run") as ar:
+    # __exit__ calls shutdown_sync(); without .run() there is no dedicated loop,
+    # so shutdown_sync falls back to run_async(close()). The coroutine must be
+    # awaited — use wraps=real run_async instead of a bare MagicMock.
+    import discord_activity_tracker.sync.client as client_module
+
+    real_run_async = client_module.run_async
+    with patch.object(client_module, "run_async", wraps=real_run_async) as ra:
         with DiscordSyncClient("tok") as c:
             c._ready = True
-    assert ar.called
+    ra.assert_called_once()
+    inner.close.assert_awaited_once()
 
 
-def test_run_async_uses_existing_loop():
+def test_run_async_returns_coroutine_result():
+    """run_async must use a fresh event loop (not the deprecated get_event_loop)."""
+
     async def coro():
         return 42
 
     assert run_async(coro()) == 42
 
 
-def test_run_async_creates_loop_when_missing():
-    async def coro():
-        return 7
+def test_run_async_does_not_use_get_event_loop():
+    """Ensure run_async never calls the deprecated asyncio.get_event_loop."""
 
-    with patch("discord_activity_tracker.sync.client.asyncio.get_event_loop") as g:
-        g.side_effect = RuntimeError("no loop")
-        assert run_async(coro()) == 7
+    async def coro():
+        return 99
+
+    with patch(
+        "discord_activity_tracker.sync.client.asyncio.get_event_loop"
+    ) as mock_gel:
+        result = run_async(coro())
+
+    # get_event_loop should never be touched
+    mock_gel.assert_not_called()
+    assert result == 99
+
+
+def test_run_async_closes_loop_on_exception():
+    """Loop must be closed even if the coroutine raises."""
+
+    async def failing():
+        raise ValueError("boom")
+
+    with pytest.raises(ValueError, match="boom"):
+        run_async(failing())
+
+
+def test_discord_sync_client_run_reuses_event_loop(mock_discord_pkg):
+    """All work on one client instance must share one loop (discord.py / aiohttp)."""
+    loops: list = []
+
+    async def record_loop():
+        loops.append(asyncio.get_running_loop())
+        return 1
+
+    c = DiscordSyncClient("tok")
+    c.run(record_loop())
+    c.run(record_loop())
+    assert len(loops) == 2
+    assert loops[0] is loops[1]
+    c.shutdown_sync()
 
 
 def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
-    _, _inner = mock_discord_pkg
-    c = DiscordSyncClient("tok")
     msg = MagicMock()
     msg.id = 5
     msg.content = "c"
@@ -348,7 +392,32 @@ def test_message_to_dict_with_attachment_and_reaction(mock_discord_pkg):
     react.count = 2
     msg.reactions = [react]
 
-    d = c._message_to_dict(msg)
+    msg.type = SimpleNamespace(name="default")
+    msg.pinned = False
+
+    d = discord_message_to_sync_dict(msg)
     assert d["author"]["display_name"] == "n"
+    assert d["message_type"] == "Default"
+    assert d["is_pinned"] is False
     assert d["attachments"][0]["filename"] == "f.txt"
     assert d["reactions"][0]["count"] == 2
+
+
+def test_message_to_dict_reply_and_pinned(mock_discord_pkg):
+    msg = MagicMock()
+    msg.id = 1
+    msg.content = ""
+    msg.author = SimpleNamespace(
+        id=1, name="u", display_name="u", bot=False, avatar=None
+    )
+    msg.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    msg.edited_at = None
+    msg.reference = None
+    msg.attachments = []
+    msg.reactions = []
+    msg.type = SimpleNamespace(name="reply")
+    msg.pinned = True
+
+    d = discord_message_to_sync_dict(msg)
+    assert d["message_type"] == "Reply"
+    assert d["is_pinned"] is True

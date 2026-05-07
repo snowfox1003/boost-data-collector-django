@@ -78,8 +78,37 @@ def test_get_or_create_discord_channel_updates(channel, server):
     ch2.refresh_from_db()
     assert ch2.channel_name == "general-renamed"
     assert ch2.channel_type == "forum"
-    assert ch2.topic == "t"
-    assert ch2.position == 1
+
+
+@pytest.mark.django_db
+def test_get_or_create_discord_channel_category_fields(server):
+    """category_id and category_name are persisted on create and update."""
+    ch, created = get_or_create_discord_channel(
+        server=server,
+        channel_id=_uniq_id(),
+        channel_name="c-cpp-discussion",
+        channel_type="GuildTextChat",
+        category_id=855220194887335977,
+        category_name="Discussion",
+    )
+    assert created is True
+    ch.refresh_from_db()
+    assert ch.category_id == 855220194887335977
+    assert ch.category_name == "Discussion"
+
+    # Update category fields
+    ch2, created2 = get_or_create_discord_channel(
+        server=server,
+        channel_id=ch.channel_id,
+        channel_name="c-cpp-discussion",
+        channel_type="GuildTextChat",
+        category_id=999000111222333444,
+        category_name="NewCategory",
+    )
+    assert created2 is False
+    ch2.refresh_from_db()
+    assert ch2.category_id == 999000111222333444
+    assert ch2.category_name == "NewCategory"
 
 
 @pytest.mark.django_db
@@ -106,6 +135,40 @@ def test_create_or_update_discord_message(channel, author):
     assert created2 is False
     msg2.refresh_from_db()
     assert msg2.content == "updated"
+
+
+@pytest.mark.django_db
+def test_create_or_update_discord_message_type_and_pinned(channel, author):
+    """message_type and is_pinned are persisted on create and update."""
+    mid = _uniq_id()
+    ts = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    msg, created = create_or_update_discord_message(
+        mid,
+        channel,
+        author,
+        "pinned reply",
+        message_created_at=ts,
+        message_type="Reply",
+        is_pinned=True,
+    )
+    assert created is True
+    msg.refresh_from_db()
+    assert msg.message_type == "Reply"
+    assert msg.is_pinned is True
+
+    # Update: unpin and change type
+    msg2, _ = create_or_update_discord_message(
+        mid,
+        channel,
+        author,
+        "updated",
+        message_created_at=ts,
+        message_type="Default",
+        is_pinned=False,
+    )
+    msg2.refresh_from_db()
+    assert msg2.message_type == "Default"
+    assert msg2.is_pinned is False
 
 
 @pytest.mark.django_db
@@ -165,3 +228,51 @@ def test_get_active_channels_filters_by_days(channel, server):
     ids = {c.channel_id for c in active}
     assert channel.channel_id in ids
     assert stale.channel_id not in ids
+
+
+@pytest.mark.django_db
+def test_get_active_channels_allowlist_filter(server):
+    """channel_ids allowlist pre-filters the queryset."""
+    now = django_timezone.now()
+    ch1 = DiscordChannel.objects.create(
+        server=server,
+        channel_id=_uniq_id(),
+        channel_name="allowed",
+        channel_type="text",
+        last_activity_at=now,
+    )
+    ch2 = DiscordChannel.objects.create(
+        server=server,
+        channel_id=_uniq_id(),
+        channel_name="blocked",
+        channel_type="text",
+        last_activity_at=now,
+    )
+    result = get_active_channels(server, days=30, channel_ids=[ch1.channel_id])
+    ids = {c.channel_id for c in result}
+    assert ch1.channel_id in ids
+    assert ch2.channel_id not in ids
+
+
+@pytest.mark.django_db
+def test_get_active_channels_empty_allowlist_returns_all(server):
+    """Empty channel_ids means no filter — all active channels returned."""
+    now = django_timezone.now()
+    ch1 = DiscordChannel.objects.create(
+        server=server,
+        channel_id=_uniq_id(),
+        channel_name="a",
+        channel_type="text",
+        last_activity_at=now,
+    )
+    ch2 = DiscordChannel.objects.create(
+        server=server,
+        channel_id=_uniq_id(),
+        channel_name="b",
+        channel_type="text",
+        last_activity_at=now,
+    )
+    result = get_active_channels(server, days=30, channel_ids=None)
+    ids = {c.channel_id for c in result}
+    assert ch1.channel_id in ids
+    assert ch2.channel_id in ids

@@ -5,6 +5,7 @@
 | Operation | Package | Doc | Purpose |
 |-----------|---------|-----|---------|
 | **GitHub** | `core.operations.github_ops` | [github.md](github.md) | Clone, push, fetch file, create PR/issue/comment; token resolution. |
+| **DiscordChatExporter** | *(external CLI)* | [discord_chat_exporter.md](discord_chat_exporter.md) | Download, install path, `.env` settings for Tyrrrz CLI used by `discord_activity_tracker`. |
 | **Discord** | *(planned)* | *(e.g. discord.md)* | Send notifications to Discord; used by other apps. |
 
 **When to add a new operation:** When multiple apps need the same external integration (e.g. “notify via Discord”). Prefer adding a **utility package** under **`core/operations/`** (not a new Django app unless you need models), document it in this folder, then list it in the table above.

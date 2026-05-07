@@ -1,9 +1,9 @@
 """
 Shared text cleaning and light filtering helpers.
 
-Used by ``cppa_slack_tracker`` (and other apps) for normalizing message text and
-optional greeting/noise phrase removal. Default word lists are Slack-oriented
-(``SLACK_*`` constants).
+Used by ``cppa_slack_tracker`` and ``discord_activity_tracker`` for normalizing
+message text. ``SLACK_*`` phrase lists feed :func:`filter_sentence` (Slack) and
+:func:`clean_discord_text` (Discord markup strip + same filler removal).
 """
 
 from __future__ import annotations
@@ -87,6 +87,56 @@ SLACK_UNESSENTIAL_WORDS: FrozenSet[str] = frozenset(
         "of course",
     }
 )
+
+# Discord message / export plaintext: user, role, channel mentions and custom emoji tokens.
+_DISCORD_USER_MENTION_RE = re.compile(r"<@!?(\d+)>")
+_DISCORD_ROLE_MENTION_RE = re.compile(r"<@&(\d+)>")
+_DISCORD_CHANNEL_MENTION_RE = re.compile(r"<#(\d+)>")
+_DISCORD_CUSTOM_EMOJI_RE = re.compile(r"<a?:(\w+):\d+>")
+_DISCORD_COLLAPSE_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def clean_discord_text(
+    text: str,
+    *,
+    greeting_words: Optional[Iterable[str]] = None,
+    unessential_words: Optional[Iterable[str]] = None,
+    min_words_after: int = 0,
+) -> str:
+    """
+    Strip Discord markup, then greeting / unessential phrases (``SLACK_*`` lists).
+
+    User mentions ``<@123>`` / ``<@!123>``, roles ``<@&id>``, channels ``<#id>``
+    are removed. Custom emoji ``<:name:id>`` and animated ``<a:name:id>`` become
+    ``:name:``. Whitespace is collapsed to single spaces, then :func:`filter_sentence`
+    removes filler phrases (same defaults as Slack). Output is **lowercased**
+    because ``filter_sentence`` lowercases for matching.
+
+    Args:
+        text: Raw Discord message content.
+        greeting_words: Optional override for ``filter_sentence`` (default:
+            ``SLACK_GREETING_WORDS``).
+        unessential_words: Optional override for ``filter_sentence`` (default:
+            ``SLACK_UNESSENTIAL_WORDS``).
+        min_words_after: Passed to ``filter_sentence`` (default ``0`` so short
+            messages are not blanked by word-count rules after phrase removal).
+
+    Returns:
+        Plaintext suitable for search / embedding pipelines.
+    """
+    if not text:
+        return ""
+    text = _DISCORD_USER_MENTION_RE.sub("", text)
+    text = _DISCORD_ROLE_MENTION_RE.sub("", text)
+    text = _DISCORD_CHANNEL_MENTION_RE.sub("", text)
+    text = _DISCORD_CUSTOM_EMOJI_RE.sub(r":\1:", text)
+    text = _DISCORD_COLLAPSE_WHITESPACE_RE.sub(" ", text).strip()
+    return filter_sentence(
+        text,
+        greeting_words=greeting_words,
+        unessential_words=unessential_words,
+        min_words_after=min_words_after,
+    )
 
 
 def clean_text(text: str | None, remove_extra_spaces: bool = True) -> str:

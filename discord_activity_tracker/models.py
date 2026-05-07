@@ -30,7 +30,10 @@ class DiscordChannel(models.Model):
     )
     channel_id = models.BigIntegerField(unique=True, db_index=True)
     channel_name = models.CharField(max_length=255, db_index=True)
-    channel_type = models.CharField(max_length=50)  # text, voice, thread, etc.
+    channel_type = models.CharField(max_length=50)  # GuildTextChat, text, etc.
+    # Category the channel belongs to (from DiscordChatExporter: categoryId / category)
+    category_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    category_name = models.CharField(max_length=255, blank=True)
     topic = models.TextField(blank=True)
     position = models.IntegerField(default=0)
     last_synced_at = models.DateTimeField(null=True, blank=True, db_index=True)
@@ -66,13 +69,16 @@ class DiscordMessage(models.Model):
         db_column="author_id",
     )
     content = models.TextField(blank=True)
+    # message_type: "Default", "Reply", "GuildBoost", etc. (from DiscordChatExporter type field)
+    message_type = models.CharField(max_length=50, default="Default", db_index=True)
+    is_pinned = models.BooleanField(default=False, db_index=True)
     message_created_at = models.DateTimeField(db_index=True)
     message_edited_at = models.DateTimeField(null=True, blank=True)
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     reply_to_message_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     has_attachments = models.BooleanField(default=False)
-    attachment_urls = models.JSONField(default=list)  # List of attachment URLs
+    attachment_urls = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -82,6 +88,7 @@ class DiscordMessage(models.Model):
             models.Index(fields=["channel", "message_created_at"]),
             models.Index(fields=["message_created_at"]),
             models.Index(fields=["is_deleted"]),
+            models.Index(fields=["message_type"]),
         ]
 
     def __str__(self):

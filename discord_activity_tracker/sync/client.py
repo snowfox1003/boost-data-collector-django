@@ -10,6 +10,65 @@ import discord
 logger = logging.getLogger(__name__)
 
 
+def _message_type_label(message_type: Any) -> str:
+    """Map discord.MessageType (or duck-typed ``.name``) to exporter-style labels."""
+    mt_cls = getattr(discord, "MessageType", None)
+    if isinstance(mt_cls, type) and isinstance(message_type, mt_cls):
+        name = message_type.name
+    else:
+        name = getattr(message_type, "name", None)
+    if not isinstance(name, str) or not name:
+        return "Default"
+    return "".join(part.capitalize() for part in name.split("_"))
+
+
+def discord_message_to_sync_dict(message: Any) -> Dict[str, Any]:
+    """Convert a ``discord.Message`` (or duck-typed test double) to sync pipeline dict.
+
+    Module-level so unit tests can validate mapping without constructing
+    :class:`DiscordSyncClient` (avoids async ``close`` / client lifecycle warnings).
+    """
+    return {
+        "id": message.id,
+        "content": message.content,
+        "author": {
+            "id": message.author.id,
+            "username": message.author.name,
+            "display_name": (
+                message.author.display_name
+                if hasattr(message.author, "display_name")
+                else ""
+            ),
+            "avatar_url": (
+                str(message.author.avatar.url) if message.author.avatar else ""
+            ),
+            "bot": message.author.bot,
+        },
+        "created_at": message.created_at.isoformat(),
+        "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+        "message_type": _message_type_label(message.type),
+        "is_pinned": bool(message.pinned),
+        "reference": {
+            "message_id": (message.reference.message_id if message.reference else None),
+        },
+        "attachments": [
+            {
+                "url": attachment.url,
+                "filename": attachment.filename,
+                "size": attachment.size,
+            }
+            for attachment in message.attachments
+        ],
+        "reactions": [
+            {
+                "emoji": str(reaction.emoji),
+                "count": reaction.count,
+            }
+            for reaction in message.reactions
+        ],
+    }
+
+
 class DiscordSyncClient:
     """Discord client wrapper for syncing messages."""
 
@@ -23,6 +82,34 @@ class DiscordSyncClient:
         self.client = discord.Client(intents=intents)
         self.token = token
         self._ready = False
+        self._asyncio_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def run(self, coro):
+        """Run *coro* on this client's dedicated event loop.
+
+        discord.py binds aiohttp to the loop used at login; reuse this loop for
+        all operations on this client until :meth:`shutdown_sync`.
+        """
+        if self._asyncio_loop is None or self._asyncio_loop.is_closed():
+            self._asyncio_loop = asyncio.new_event_loop()
+        return self._asyncio_loop.run_until_complete(coro)
+
+    def shutdown_sync(self) -> None:
+        """Close the Discord client and tear down the loop (sync ``finally`` helper)."""
+        loop = self._asyncio_loop
+        if loop is not None and not loop.is_closed():
+            try:
+                # Always drain ``close()`` on this loop so the coroutine is not left
+                # un-awaited (RuntimeWarning on Py3.12+); ``close`` no-ops when not _ready.
+                loop.run_until_complete(self.close())
+            except Exception:
+                logger.exception("Error while closing Discord client")
+            finally:
+                loop.close()
+                self._asyncio_loop = None
+            return
+        if self._ready:
+            run_async(self.close())
 
     async def _ensure_ready(self):
         """Ensure client is logged in and ready."""
@@ -98,7 +185,7 @@ class DiscordSyncClient:
             async for message in channel.history(
                 limit=limit, after=after, oldest_first=True
             ):
-                msg_data = self._message_to_dict(message)
+                msg_data = discord_message_to_sync_dict(message)
                 messages.append(msg_data)
                 count += 1
 
@@ -119,46 +206,8 @@ class DiscordSyncClient:
         return messages
 
     def _message_to_dict(self, message: discord.Message) -> Dict[str, Any]:
-        """Convert message to dict."""
-        return {
-            "id": message.id,
-            "content": message.content,
-            "author": {
-                "id": message.author.id,
-                "username": message.author.name,
-                "display_name": (
-                    message.author.display_name
-                    if hasattr(message.author, "display_name")
-                    else ""
-                ),
-                "avatar_url": (
-                    str(message.author.avatar.url) if message.author.avatar else ""
-                ),
-                "bot": message.author.bot,
-            },
-            "created_at": message.created_at.isoformat(),
-            "edited_at": message.edited_at.isoformat() if message.edited_at else None,
-            "reference": {
-                "message_id": (
-                    message.reference.message_id if message.reference else None
-                ),
-            },
-            "attachments": [
-                {
-                    "url": attachment.url,
-                    "filename": attachment.filename,
-                    "size": attachment.size,
-                }
-                for attachment in message.attachments
-            ],
-            "reactions": [
-                {
-                    "emoji": str(reaction.emoji),
-                    "count": reaction.count,
-                }
-                for reaction in message.reactions
-            ],
-        }
+        """Convert message to dict (delegates to :func:`discord_message_to_sync_dict`)."""
+        return discord_message_to_sync_dict(message)
 
     async def close(self):
         """Close the client connection."""
@@ -172,16 +221,17 @@ class DiscordSyncClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
-        if self._ready:
-            asyncio.run(self.close())
+        self.shutdown_sync()
 
 
 def run_async(coro):
-    """Run coroutine in sync context."""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    """Run *coro* in a fresh event loop and close it.
 
-    return loop.run_until_complete(coro)
+    Use only for coroutines not tied to a :class:`DiscordSyncClient`. For
+    client work, use :meth:`DiscordSyncClient.run` and :meth:`DiscordSyncClient.shutdown_sync`.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()

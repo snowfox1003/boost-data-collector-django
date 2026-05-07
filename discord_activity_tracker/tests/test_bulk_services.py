@@ -37,6 +37,8 @@ def _msg(mid, author_uid, content="", ts=None, **kwargs):
         "message_id": mid,
         "author": {"user_id": author_uid, **kwargs.pop("author_extra", {})},
         "content": content,
+        "message_type": kwargs.get("message_type", "Default"),
+        "is_pinned": kwargs.get("is_pinned", False),
         "message_created_at": ts,
         "message_edited_at": kwargs.get("edited_at"),
         "reply_to_message_id": kwargs.get("reply_to"),
@@ -196,6 +198,28 @@ class TestBulkUpsertMessages:
     def test_empty_input(self, channel):
         result = bulk_upsert_discord_messages([], channel, {})
         assert result == {}
+
+    def test_message_type_and_is_pinned_persisted(self, channel):
+        """bulk_upsert_discord_messages must persist message_type and is_pinned."""
+        user_map = bulk_upsert_discord_users([_user(1001, "alice")])
+        now = datetime(2026, 2, 17, 12, 0, 0, tzinfo=timezone.utc)
+        bulk_upsert_discord_messages(
+            [
+                _msg(
+                    7001,
+                    1001,
+                    content="pinned reply",
+                    message_type="Reply",
+                    is_pinned=True,
+                    ts=now,
+                )
+            ],
+            channel,
+            user_map,
+        )
+        msg = DiscordMessage.objects.get(message_id=7001)
+        assert msg.message_type == "Reply"
+        assert msg.is_pinned is True
 
 
 # -------------------------------------------------------------------

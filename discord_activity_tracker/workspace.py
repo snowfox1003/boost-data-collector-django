@@ -1,9 +1,15 @@
 """Workspace utilities - path helpers for raw export JSON and per-server data."""
 
 from pathlib import Path
+
+from django.conf import settings
+
 from config.workspace import get_workspace_path
 
 _APP_SLUG = "discord_activity_tracker"
+
+# Pre-exported DiscordChatExporter JSON dropped here for DB import (see backfill command).
+CPP_DISCUSSION_IMPORT_SUBDIR = "Discussion - c-cpp-discussion"
 
 
 def get_workspace_root() -> Path:
@@ -11,11 +17,44 @@ def get_workspace_root() -> Path:
     return get_workspace_path(_APP_SLUG)
 
 
-def get_raw_dir() -> Path:
-    """Return workspace/discord_activity_tracker/raw/ for DiscordChatExporter JSON output."""
-    path = get_workspace_root() / "raw"
+def get_cpp_discussion_import_dir() -> Path:
+    """Return workspace/discord_activity_tracker/Discussion - c-cpp-discussion/ (creates if missing)."""
+    path = get_workspace_root() / CPP_DISCUSSION_IMPORT_SUBDIR
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def get_raw_dir() -> Path:
+    """Return WORKSPACE_DIR/raw/discord_activity_tracker/ for archived JSON (Boost-style layout)."""
+    path = Path(settings.WORKSPACE_DIR) / "raw" / _APP_SLUG
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_exporter_staging_dir() -> Path:
+    """Temporary directory for DiscordChatExporter guild output before per-channel archival."""
+    path = get_raw_dir() / "_exporter_staging"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_channel_raw_dir(server_id: int, channel_id: int) -> Path:
+    """Return raw/discord_activity_tracker/<server_id>/<channel_id>/ for saved exports."""
+    path = get_raw_dir() / str(server_id) / str(channel_id)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def clear_exporter_staging_dir() -> None:
+    """Remove all files and subdirectories under the exporter staging directory."""
+    import shutil
+
+    staging = get_exporter_staging_dir()
+    for child in staging.iterdir():
+        if child.is_file():
+            child.unlink(missing_ok=True)
+        elif child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
 
 
 def get_server_dir(server_id: int) -> Path:
@@ -45,4 +84,6 @@ def iter_existing_message_jsons(server_id: int, channel_id: int):
     if not messages_dir.is_dir():
         return
     for path in messages_dir.glob("*.json"):
+        if path.name.startswith("._"):
+            continue
         yield path

@@ -493,24 +493,26 @@ def test_sync_guild_wrapper_runs_and_closes():
 
     with patch(
         "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch("discord_activity_tracker.sync.messages.run_async") as ra, patch(
+    ) as Cls, patch(
         "discord_activity_tracker.sync.messages.sync_guild_async",
         new=fake_guild,
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
 
-        def run_coro(coro):
+        def client_run(coro):
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(coro)
             finally:
                 loop.close()
 
-        ra.side_effect = run_coro
+        inst.run = MagicMock(side_effect=client_run)
+        inst.shutdown_sync = MagicMock()
         sync_guild("token", 1)
 
-    assert ra.call_count >= 2
+    assert inst.run.call_count == 1
+    inst.shutdown_sync.assert_called_once()
 
 
 @pytest.mark.django_db
@@ -523,24 +525,26 @@ def test_sync_channels_wrapper():
 
     with patch(
         "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch("discord_activity_tracker.sync.messages.run_async") as ra, patch(
+    ) as Cls, patch(
         "discord_activity_tracker.sync.messages.sync_channels_async",
         new=fake_channels,
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
 
-        def run_coro(coro):
+        def client_run(coro):
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(coro)
             finally:
                 loop.close()
 
-        ra.side_effect = run_coro
+        inst.run = MagicMock(side_effect=client_run)
+        inst.shutdown_sync = MagicMock()
         sync_channels("token", server, gid)
 
-    assert ra.call_count >= 2
+    assert inst.run.call_count == 1
+    inst.shutdown_sync.assert_called_once()
 
 
 @pytest.mark.django_db
@@ -560,24 +564,26 @@ def test_sync_channel_messages_wrapper():
 
     with patch(
         "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch("discord_activity_tracker.sync.messages.run_async") as ra, patch(
+    ) as Cls, patch(
         "discord_activity_tracker.sync.messages.sync_channel_messages_async",
         new=fake_sync,
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
 
-        def run_coro(coro):
+        def client_run(coro):
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(coro)
             finally:
                 loop.close()
 
-        ra.side_effect = run_coro
+        inst.run = MagicMock(side_effect=client_run)
+        inst.shutdown_sync = MagicMock()
         sync_channel_messages("token", channel, gid, full_sync=True)
 
-    assert ra.call_count >= 2
+    assert inst.run.call_count == 1
+    inst.shutdown_sync.assert_called_once()
 
 
 @pytest.mark.django_db
@@ -614,7 +620,7 @@ def test_sync_all_channels_respects_active_filter():
 
     with patch(
         "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch("discord_activity_tracker.sync.messages.run_async") as ra, patch(
+    ) as Cls, patch(
         "discord_activity_tracker.sync.messages.sync_guild_async",
         new=guild_ok,
     ), patch(
@@ -627,16 +633,19 @@ def test_sync_all_channels_respects_active_filter():
         inst = Cls.return_value
         inst.close = AsyncMock()
 
-        def run_coro(coro):
+        def client_run(coro):
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(coro)
             finally:
                 loop.close()
 
-        ra.side_effect = run_coro
+        inst.run = MagicMock(side_effect=client_run)
+        inst.shutdown_sync = MagicMock()
         sync_all_channels("tok", gid, active_only=True, active_days=30, full_sync=False)
 
+    assert inst.run.call_count == 3
+    inst.shutdown_sync.assert_called_once()
     sync_body.assert_awaited_once()
     args, _kwargs = sync_body.call_args
     passed_channels = args[1]
@@ -669,7 +678,7 @@ def test_sync_all_channels_full_sync_no_active_filter():
 
     with patch(
         "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch("discord_activity_tracker.sync.messages.run_async") as ra, patch(
+    ) as Cls, patch(
         "discord_activity_tracker.sync.messages.sync_guild_async",
         new=guild_ok,
     ), patch(
@@ -682,16 +691,19 @@ def test_sync_all_channels_full_sync_no_active_filter():
         inst = Cls.return_value
         inst.close = AsyncMock()
 
-        def run_coro(coro):
+        def client_run(coro):
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(coro)
             finally:
                 loop.close()
 
-        ra.side_effect = run_coro
+        inst.run = MagicMock(side_effect=client_run)
+        inst.shutdown_sync = MagicMock()
         sync_all_channels("tok", gid, full_sync=True)
 
+    assert inst.run.call_count == 3
+    inst.shutdown_sync.assert_called_once()
     sync_body.assert_awaited_once()
     args, _kwargs = sync_body.call_args
     assert len(args[1]) == 1

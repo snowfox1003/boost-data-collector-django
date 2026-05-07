@@ -19,7 +19,7 @@ from ..services import (
     update_channel_last_activity,
     bulk_process_message_batch,
 )
-from .client import DiscordSyncClient, run_async
+from .client import DiscordSyncClient
 from .utils import parse_datetime, parse_discord_user
 
 logger = logging.getLogger(__name__)
@@ -159,6 +159,8 @@ def _prepare_message_data(
         "message_id": message_data["id"],
         "author": author_info,
         "content": message_data.get("content", ""),
+        "message_type": message_data.get("message_type") or "Default",
+        "is_pinned": bool(message_data.get("is_pinned", False)),
         "message_created_at": created_at,
         "message_edited_at": edited_at,
         "reply_to_message_id": reply_to_message_id,
@@ -262,18 +264,18 @@ def sync_guild(token: str, guild_id: int):
     """Sync guild/server (sync wrapper)."""
     client = DiscordSyncClient(token)
     try:
-        return run_async(sync_guild_async(client, guild_id))
+        return client.run(sync_guild_async(client, guild_id))
     finally:
-        run_async(client.close())
+        client.shutdown_sync()
 
 
 def sync_channels(token: str, server: DiscordServer, guild_id: int):
     """Sync channels (sync wrapper)."""
     client = DiscordSyncClient(token)
     try:
-        return run_async(sync_channels_async(client, server, guild_id))
+        return client.run(sync_channels_async(client, server, guild_id))
     finally:
-        run_async(client.close())
+        client.shutdown_sync()
 
 
 def sync_channel_messages(
@@ -286,13 +288,13 @@ def sync_channel_messages(
     """Sync channel messages (sync wrapper)."""
     client = DiscordSyncClient(token)
     try:
-        run_async(
+        client.run(
             sync_channel_messages_async(
                 client, channel, guild_id, since_date, full_sync
             )
         )
     finally:
-        run_async(client.close())
+        client.shutdown_sync()
 
 
 MAX_CONCURRENT_CHANNELS = 5
@@ -334,10 +336,10 @@ def sync_all_channels(
     client = DiscordSyncClient(token)
     try:
         # Sync guild
-        server = run_async(sync_guild_async(client, guild_id))
+        server = client.run(sync_guild_async(client, guild_id))
 
         # Sync channels
-        channels = run_async(sync_channels_async(client, server, guild_id))
+        channels = client.run(sync_channels_async(client, server, guild_id))
 
         # Filter for active channels if requested
         if active_only and not full_sync:
@@ -357,10 +359,10 @@ def sync_all_channels(
             f"Syncing {len(channels)} channels "
             f"(max {MAX_CONCURRENT_CHANNELS} concurrent)"
         )
-        run_async(
+        client.run(
             _sync_all_channels_async(client, channels, guild_id, since_date, full_sync)
         )
     finally:
-        run_async(client.close())
+        client.shutdown_sync()
 
     logger.info(f"Completed sync for guild {guild_id}")

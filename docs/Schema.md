@@ -21,6 +21,7 @@ erDiagram
     BaseProfile ||--o| MailingListProfile : "extends"
     BaseProfile ||--o| WG21PaperAuthorProfile : "extends"
     BaseProfile ||--o| YoutubeSpeaker : "extends"
+    BaseProfile ||--o| DiscordProfile : "extends"
     Identity }o--|| BaseProfile  : "has"
     TempProfileIdentityRelation ||--o{ BaseProfile  : "has"
     TmpIdentity ||--o{ TempProfileIdentityRelation : "has"
@@ -80,6 +81,16 @@ erDiagram
         datetime updated_at
     }
 
+    DiscordProfile {
+        bigint discord_user_id "UK IX"
+        string username "IX"
+        string display_name "IX"
+        string avatar_url
+        boolean is_bot
+        datetime created_at
+        datetime updated_at
+    }
+
     Identity {
         int id PK
         string display_name "IX"
@@ -105,7 +116,7 @@ erDiagram
     }
 ```
 
-**Note:** Each extended table has `id` as primary key and foreign key to `BaseProfile.id`. The value is the same: one auto-increment in BaseProfile, and that same id is stored in exactly one extended profile row. Other tables (e.g. GitCommit, Issue) reference the profile via this single `id`.
+**Note:** Each extended table has `id` as primary key and foreign key to `BaseProfile.id`. The value is the same: one auto-increment in BaseProfile, and that same id is stored in exactly one extended profile row. Other tables (e.g. GitCommit, Issue) reference the profile via this single `id`. **DiscordProfile** (in `cppa_user_tracker`) is the author profile for **DiscordMessage** rows in `discord_activity_tracker` (`author_id` → `DiscordProfile.id`).
 
 **Note:** The **Email** table references BaseProfile via `base_profile_id` (FK to `BaseProfile.id`). One profile can have multiple email addresses; `is_primary` marks the primary email; `is_active` indicates whether the email is currently active. Other tables (e.g. MailingListMessage) can link to a profile via Email. **Note:** The `email` field is **not unique**; the same email address may appear in multiple rows (e.g. for different profiles or over time).
 
@@ -858,6 +869,85 @@ erDiagram
 
 ---
 
+### 11. Discord Activity Tracker (`discord_activity_tracker`)
+
+Guilds, channels, messages, and reactions ingested from **DiscordChatExporter** JSON (see [service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md)). **Discord user rows** live in **`cppa_user_tracker.DiscordProfile`** (extends `BaseProfile`, section 1); this app only stores server/channel/message/reaction tables.
+
+```mermaid
+erDiagram
+    direction LR
+    DiscordServer ||--o{ DiscordChannel : "has"
+    DiscordChannel ||--o{ DiscordMessage : "contains"
+    DiscordProfile ||--o{ DiscordMessage : "author"
+    DiscordMessage ||--o{ DiscordReaction : "has"
+
+    DiscordServer {
+        bigint server_id "UK IX"
+        string server_name "IX"
+        string icon_url
+        datetime created_at
+        datetime updated_at
+    }
+
+    DiscordChannel {
+        int id PK
+        int server_id FK
+        bigint channel_id "UK IX"
+        string channel_name "IX"
+        string channel_type
+        bigint category_id "IX nullable"
+        string category_name
+        text topic
+        int position
+        datetime last_synced_at "IX"
+        datetime last_activity_at "IX"
+        datetime created_at
+        datetime updated_at
+    }
+
+    DiscordMessage {
+        int id PK
+        int channel_id FK
+        int author_id FK
+        bigint message_id "UK IX"
+        text content
+        string message_type "IX default Default"
+        boolean is_pinned "IX"
+        datetime message_created_at "IX"
+        datetime message_edited_at
+        boolean is_deleted "IX"
+        datetime deleted_at
+        bigint reply_to_message_id "IX nullable"
+        boolean has_attachments
+        json attachment_urls
+        datetime created_at
+        datetime updated_at
+    }
+
+    DiscordReaction {
+        int id PK
+        int message_id FK
+        string emoji "IX"
+        int count
+        datetime created_at
+        datetime updated_at
+    }
+
+    DiscordProfile {
+        int baseprofile_ptr_id PK "FK BaseProfile"
+        bigint discord_user_id "UK IX"
+        string username "IX"
+    }
+```
+
+**Note:** **DiscordServer** is keyed by Discord guild snowflake `server_id` (unique). **DiscordChannel** is keyed by `channel_id` (unique); `server_id` FK uses `db_column="server_id"` to the parent server’s PK `id` (Django default), not the snowflake — join in ORM via `channel.server.server_id` when you need the guild snowflake.
+
+**Note:** **DiscordMessage** is keyed by `message_id` (Discord snowflake, unique). `author_id` → **DiscordProfile** (`cppa_user_tracker`). `reply_to_message_id` stores the parent message snowflake when the message is a reply (no FK to another row). `message_type` and `is_pinned` mirror exporter metadata (migration `0005`).
+
+**Note:** **DiscordReaction** has a unique constraint on `(message, emoji)` (`discord_activity_tracker_msg_emoji_uniq`).
+
+---
+
 ## Appendix
 
 ### Appendix A: Table summary
@@ -871,6 +961,7 @@ erDiagram
 | **SlackUser**                        | Profile for Slack; extends BaseProfile.                                                                  | 1       |
 | **MailingListProfile**               | Profile for mailing list; extends BaseProfile.                                                           | 1       |
 | **WG21PaperAuthorProfile**           | Profile for WG21 paper authors; extends BaseProfile.                                                     | 1       |
+| **DiscordProfile**                   | Discord user profile (`cppa_user_tracker`); extends BaseProfile. `discord_user_id` UK; used as `DiscordMessage.author`. | 1, 11   |
 | **TmpIdentity**                      | Temporary identity for staging (CPPA User Tracker).                                                      | 1       |
 | **TempProfileIdentityRelation**      | Staging table: base_profile_id -> target_identity_id (CPPA User Tracker).                                | 1       |
 | **GitHubRepository**                 | Repository metadata (owner, repo_name, stars, forks, etc.). Base table for repo subtypes.                | 2       |
@@ -918,13 +1009,17 @@ erDiagram
 | **WebsiteVisitCount**                | Per-date, per-country visit count.                                                                       | 8       |
 | **WebsiteWordCount**                 | Per-date, per-word count.                                                                                | 8       |
 | **PineconeFailList**                 | Failed sync records (failed_id, type) for retry/audit.                                                   | 9       |
-| **PineconeSyncStatus**               | Last sync per type (type, final_sync_at, created_at, updated_at); type = slack, mailing list, wg21, etc. | 9       |
+| **PineconeSyncStatus**               | Last sync per type (`app_type`, `final_sync_at`, …); includes Discord when `PINECONE_DISCORD_APP_TYPE` is set. | 9       |
 | **YoutubeSpeaker**                   | Profile for YouTube speakers; extends BaseProfile. Identified by `display_name`.                         | 1, 10   |
 | **YouTubeChannel**                   | Publisher channel; `channel_id` is PK (no auto-increment id).                                            | 10      |
 | **YouTubeVideo**                     | Video metadata, transcript state, and channel FK; `video_id` is PK (no auto-increment id).               | 10      |
 | **YouTubeVideoSpeaker**              | M2M join between YouTubeVideo and YoutubeSpeaker (video_id, speaker_id).                                 | 10      |
 | **CppaTags**                         | C++ community tag vocabulary (tag_name, unique/lowercase).                                               | 10      |
 | **YouTubeVideoTags**                 | M2M join between YouTubeVideo and CppaTags (youtube_video_id, cppa_tag_id).                              | 10      |
+| **DiscordServer**                    | Discord guild (`server_id` snowflake UK, name, icon).                                                    | 11      |
+| **DiscordChannel**                   | Channel in a guild (channel_id UK, type, category, topic, sync/activity timestamps).                      | 11      |
+| **DiscordMessage**                   | Message (`message_id` UK, content, type, pin, reply_to, attachments JSON, soft-delete flags).             | 11      |
+| **DiscordReaction**                  | Emoji aggregate per message (unique on message + emoji).                                                | 11      |
 | **BoostDocContent**                  | Globally unique scraped page by content hash (url, content_hash UK, first_version_id, last_version_id, is_upserted, scraped_at). One row per unique content hash across all versions.       | 10      |
 | **BoostLibraryDocumentation**        | Join table: BoostLibraryVersion × BoostDocContent. Records which pages belong to each (library, version) pair.                                                                              | 10      |
 
@@ -934,7 +1029,7 @@ erDiagram
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | Identity                    | BaseProfile                                                                                                            | One identity has many profiles              |
 | BaseProfile                 | Email                                                                                                                  | One profile has many emails                 |
-| BaseProfile                 | GitHubAccount, SlackUser, MailingListProfile, WG21PaperAuthorProfile                                                   | Extends (1:1 subtype)                       |
+| BaseProfile                 | GitHubAccount, SlackUser, MailingListProfile, WG21PaperAuthorProfile, DiscordProfile, YoutubeSpeaker                    | Extends (1:1 subtype)                       |
 | TmpIdentity                 | TempProfileIdentityRelation                                                                                            | Has many (target)                           |
 | TempProfileIdentityRelation | BaseProfile                                                                                                            | Has many (base_profile_id)                  |
 | GitHubAccount               | GitHubRepository                                                                                                       | Owns many                                   |
@@ -971,5 +1066,9 @@ erDiagram
 | YouTubeVideo                | YouTubeVideoSpeaker                                                                                                    | Has many speakers                           |
 | YouTubeVideo                | YouTubeVideoTags                                                                                                       | Has many tags                               |
 | CppaTags                    | YouTubeVideoTags                                                                                                       | Tagged in many videos                       |
+| DiscordServer               | DiscordChannel                                                                                                         | Has many channels                           |
+| DiscordChannel              | DiscordMessage                                                                                                         | Contains many messages                      |
+| DiscordProfile              | DiscordMessage                                                                                                         | Author (has many messages)                  |
+| DiscordMessage              | DiscordReaction                                                                                                        | Has many reactions                          |
 | BoostLibraryVersion         | BoostLibraryDocumentation                                                                                              | Has many (boost_library_version_id)        |
 | BoostDocContent             | BoostLibraryDocumentation                                                                                              | Used in many (boost_doc_content_id)        |

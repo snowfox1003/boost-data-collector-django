@@ -14,6 +14,7 @@ All writes to app models must go through the service layer. The API is documente
 | **boost_library_tracker**   | `boost_library_tracker.services`   | Boost libraries, versions, dependencies, categories, maintainers/authors. |
 | **boost_library_docs_tracker** | `boost_library_docs_tracker.services` | Globally unique doc content (BoostDocContent) and (library-version, page) relation tracking (BoostLibraryDocumentation). |
 | **boost_usage_tracker**    | `boost_usage_tracker.services`    | External repos, Boost usage, missing-header tmp. |
+| **discord_activity_tracker** | `discord_activity_tracker.services` | Discord servers, channels, messages, reactions (authors: `cppa_user_tracker.DiscordProfile`). |
 
 ---
 
@@ -26,6 +27,7 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/boost_library_docs_tracker.md](service_api/boost_library_docs_tracker.md)** – API for `boost_library_docs_tracker.services`.
 - **[service_api/cppa_pinecone_sync.md](service_api/cppa_pinecone_sync.md)** – API for `cppa_pinecone_sync.services`.
 - **[service_api/boost_usage_tracker.md](service_api/boost_usage_tracker.md)** – API for `boost_usage_tracker.services`.
+- **[service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md)** – API for `discord_activity_tracker.services`; management commands, sync modules, and Pinecone notes.
 
 ---
 
