@@ -25,7 +25,7 @@ if "postgresql" in (_default_db.get("ENGINE") or "").lower():
     _opts = dict(_default_db.get("OPTIONS") or {})
     _opts.setdefault("connect_timeout", 15)
     _default_db["OPTIONS"] = _opts
-    _default_db.setdefault("CONN_MAX_AGE", 0)
+    _default_db["CONN_MAX_AGE"] = 0
     DATABASES["default"] = _default_db
 
 PASSWORD_HASHERS = [

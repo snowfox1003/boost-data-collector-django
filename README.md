@@ -108,6 +108,13 @@ Coverage writes a local **`.coverage`** file (binary SQLite data used by `covera
 **PostgreSQL parity (recommended before merging DB-sensitive changes):** GitHub Actions runs the full suite against Postgres (`DATABASE_URL` in `.github/workflows/actions.yml`; tests use `127.0.0.1` for a stable loopback connection). Locally, `pytest.ini` defaults to SQLite in-memory when `DATABASE_URL` is unset (`config.test_settings`). Run the full suite against Postgres when you touch JSONB, enums, or locks, for example:
 
 ```bash
+# Linux / macOS
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
+python -m pytest
+```
+
+```bash
+# Windows (Command Prompt)
 set DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
 python -m pytest
 ```
