@@ -283,9 +283,13 @@ def sync_messages(
                 except Exception as e:
                     logger.debug("Skip message %s: %s", msg.get("ts"), e)
                     error_count += 1
-            workspace_path.unlink()
         except OSError:
-            logger.exception("Failed to process/remove %s", workspace_path)
+            logger.exception("Failed to process messages for %s", workspace_path)
+        else:
+            try:
+                workspace_path.unlink()
+            except Exception:
+                logger.exception("Failed to remove workspace file %s", workspace_path)
 
         d += timedelta(days=1)
 
