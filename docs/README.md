@@ -6,6 +6,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 
 | Topic | Doc | Purpose |
 |-------|-----|---------|
+| **Onboarding** | [Onboarding.md](Onboarding.md) | First-day orientation: mental model, app roles, data dependencies, where patterns differ. |
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
 | **Architecture** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
 | **Add a collector** | [How_to_add_a_collector.md](How_to_add_a_collector.md) | Checklist: new command, registration, tests, docs. |

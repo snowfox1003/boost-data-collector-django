@@ -188,6 +188,7 @@ One folder, subfolders per app. For **github_activity_tracker**, sync uses `work
 
 Docs are organized **by topic** (one doc per concern: workflow, workspace, service API, etc.). See **[docs/README.md](docs/README.md)** for the full index.
 
+- [Onboarding.md](docs/Onboarding.md) – First-day orientation for contributors (mental model, app roles, data flow).
 - [docs/README.md](docs/README.md) – Per-topic index and how to find app-specific info.
 - [Running tests](#running-tests) – How to run the test suite (pytest, coverage).
 - [Celery](#celery) – How to start the Celery worker and Beat.
