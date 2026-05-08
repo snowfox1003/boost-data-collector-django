@@ -231,8 +231,13 @@ def run_startup_workspace_cleanup() -> None:
 
 
 def should_skip_startup_cleanup() -> bool:
-    """Guards: pytest, test settings, and common management commands."""
-    if os.environ.get("PYTEST_CURRENT_TEST"):
+    """Guards: pytest, test settings, and common management commands.
+
+    ``PYTEST_CURRENT_TEST`` is set only while a test runs; during pytest's early
+    Django init (e.g. conftest) it is unset, so also treat ``"pytest" in sys.modules``
+    as pytest (see config.test_settings).
+    """
+    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
         return True
     mod = (
         os.environ.get("DJANGO_SETTINGS_MODULE")

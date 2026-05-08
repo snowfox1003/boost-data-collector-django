@@ -115,6 +115,7 @@ def test_should_skip_when_runserver_parent():
 
     saved_rm = os.environ.pop("RUN_MAIN", None)
     saved_pt = os.environ.pop("PYTEST_CURRENT_TEST", None)
+    saved_pytest = sys.modules.pop("pytest", None)
     try:
         with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "config.settings"}):
             with patch.object(sys, "argv", ["manage.py", "runserver"]):
@@ -128,6 +129,8 @@ def test_should_skip_when_runserver_parent():
             os.environ["RUN_MAIN"] = saved_rm
         if saved_pt is not None:
             os.environ["PYTEST_CURRENT_TEST"] = saved_pt
+        if saved_pytest is not None:
+            sys.modules["pytest"] = saved_pytest
 
 
 @pytest.mark.django_db
