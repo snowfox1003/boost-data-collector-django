@@ -36,11 +36,40 @@ def test_classify_json_file(tmp_path):
 
 
 @pytest.mark.django_db
+def test_classify_json_file_non_utf8_invalid(tmp_path):
+    from core.workspace_orphans import classify_json_file
+
+    p = tmp_path / "bad.json"
+    p.write_bytes(b"\xff\xfe{\x00")
+
+    assert classify_json_file(p) == "invalid"
+
+
+@pytest.mark.django_db
 def test_cleanup_removes_invalid_json_execute(tmp_path):
     from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
 
     p = _gat_commit_json(tmp_path) / "abc.json"
     p.write_text("{not json", encoding="utf-8")
+
+    stats = cleanup_github_activity_tracker_json_cache(
+        workspace_dir=tmp_path,
+        execute=True,
+        use_quarantine=False,
+        stale_max_age_seconds=None,
+        invalid_grace_seconds=0.0,
+    )
+    assert stats.scanned == 1
+    assert stats.removed_invalid == 1
+    assert not p.exists()
+
+
+@pytest.mark.django_db
+def test_cleanup_removes_non_utf8_cache_file(tmp_path):
+    from core.workspace_orphans import cleanup_github_activity_tracker_json_cache
+
+    p = _gat_commit_json(tmp_path) / "bin.json"
+    p.write_bytes(b"\xff\xfe\x00\x00{")
 
     stats = cleanup_github_activity_tracker_json_cache(
         workspace_dir=tmp_path,

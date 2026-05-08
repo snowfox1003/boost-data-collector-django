@@ -75,7 +75,7 @@ def classify_json_file(path: Path) -> str:
         return "empty"
     try:
         raw = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return "invalid"
     try:
         json.loads(raw)
