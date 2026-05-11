@@ -30,8 +30,8 @@ class PineconeInstance(str, Enum):
 
 try:
     from pinecone import Pinecone
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-    from langchain_core.documents import Document
+
+    from cppa_pinecone_sync.text_chunking import Document, RecursiveCharacterTextSplitter
 except ImportError as e:
     Pinecone = None  # type: ignore[assignment,misc]
     RecursiveCharacterTextSplitter = None  # type: ignore[assignment,misc]
@@ -129,7 +129,7 @@ class PineconeIngestion:
         if _IMPORT_ERROR is not None:
             raise ImportError(
                 "Missing dependencies for Pinecone ingestion. "
-                "Install with: pip install pinecone langchain-text-splitters langchain-core"
+                "Install with: pip install pinecone"
             ) from _IMPORT_ERROR
 
     def _setup_client(self) -> None:
@@ -306,7 +306,7 @@ class PineconeIngestion:
         """Upsert documents to Pinecone indexes. Returns statistics dict.
 
         Args:
-            documents: List of langchain Document objects.
+            documents: List of Document objects (page_content + metadata).
             namespace: Pinecone namespace.
             is_chunked: If True, skip text splitting (documents are already chunked).
 
@@ -447,7 +447,7 @@ class PineconeIngestion:
         """Update metadata for existing documents in Pinecone indexes.
 
         Args:
-            documents: List of langchain Document objects.
+            documents: List of Document objects (page_content + metadata).
             namespace: Pinecone namespace.
             is_chunked: If True, skip text splitting (documents are already chunked).
 

@@ -72,8 +72,8 @@ def _empty_sync_result() -> dict[str, Any]:
 def _build_documents_from_raw(
     raw_documents: list[dict[str, Any]],
 ) -> list[Any]:
-    """Convert preprocess output to langchain Documents; skip items missing doc_id/url."""
-    from langchain_core.documents import Document
+    """Convert preprocess output to Documents; skip items missing doc_id/url."""
+    from cppa_pinecone_sync.text_chunking import Document
 
     documents: list[Any] = []
     for item in raw_documents:

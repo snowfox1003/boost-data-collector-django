@@ -355,7 +355,7 @@ class CppaSlackTrackerCollector(CollectorBase):
         except ImportError as e:
             logger.warning(
                 "Pinecone sync skipped: missing dependencies (%s). "
-                "Install with: pip install pinecone langchain-text-splitters langchain-core",
+                "Install with: pip install pinecone",
                 e,
             )
         except ValueError as e:

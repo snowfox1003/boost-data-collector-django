@@ -6,16 +6,14 @@ import pytest
 from django.test.utils import override_settings
 
 
-from langchain_core.documents import Document
-
 from cppa_pinecone_sync.ingestion import (
     PineconeIngestion,
     PineconeInstance,
 )
+from cppa_pinecone_sync.text_chunking import Document
 
 
 pytest.importorskip("pinecone")
-pytest.importorskip("langchain_text_splitters")
 
 
 @pytest.fixture

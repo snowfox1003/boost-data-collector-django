@@ -1,17 +1,3 @@
-# Include production dependencies
--r requirements.txt
-
-# Test stack (see docs/testing or project testing summary)
-pytest>=7.4
-pytest-django>=4.5
-django-test-plus>=2.2
-model-bakery>=0.17
-
-# Lint / format (pre-commit runs these via .pre-commit-config.yaml)
-pre-commit>=3.6
-
-# Optional: coverage, HTTP mocking, fake data; pyright for optional local type checks
-pytest-cov>=4.1
-responses>=0.24
-Faker>=20.0
-pyright>=1.1.350
+# Locked dev + production dependencies. Edit requirements-dev.in, then regenerate
+# requirements-dev.lock (see header comment in requirements-dev.in).
+-r requirements-dev.lock

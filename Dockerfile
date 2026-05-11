@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+# Install Python dependencies (fully pinned lockfile; gunicorn included in lock)
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock
 
 # Copy project code
 COPY . .
