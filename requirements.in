@@ -18,7 +18,8 @@ gunicorn>=22.0,<24
 
 # --- boost_library_docs_tracker (HTML parsing, crawling) ---
 beautifulsoup4>=4.12,<5
-lxml>=4.9,<6
+# CVE-2026-41066 / GHSA-vfmq-68hx-4jfw: fixed in lxml 6.1.0; prior 5.x and 6.0.x remain affected.
+lxml>=6.1.0,<7
 pypandoc>=1.11,<2
 
 # --- cppa_pinecone_sync (vector index; chunking is in-tree) ---
