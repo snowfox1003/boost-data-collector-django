@@ -1,0 +1,41 @@
+# Direct dependency inputs (one line per distribution). Version policy: >=X.Y,<next-major
+# unless pinning is required for a known breakage. Regenerate locks after edits:
+#   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.11
+#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.11
+
+# --- Core web / config ---
+Django>=4.2,<5
+psycopg[binary]>=3.1,<4
+django-environ>=0.11,<1
+requests>=2.31,<3
+urllib3>=2.0,<3
+discord.py>=2.3.0,<3
+python-dateutil>=2.8.0,<3
+celery[redis]>=5.3,<6
+redis>=5.0,<6
+PyYAML>=6.0.1,<7
+gunicorn>=22.0,<24
+
+# --- boost_library_docs_tracker (HTML parsing, crawling) ---
+beautifulsoup4>=4.12,<5
+# CVE-2026-41066 / GHSA-vfmq-68hx-4jfw: fixed in lxml 6.1.0; prior 5.x and 6.0.x remain affected.
+lxml>=6.1.0,<7
+pypandoc>=1.11,<2
+
+# --- cppa_pinecone_sync (vector index; chunking is in-tree) ---
+pinecone>=5.0,<6
+
+# --- cppa_slack_tracker (Slack Bolt) ---
+slack-bolt>=1.18,<2
+pytz>=2024.1,<2026
+
+# --- slack_event_handler: remote WebDriver for Slack xoxc/xoxd token extraction ---
+# (slack_event_handler.utils.slack_tokens; used from core.operations.slack_ops.fetcher)
+selenium>=4.35,<5
+
+# --- wg21_paper_tracker / cppa_youtube_script_tracker ---
+google-api-python-client>=2.100,<3
+yt-dlp>=2026.2.21,<2027
+
+# --- slack_event_handler (GitHub PR comments) ---
+PyGithub>=2.0,<3
