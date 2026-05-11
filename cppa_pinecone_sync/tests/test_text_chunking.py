@@ -4,6 +4,7 @@ from cppa_pinecone_sync.text_chunking import Document, RecursiveCharacterTextSpl
 
 
 def test_split_documents_preserves_metadata_and_start_index():
+    """Chunks inherit metadata and record ``start_index`` when ``add_start_index`` is True."""
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=80,
         chunk_overlap=10,
@@ -30,11 +31,13 @@ def test_split_documents_preserves_metadata_and_start_index():
 
 
 def test_split_text_empty():
+    """Empty input yields no chunks."""
     splitter = RecursiveCharacterTextSplitter(chunk_size=10, chunk_overlap=0)
     assert splitter.split_text("") == []
 
 
 def test_chunk_overlap_must_not_exceed_chunk_size():
+    """Constructor rejects overlap larger than chunk size."""
     try:
         RecursiveCharacterTextSplitter(chunk_size=10, chunk_overlap=20)
     except ValueError as e:

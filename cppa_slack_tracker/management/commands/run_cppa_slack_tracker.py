@@ -4,6 +4,8 @@ Management command to run CPPA Slack Tracker.
 Syncs Slack data: teams, users, channels, channel memberships, messages.
 Uses team_id (required) and optional channel_id. Sync logic lives in
 cppa_slack_tracker.sync (sync_user, sync_channel, sync_channel_user, sync_message).
+
+Optional Pinecone push after sync needs only the ``pinecone`` package (chunking is in-tree).
 """
 
 from __future__ import annotations

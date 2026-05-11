@@ -31,6 +31,7 @@ def _split_text_with_regex(
     separator: str,
     keep_separator: Union[bool, Literal["start", "end"]],
 ) -> List[str]:
+    """Split *text* on *separator* (regex); optionally keep delimiter segments."""
     if separator:
         if keep_separator:
             _splits = re.split(f"({separator})", text)
@@ -54,6 +55,8 @@ def _split_text_with_regex(
 
 
 class TextSplitter(ABC):
+    """Base splitter: merge token runs up to *chunk_size* with *chunk_overlap*."""
+
     def __init__(
         self,
         chunk_size: int = 4000,
@@ -63,6 +66,7 @@ class TextSplitter(ABC):
         add_start_index: bool = False,
         strip_whitespace: bool = True,
     ) -> None:
+        """Configure chunk length, overlap, and optional ``start_index`` in chunk metadata."""
         if chunk_overlap > chunk_size:
             raise ValueError(
                 f"Got a larger chunk overlap ({chunk_overlap}) than chunk size "
@@ -77,11 +81,13 @@ class TextSplitter(ABC):
 
     @abstractmethod
     def split_text(self, text: str) -> List[str]:
+        """Return non-overlapping string chunks for *text*."""
         raise NotImplementedError
 
     def create_documents(
         self, texts: List[str], metadatas: Optional[List[dict]] = None
     ) -> List[Document]:
+        """Split each string in *texts* into ``Document`` rows with copied *metadatas*."""
         _metadatas = metadatas or [{}] * len(texts)
         documents: List[Document] = []
         for i, text in enumerate(texts):
@@ -98,6 +104,7 @@ class TextSplitter(ABC):
         return documents
 
     def split_documents(self, documents: Iterable[Document]) -> List[Document]:
+        """Split each ``Document.page_content``; metadata is deep-copied per chunk."""
         texts: List[str] = []
         metadatas: List[dict] = []
         for doc in documents:
@@ -106,6 +113,7 @@ class TextSplitter(ABC):
         return self.create_documents(texts, metadatas=metadatas)
 
     def _join_docs(self, docs: List[str], separator: str) -> Optional[str]:
+        """Join *docs* with *separator*; strip if configured; return None for empty."""
         text = separator.join(docs)
         if self._strip_whitespace:
             text = text.strip()
@@ -114,6 +122,7 @@ class TextSplitter(ABC):
         return text
 
     def _merge_splits(self, splits: Iterable[str], separator: str) -> List[str]:
+        """Combine small *splits* into chunks not exceeding *chunk_size* (with overlap trim)."""
         separator_len = self._length_function(separator)
 
         docs: List[str] = []
@@ -153,6 +162,8 @@ class TextSplitter(ABC):
 
 
 class RecursiveCharacterTextSplitter(TextSplitter):
+    """Split by trying ``separators`` in order (paragraph, line, space, then chars)."""
+
     def __init__(
         self,
         separators: Optional[List[str]] = None,
@@ -160,11 +171,13 @@ class RecursiveCharacterTextSplitter(TextSplitter):
         is_separator_regex: bool = False,
         **kwargs: Any,
     ) -> None:
+        """Defaults match common LangChain behavior (``keep_separator=True``)."""
         super().__init__(keep_separator=keep_separator, **kwargs)
         self._separators = separators or ["\n\n", "\n", " ", ""]
         self._is_separator_regex = is_separator_regex
 
     def _split_text(self, text: str, separators: List[str]) -> List[str]:
+        """Recursively split *text* using the first matching separator, then merge."""
         final_chunks: List[str] = []
         separator = separators[-1]
         new_separators: List[str] = []
@@ -202,4 +215,5 @@ class RecursiveCharacterTextSplitter(TextSplitter):
         return final_chunks
 
     def split_text(self, text: str) -> List[str]:
+        """Public entry: split *text* with this instance's separator list."""
         return self._split_text(text, self._separators)

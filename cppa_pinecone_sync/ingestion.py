@@ -3,7 +3,8 @@ Pinecone ingestion module for document indexing and vector storage.
 
 Handles Pinecone index creation, document chunking, and vector operations
 (upsert, update, delete). Uses Pinecone integrated cloud embeddings for
-hybrid search (dense + sparse).
+hybrid search (dense + sparse). Chunking uses ``cppa_pinecone_sync.text_chunking``
+(in-tree ``Document`` / ``RecursiveCharacterTextSplitter``; no LangChain).
 
 Adapted from old files/ingestion.py; uses Django settings instead of a
 standalone config module.

@@ -1,4 +1,4 @@
-"""Unit tests for cppa_pinecone_sync.ingestion.PineconeIngestion."""
+"""Unit tests for ``cppa_pinecone_sync.ingestion.PineconeIngestion`` (in-tree ``Document``)."""
 
 from unittest.mock import MagicMock, patch
 

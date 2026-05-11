@@ -9,6 +9,8 @@ This module orchestrates the full flow:
 3. Upsert documents to Pinecone via PineconeIngestion.
 4. Update the fail list and sync status in the database.
 
+``_build_documents_from_raw`` maps preprocess dicts to ``text_chunking.Document``.
+
 See docs/Pinecone_preprocess_guideline.md (preprocess contract) and
 docs/service_api/cppa_pinecone_sync.md (fail list / sync status services).
 """
@@ -72,7 +74,7 @@ def _empty_sync_result() -> dict[str, Any]:
 def _build_documents_from_raw(
     raw_documents: list[dict[str, Any]],
 ) -> list[Any]:
-    """Convert preprocess output to Documents; skip items missing doc_id/url."""
+    """Convert preprocess output to ``Document`` instances; skip items missing doc_id/url."""
     from cppa_pinecone_sync.text_chunking import Document
 
     documents: list[Any] = []
