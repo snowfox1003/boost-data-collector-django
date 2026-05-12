@@ -68,3 +68,4 @@ For a full list of functions, parameter/return types, and validation (e.g. empty
 - [Development_guideline.md](Development_guideline.md) – Setup, workflow, adding apps.
 - [Workflow.md](Workflow.md) – Execution order and collectors.
 - [Schema.md](Schema.md) – Database schema.
+- [cross-app-dependencies.md](cross-app-dependencies.md) – Complete map of every cross-app FK, MTI, ORM read, and Python import dependency, plus `import-linter` recommendations.

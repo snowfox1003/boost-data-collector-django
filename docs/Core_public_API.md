@@ -21,11 +21,13 @@ Log records from `CollectorBase.handle_error` include `extra` keys: `collector`,
 
 ## Reducing coupling
 
-- Prefer **no** `ForeignKey` from one tracker app into another’s models (see Development guideline).
+- Prefer **no** `ForeignKey` from one tracker app into another's models (see Development guideline).
 - When you need shared behavior, add it under `core` (for example **`core.operations`** for Slack/markdown/file helpers, or **`core.operations.github_ops`** for GitHub API/git/tokens). Those utilities are **not** separate Django apps—they live under the **`core`** package and are not listed in **`INSTALLED_APPS`**.
 - Long-term: shrink opportunistic imports between tracker apps by extracting shared protocols into `core` or small neutral apps.
+- The current state of all cross-app FKs, ORM read-coupling, and Python imports is catalogued in **[cross-app-dependencies.md](cross-app-dependencies.md)**, together with `import-linter` contracts that can enforce the coupling guideline mechanically.
 
 ## Related docs
 
 - [How to add a collector](How_to_add_a_collector.md)
 - [Development_guideline.md](Development_guideline.md)
+- [cross-app-dependencies.md](cross-app-dependencies.md)
