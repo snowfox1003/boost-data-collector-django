@@ -102,3 +102,38 @@ def test_get_or_create_tag_normalizes_case():
 def test_get_or_create_tag_empty_raises():
     with pytest.raises(ValueError, match="tag_name"):
         get_or_create_tag("   ")
+
+
+@pytest.mark.django_db
+def test_get_or_create_video_sparse_metadata_defaults():
+    video, created = get_or_create_video("sparse1", None, {})
+    assert created is True
+    assert video.title == ""
+    assert video.description == ""
+    assert video.duration_seconds == 0
+    assert video.view_count is None
+    assert video.like_count is None
+    assert video.comment_count is None
+    assert video.published_at is None
+    assert video.scraped_at is None
+
+
+@pytest.mark.django_db
+def test_get_or_create_video_unparseable_datetime_strings_become_none():
+    """django.utils.dateparse.parse_datetime returns None for invalid ISO strings."""
+    video, _ = get_or_create_video(
+        "sparse2",
+        None,
+        {"published_at": "not-a-date", "scraped_at": "also-bad"},
+    )
+    assert video.published_at is None
+    assert video.scraped_at is None
+
+
+@pytest.mark.django_db
+def test_get_or_create_channel_empty_title_does_not_clear_existing():
+    _ = get_or_create_channel("keep_title", "CppCon")
+    ch2 = get_or_create_channel("keep_title", "")
+    assert ch2.pk == "keep_title"
+    ch2.refresh_from_db()
+    assert ch2.channel_title == "CppCon"

@@ -266,3 +266,168 @@ def test_fetch_videos_import_error():
                 datetime(2024, 1, 1, tzinfo=timezone.utc),
                 datetime(2024, 2, 1, tzinfo=timezone.utc),
             )
+
+
+def test_build_queries_dedupe_duplicate_channel_terms():
+    """Duplicate terms in _CHANNEL_FOCUSED_TERMS collapse via _dedupe_pairs (continue branch)."""
+    with patch.object(fetcher_mod, "_CHANNEL_FOCUSED_TERMS", ["C++", "C++"]):
+        pairs = fetcher_mod._build_queries("CppCon")
+    assert len(pairs) == 1
+    assert pairs[0][0] == "C++"
+
+
+def test_fetch_search_page_passes_page_token_and_channel_id():
+    youtube = MagicMock()
+    youtube.search.return_value.list.return_value.execute = MagicMock(
+        return_value={"items": [], "nextPageToken": None}
+    )
+    fetcher_mod._fetch_search_page(
+        youtube, "q", "chan123", "after", "before", "nextTok"
+    )
+    kwargs = youtube.search.return_value.list.call_args.kwargs
+    assert kwargs["pageToken"] == "nextTok"
+    assert kwargs["channelId"] == "chan123"
+
+
+def test_format_video_data_missing_snippet_and_statistics():
+    vd = {"id": "thin1", "snippet": {}, "statistics": {}, "contentDetails": {}}
+    out = fetcher_mod._format_video_data(vd, search_term="s")
+    assert out["video_id"] == "thin1"
+    assert out["title"] == ""
+    assert out["duration_seconds"] == 0
+    assert out["view_count"] is None
+
+
+@override_settings(YOUTUBE_API_KEY="k")
+def test_process_one_channel_query_pagination_two_pages():
+    youtube = MagicMock()
+    page = {"n": 0}
+
+    def search_execute():
+        page["n"] += 1
+        if page["n"] == 1:
+            return {
+                "items": [
+                    {"id": {"kind": "youtube#video", "videoId": "pg1"}},
+                ],
+                "nextPageToken": "t2",
+            }
+        return {
+            "items": [
+                {"id": {"kind": "youtube#video", "videoId": "pg2"}},
+            ],
+            "nextPageToken": None,
+        }
+
+    search_mock = MagicMock(side_effect=search_execute)
+    youtube.search.return_value.list.return_value.execute = search_mock
+
+    def video_execute():
+        call = youtube.videos.return_value.list.call_args
+        ids = call.kwargs["id"].split(",")
+        items = []
+        for vid in ids:
+            items.append(
+                {
+                    "id": vid,
+                    "snippet": {"title": vid},
+                    "statistics": {},
+                    "contentDetails": {"duration": "PT30S"},
+                }
+            )
+        return {"items": items}
+
+    youtube.videos.return_value.list.return_value.execute = video_execute
+
+    seen: set[str] = set()
+    with patch.object(fetcher_mod.time, "sleep"):
+        out = fetcher_mod._process_one_channel_query(
+            youtube,
+            "q",
+            None,
+            "a",
+            "b",
+            seen,
+            min_duration_seconds=0,
+        )
+    assert len(out) == 2
+    assert {row["video_id"] for row in out} == {"pg1", "pg2"}
+    assert search_mock.call_count == 2
+
+
+def test_process_one_channel_query_skips_detail_row_with_empty_id():
+    youtube = MagicMock()
+    youtube.search.return_value.list.return_value.execute = MagicMock(
+        return_value={
+            "items": [{"id": {"kind": "youtube#video", "videoId": "ghost"}}],
+            "nextPageToken": None,
+        }
+    )
+    youtube.videos.return_value.list.return_value.execute = MagicMock(
+        return_value={
+            "items": [
+                {
+                    "id": "",
+                    "snippet": {},
+                    "statistics": {},
+                    "contentDetails": {"duration": "PT1M"},
+                }
+            ]
+        }
+    )
+    seen: set[str] = set()
+    with patch.object(fetcher_mod.time, "sleep"):
+        out = fetcher_mod._process_one_channel_query(
+            youtube,
+            "q",
+            None,
+            "a",
+            "b",
+            seen,
+            min_duration_seconds=0,
+        )
+    assert out == []
+
+
+def test_process_one_channel_query_non_video_search_items_no_video_list_call():
+    youtube = MagicMock()
+    youtube.search.return_value.list.return_value.execute = MagicMock(
+        return_value={
+            "items": [
+                {"id": {"kind": "youtube#playlist", "playlistId": "PL1"}},
+            ],
+            "nextPageToken": None,
+        }
+    )
+    vid_exec = MagicMock(return_value={"items": []})
+    youtube.videos.return_value.list.return_value.execute = vid_exec
+    seen: set[str] = set()
+    with patch.object(fetcher_mod.time, "sleep"):
+        out = fetcher_mod._process_one_channel_query(
+            youtube,
+            "q",
+            None,
+            "a",
+            "b",
+            seen,
+            min_duration_seconds=0,
+        )
+    assert out == []
+    vid_exec.assert_not_called()
+
+
+def test_process_one_channel_query_breaks_when_search_returns_none():
+    youtube = MagicMock()
+    youtube.search.return_value.list.return_value.execute = MagicMock(return_value=None)
+    seen: set[str] = set()
+    with patch.object(fetcher_mod.time, "sleep"):
+        out = fetcher_mod._process_one_channel_query(
+            youtube,
+            "q",
+            None,
+            "a",
+            "b",
+            seen,
+            min_duration_seconds=0,
+        )
+    assert out == []
