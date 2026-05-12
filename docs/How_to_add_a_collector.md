@@ -9,24 +9,264 @@ This checklist assumes you already have a Django app (or are creating one) with 
 
 ## 2. Register the command in YAML
 
-Add a task under the right group in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
+Add a task under the right group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). That file is often **local-only** (gitignored); copy from [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) if you do not have it yet. Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
 
 ## 3. Shared abstractions (recommended)
 
 - Subclass [`CollectorBase`](../core/collectors/base.py) for a common `run()` / `handle_error()` / `sync_pinecone()` contract, and use [`BaseCollectorCommand`](../core/collectors/command_base.py) so the management command stays thin.
 - [`DjangoCommandCollector`](../core/collectors/base.py) remains available for tests or internal `call_command` wrappers.
 
-## 4. Configuration and secrets
+## 4. Skeleton collector (minimal copy-paste example)
+
+This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`CollectorBase` subclass** wires steps together in `run()`. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [Contributing.md](Contributing.md#service-layer-single-place-for-writes)).
+
+**Not a repo artifact:** The snippets below use a placeholder app name `my_skeleton_tracker`. They are meant to be copied into a **new** Django app directory and adjusted; this repository does not ship that app. For a **full** production-sized collector (fetch, raw files, Pinecone, many models), use [`github_activity_tracker/`](../github_activity_tracker/) as reference; use this skeleton to learn the shape without noise.
+
+**Failure taxonomy:** `CollectorBase.handle_error` logs with [`classify_failure`](../core/errors.py) so log records include a stable `failure_category` (see [`CollectorFailureCategory`](../core/errors.py)). Override `handle_error` only when you need extra context; map domain errors to categories there if the default classifier is not enough.
+
+### Layout (after find-replace)
+
+Replace `my_skeleton_tracker` / `run_my_skeleton_tracker` with your real app and command names everywhere below.
+
+```text
+my_skeleton_tracker/
+  __init__.py
+  apps.py
+  collectors.py
+  models.py
+  services.py
+  management/
+    __init__.py
+    commands/
+      __init__.py
+      run_my_skeleton_tracker.py
+  tests/
+    __init__.py
+    test_skeleton_collector.py
+```
+
+`management/__init__.py`, `management/commands/__init__.py`, `tests/__init__.py`, and the package `__init__.py` can be empty files.
+
+### Import rules (read before pasting)
+
+- **Do import** from **`core`** (e.g. `core.collectors.base`, `core.collectors.command_base`, and `core.errors` if you customize error handling) and from **Django**.
+- **Do import** from **your own app** (`my_skeleton_tracker.services`, `my_skeleton_tracker.collectors`, etc.).
+- **Do not import** from other tracker apps in the collector or command unless you have a deliberate integration; shared protocols belong in `core` (see [Core_public_API.md](Core_public_API.md) if applicable).
+
+### `models.py`
+
+```python
+# my_skeleton_tracker/models.py
+"""Customize: model fields for your domain. This stub proves migrations + ORM wiring."""
+
+from django.db import models
+
+
+class SkeletonRun(models.Model):
+    """One row per logical source key; stub for incremental or heartbeat-style state."""
+
+    # CUSTOMIZE: replace source_key semantics (e.g. workspace id, channel id).
+    source_key = models.CharField(max_length=128, unique=True, db_index=True)
+    run_count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["source_key"]
+```
+
+### `services.py`
+
+```python
+# my_skeleton_tracker/services.py
+"""Customize: add real validation, idempotency, and side effects. All writes for this app go here."""
+
+from __future__ import annotations
+
+from django.db import transaction
+
+from my_skeleton_tracker.models import SkeletonRun
+
+
+@transaction.atomic
+def record_skeleton_run(*, source_key: str) -> tuple[SkeletonRun, bool]:
+    """
+    Increment run_count for source_key, creating the row if missing.
+
+    Returns (instance, created) like get_or_create-style helpers elsewhere in the project.
+    """
+    # CUSTOMIZE: replace with your real upsert logic.
+    if not source_key or not source_key.strip():
+        raise ValueError("source_key must not be empty")
+    key = source_key.strip()
+    obj, created = SkeletonRun.objects.select_for_update().get_or_create(
+        source_key=key,
+        defaults={"run_count": 0},
+    )
+    obj.run_count += 1
+    obj.save(update_fields=["run_count", "updated_at"])
+    return obj, created
+```
+
+### `collectors.py`
+
+```python
+# my_skeleton_tracker/collectors.py
+"""Customize: orchestration in run(); optional sync_pinecone() for post-run indexing."""
+
+from __future__ import annotations
+
+import logging
+
+from core.collectors.base import CollectorBase
+from my_skeleton_tracker.services import record_skeleton_run
+
+# If you override handle_error, you can log or map errors explicitly, e.g.:
+# from core.errors import CollectorFailureCategory, classify_failure
+
+logger = logging.getLogger(__name__)
+
+
+class MySkeletonCollector(CollectorBase):
+    """
+    STANDARD: CollectorBase gives handle_error (uses classify_failure) and a no-op sync_pinecone.
+    CUSTOMIZE: constructor options from the management command.
+    """
+
+    def __init__(self, *, source_key: str = "default") -> None:
+        self.source_key = source_key
+
+    def run(self) -> None:
+        # CUSTOMIZE: call your services / fetchers; keep side effects in services.py.
+        obj, created = record_skeleton_run(source_key=self.source_key)
+        logger.info(
+            "skeleton run recorded source_key=%s run_count=%s created=%s",
+            obj.source_key,
+            obj.run_count,
+            created,
+        )
+
+    # STANDARD: omit sync_pinecone unless you post-process (e.g. Pinecone); default is no-op.
+```
+
+### `management/commands/run_my_skeleton_tracker.py`
+
+```python
+# my_skeleton_tracker/management/commands/run_my_skeleton_tracker.py
+"""STANDARD: BaseCollectorCommand runs run() then sync_pinecone() with shared error handling."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from core.collectors.base import CollectorBase
+from core.collectors.command_base import BaseCollectorCommand
+from my_skeleton_tracker.collectors import MySkeletonCollector
+
+
+class Command(BaseCollectorCommand):
+    """CUSTOMIZE: help string and CLI flags for your collector."""
+
+    help = "Run my_skeleton_tracker (minimal documentation example)."
+
+    def add_arguments(self, parser) -> None:
+        # CUSTOMIZE: add real flags (--since, --dry-run, etc.).
+        parser.add_argument(
+            "--source-key",
+            default="default",
+            help="Stub key for SkeletonRun.source_key.",
+        )
+
+    def get_collector(self, **options: Any) -> CollectorBase:
+        # STANDARD: only construct the collector; heavy work stays in run().
+        return MySkeletonCollector(source_key=options["source_key"])
+```
+
+### `apps.py`
+
+```python
+# my_skeleton_tracker/apps.py
+from django.apps import AppConfig
+
+
+class MySkeletonTrackerConfig(AppConfig):
+    # STANDARD: BigAutoField is project-typical.
+    default_auto_field = "django.db.models.BigAutoField"
+    # CUSTOMIZE: must match the Python package directory name.
+    name = "my_skeleton_tracker"
+```
+
+### YAML schedule entry
+
+Add under an existing group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule) and the example file). Keep **`enabled: false`** until the app is merged and migrations exist, so Beat does not invoke a missing command.
+
+```yaml
+# CUSTOMIZE: group name, command name, and schedule.
+groups:
+  examples:
+    default_time: "05:00"
+    tasks:
+      - command: run_my_skeleton_tracker
+        schedule: daily
+        enabled: false
+        args: ["--source-key", "default"]
+```
+
+### Wire-up after copy-paste
+
+1. Register **`"my_skeleton_tracker.apps.MySkeletonTrackerConfig"`** in **`INSTALLED_APPS`** in `config/settings.py` (or the short app label if your Django version auto-discovers `apps.py`; the full path is unambiguous).
+2. Run **`python manage.py makemigrations my_skeleton_tracker`** then **`python manage.py migrate`**.
+3. Run **`python manage.py run_my_skeleton_tracker`** (optionally with `--source-key`).
+
+### `tests/test_skeleton_collector.py`
+
+Tests use the same **pytest + pytest-django** stack as the rest of the repo. CI uses **PostgreSQL** when `DATABASE_URL` is set; locally you can use SQLite in-memory or set `DATABASE_URL` to match CI—see [README.md](../README.md#running-tests).
+
+```python
+# my_skeleton_tracker/tests/test_skeleton_collector.py
+"""Customize: expand with mocks for HTTP, rate limits, etc."""
+
+from io import StringIO
+
+import pytest
+from django.core.management import call_command
+
+from my_skeleton_tracker.models import SkeletonRun
+from my_skeleton_tracker.services import record_skeleton_run
+
+
+@pytest.mark.django_db
+def test_record_skeleton_run_creates_and_increments():
+    # Tests the service layer (preferred surface for DB assertions).
+    row1, created1 = record_skeleton_run(source_key="alpha")
+    assert created1 is True
+    assert row1.run_count == 1
+
+    row2, created2 = record_skeleton_run(source_key="alpha")
+    assert created2 is False
+    assert row2.id == row1.id
+    assert row2.run_count == 2
+
+
+@pytest.mark.django_db
+def test_run_my_skeleton_tracker_command_integration():
+    # Runs the full command path against the real configured DB backend (Postgres in CI).
+    out = StringIO()
+    call_command("run_my_skeleton_tracker", "--source-key", "cmd-test", stdout=out)
+    row = SkeletonRun.objects.get(source_key="cmd-test")
+    assert row.run_count == 1
+```
+
+## 5. Configuration and secrets
 
 - Document new environment variables in `.env.example` and any ops doc under `docs/operations/`.
 - Use **[operations/github.md](operations/github.md)** for GitHub (tokens via `get_github_token` / `get_github_client`).
 
-## 5. Tests
+## 6. Tests
 
 - Add tests under `<app>/tests/`; keep exit codes and boundaries mockable.
 - Run `python -m pytest` locally; CI runs with `DATABASE_URL` pointing at Postgres (see [README.md](../README.md#running-tests) for local Postgres parity).
 
-## 6. Docs
+## 7. Docs
 
 - Update [Workflow.md](Workflow.md) if execution order or scheduling behavior changes.
 - If the new collector writes to workspace or Pinecone, mention paths/namespaces in [Workspace.md](Workspace.md) or the app's service doc.
