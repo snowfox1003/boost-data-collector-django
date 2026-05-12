@@ -39,7 +39,7 @@ These are the Django apps under **`INSTALLED_APPS`** (excluding `django.contrib.
 
 | App | Role | Typical entry / notes |
 |-----|------|------------------------|
-| **core** | Shared infrastructure | **`core.collectors`** (`AbstractCollector`, `BaseCollectorCommand`, …), **`core.operations`** (GitHub, markdown, files). Not a “collector” app by itself. |
+| **core** | Shared infrastructure | **`core.collectors`** (`AbstractCollector`, `BaseCollectorCommand`, …), **`core.operations`** (GitHub, Markdown, files). Not a “collector” app by itself. |
 | **boost_collector_runner** | Scheduling | **`run_scheduled_collectors`** reads YAML; wires Celery Beat. |
 | **cppa_user_tracker** | Identity / profiles | Canonical **Identity**, **BaseProfile**, GitHub/Slack/mailing-list profile rows; staging merge tables. |
 | **github_activity_tracker** | GitHub mirror | Repos, commits, issues, PRs, **Language** / **License** reference data; workspace JSON cache patterns. |
