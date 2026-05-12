@@ -143,6 +143,15 @@ def test_run_boost_usage_dry_run_invokes_tasks():
     t2.assert_called_once()
 
 
+def test_run_boost_usage_tracker_command_error_when_scraping_token_invalid():
+    with patch(
+        "boost_usage_tracker.management.commands.run_boost_usage_tracker.validate_github_token_for_use",
+        side_effect=ValueError("GitHub scraping token is invalid"),
+    ):
+        with pytest.raises(CommandError, match="GitHub scraping token is invalid"):
+            call_command("run_boost_usage_tracker", "--dry-run", stdout=StringIO())
+
+
 def test_run_boost_usage_task_filter_monitor_content_only():
     with (
         patch(

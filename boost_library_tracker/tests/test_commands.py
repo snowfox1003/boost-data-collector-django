@@ -213,6 +213,18 @@ def test_run_boost_github_activity_tracker_dry_run_lists_repos(caplog):
 
 
 @pytest.mark.django_db
+def test_run_boost_github_activity_tracker_command_error_when_scraping_token_invalid():
+    with patch(
+        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.validate_github_token_for_use",
+        side_effect=ValueError("GitHub scraping token is invalid"),
+    ):
+        with pytest.raises(CommandError, match="GitHub scraping token is invalid"):
+            call_command(
+                ACTIVITY_CMD, "--dry-run", stdout=StringIO(), stderr=StringIO()
+            )
+
+
+@pytest.mark.django_db
 def test_run_boost_github_activity_tracker_invalid_since_errors():
     """Invalid --since raises CommandError; fetch task is not run."""
     mock_client = MagicMock()

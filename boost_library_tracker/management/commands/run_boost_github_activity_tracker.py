@@ -20,7 +20,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
 from core.utils.datetime_parsing import parse_iso_datetime
 from cppa_user_tracker.services import get_or_create_owner_account
@@ -37,6 +37,7 @@ from core.operations.github_ops import (
     get_github_token,
     upload_folder_to_github,
 )
+from core.operations.github_ops.tokens import validate_github_token_for_use
 from core.operations.github_ops.client import ConnectionException, RateLimitException
 from core.operations.md_ops.github_export import (
     detect_renames_from_dirs,
@@ -346,14 +347,34 @@ def task_pinecone_sync(dry_run: bool = False) -> None:
     )
 
 
-class BoostGithubActivityCollector(CollectorBase):
+class BoostGithubActivityCollector(AbstractCollector):
     """GitHub sync + Markdown + push; Pinecone in ``sync_pinecone``."""
 
     def __init__(self, cmd: Command, options: dict) -> None:
         self.cmd = cmd
         self.options = options
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "run_boost_github_activity_tracker"
+
+    def validate_config(self) -> None:
+        o = self.options
+        try:
+            validate_github_token_for_use("scraping")
+        except ValueError as e:
+            raise CommandError(str(e)) from e
+        if (
+            not o.get("dry_run")
+            and not o.get("skip_remote_push")
+            and _markdown_export_repo_config() is not None
+        ):
+            try:
+                validate_github_token_for_use("write")
+            except ValueError as e:
+                raise CommandError(str(e)) from e
+
+    def collect(self) -> None:
         self.cmd._handle_core(self.options)
 
     def sync_pinecone(self) -> None:

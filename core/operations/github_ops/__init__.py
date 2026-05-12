@@ -18,7 +18,11 @@ from core.operations.github_ops.git_ops import (
     upload_file,
     upload_folder_to_github,
 )
-from core.operations.github_ops.tokens import get_github_client, get_github_token
+from core.operations.github_ops.tokens import (
+    get_github_client,
+    get_github_token,
+    validate_github_token_for_use,
+)
 
 __all__ = [
     "ConnectionException",
@@ -34,4 +38,5 @@ __all__ = [
     "push",
     "upload_file",
     "upload_folder_to_github",
+    "validate_github_token_for_use",
 ]

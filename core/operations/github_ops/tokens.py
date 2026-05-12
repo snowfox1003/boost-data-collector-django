@@ -14,9 +14,14 @@ import os
 import threading
 from typing import Literal, Optional
 
+import requests
 from django.conf import settings
 
-from core.operations.github_ops.client import GitHubAPIClient
+from core.operations.github_ops.client import (
+    ConnectionException,
+    GitHubAPIClient,
+    RateLimitException,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,3 +96,42 @@ def get_github_client(
         return None
     logger.debug("Creating GitHub API client (use=%s)", use)
     return GitHubAPIClient(token)
+
+
+def validate_github_token_for_use(
+    use: Literal["scraping", "push", "create_pr", "write"] = "scraping",
+) -> None:
+    """
+    Confirm the resolved token exists and is accepted by GitHub (GET /user).
+
+    Raises:
+        ValueError: No token configured, rejected credentials (401/403), rate limit
+            while validating, unreachable GitHub, or other HTTP/API failures during check.
+    """
+    label = "scraping" if use == "scraping" else "write"
+    client = get_github_client(use=use)
+    if client is None:
+        raise ValueError(
+            f"No GitHub {label} token configured (see docs for GITHUB_TOKENS_SCRAPING / "
+            "GITHUB_TOKEN or GITHUB_TOKEN_WRITE)."
+        )
+    try:
+        client.rest_request("/user")
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else None
+        if status in (401, 403):
+            raise ValueError(
+                f"GitHub {label} token is invalid or not authorized (HTTP {status}). "
+                "Update GITHUB_TOKENS_SCRAPING / GITHUB_TOKEN or GITHUB_TOKEN_WRITE."
+            ) from e
+        raise ValueError(
+            f"GitHub API error while validating {label} token (HTTP {status})."
+        ) from e
+    except RateLimitException as e:
+        raise ValueError(
+            f"GitHub rate limit exceeded while validating {label} token: {e}"
+        ) from e
+    except ConnectionException as e:
+        raise ValueError(
+            f"Could not reach GitHub to validate {label} token: {e}"
+        ) from e

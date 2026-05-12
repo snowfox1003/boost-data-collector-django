@@ -9,43 +9,19 @@ commands (``run_scheduled_collectors`` / YAML); subclasses may override
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 
 from django.core.management import call_command
 
-from core.errors import classify_failure
-
-logger = logging.getLogger(__name__)
+from core.collectors.base_collector import _CollectorLifecycleMixin
 
 
-class CollectorBase(ABC):
+class CollectorBase(_CollectorLifecycleMixin, ABC):
     """Base type for collectors run via management commands or YAML schedules."""
 
     @abstractmethod
     def run(self) -> None:
         """Execute the collector work unit."""
-
-    def handle_error(self, exc: BaseException) -> None:
-        """Log or surface failures; override for structured error contracts."""
-        category = classify_failure(exc)
-        phase = getattr(self, "_error_phase", None) or "unknown"
-        collector_id = self.__class__.__name__
-        logger.exception(
-            "Collector failed: collector=%s phase=%s failure_category=%s",
-            collector_id,
-            phase,
-            category.value,
-            extra={
-                "collector": collector_id,
-                "collector_phase": phase,
-                "failure_category": category.value,
-            },
-        )
-
-    def sync_pinecone(self) -> None:
-        """Optional post-run Pinecone sync; default is no-op."""
-        return None
 
 
 class DjangoCommandCollector(CollectorBase):

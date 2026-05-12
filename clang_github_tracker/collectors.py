@@ -9,7 +9,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors.base_collector import AbstractCollector
 from core.utils.datetime_parsing import parse_iso_datetime
 from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker.sync_raw import sync_clang_github_activity
@@ -55,7 +55,7 @@ def _run_pinecone_sync(
         )
 
 
-class ClangGithubTrackerCollector(CollectorBase):
+class ClangGithubTrackerCollector(AbstractCollector):
     """Fetch llvm/llvm-project activity; optional MD export, push, Pinecone."""
 
     def __init__(
@@ -81,15 +81,20 @@ class ClangGithubTrackerCollector(CollectorBase):
         self._md_output_dir: Path | None = None
         self._new_files: dict[str, str] = {}
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "clang_github_tracker"
+
+    def validate_config(self) -> None:
         try:
-            since_dt = parse_iso_datetime(self.since)
-            until_dt = parse_iso_datetime(self.until)
+            self._since_dt = parse_iso_datetime(self.since)
+            self._until_dt = parse_iso_datetime(self.until)
         except ValueError as e:
             raise CommandError(str(e)) from e
 
+    def collect(self) -> None:
         start_commit, start_item, end_date = clang_state.resolve_start_end_dates(
-            since_dt, until_dt
+            self._since_dt, self._until_dt
         )
         logger.info(
             "Resolved: start_commit=%r start_item=%r end=%r",
