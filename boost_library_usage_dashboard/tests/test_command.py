@@ -24,19 +24,25 @@ def test_dashboard_command_runs_generation_only(dashboard_cmd_name, tmp_path):
     fake_analyzer.report_file = tmp_path / "Boost_Usage_Report_total.md"
     fake_analyzer.stars_min_threshold = 10
 
-    with patch(
-        "boost_library_usage_dashboard.collectors.get_workspace_path",
-        return_value=tmp_path,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
-        return_value=fake_analyzer,
-    ) as analyzer_cls, patch(
-        "boost_library_usage_dashboard.collectors.write_summary_report"
-    ) as write_report, patch(
-        "boost_library_usage_dashboard.collectors.render_dashboard_html"
-    ) as render_html, patch(
-        "boost_library_usage_dashboard.collectors.publish_dashboard"
-    ) as publish_mock:
+    with (
+        patch(
+            "boost_library_usage_dashboard.collectors.get_workspace_path",
+            return_value=tmp_path,
+        ),
+        patch(
+            "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
+            return_value=fake_analyzer,
+        ) as analyzer_cls,
+        patch(
+            "boost_library_usage_dashboard.collectors.write_summary_report"
+        ) as write_report,
+        patch(
+            "boost_library_usage_dashboard.collectors.render_dashboard_html"
+        ) as render_html,
+        patch(
+            "boost_library_usage_dashboard.collectors.publish_dashboard"
+        ) as publish_mock,
+    ):
         call_command(dashboard_cmd_name, "--skip-publish")
 
     analyzer_cls.assert_called_once()
@@ -65,30 +71,35 @@ def test_dashboard_command_publish_with_owner_repo_calls_publish_dashboard(
     fake_analyzer.stars_min_threshold = 10
     (tmp_path / "index.html").write_text("<html/>")
 
-    with patch(
-        "boost_library_usage_dashboard.collectors.get_workspace_path",
-        return_value=tmp_path,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
-        return_value=fake_analyzer,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.write_summary_report"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.render_dashboard_html"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.publish_dashboard"
-    ) as publish_mock, patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
-        "myorg",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
-        "my-repo",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
-        "",
+    with (
+        patch(
+            "boost_library_usage_dashboard.collectors.get_workspace_path",
+            return_value=tmp_path,
+        ),
+        patch(
+            "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
+            return_value=fake_analyzer,
+        ),
+        patch("boost_library_usage_dashboard.collectors.write_summary_report"),
+        patch("boost_library_usage_dashboard.collectors.render_dashboard_html"),
+        patch(
+            "boost_library_usage_dashboard.collectors.publish_dashboard"
+        ) as publish_mock,
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
+            "myorg",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
+            "my-repo",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
+            "",
+        ),
     ):
         call_command(
             dashboard_cmd_name,
@@ -115,30 +126,35 @@ def test_dashboard_command_publish_uses_branch_from_settings_when_set(
     fake_analyzer.stars_min_threshold = 10
     (tmp_path / "index.html").write_text("<html/>")
 
-    with patch(
-        "boost_library_usage_dashboard.collectors.get_workspace_path",
-        return_value=tmp_path,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
-        return_value=fake_analyzer,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.write_summary_report"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.render_dashboard_html"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.publish_dashboard"
-    ) as publish_mock, patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
-        "org",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
-        "repo",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
-        "publish-branch",
+    with (
+        patch(
+            "boost_library_usage_dashboard.collectors.get_workspace_path",
+            return_value=tmp_path,
+        ),
+        patch(
+            "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
+            return_value=fake_analyzer,
+        ),
+        patch("boost_library_usage_dashboard.collectors.write_summary_report"),
+        patch("boost_library_usage_dashboard.collectors.render_dashboard_html"),
+        patch(
+            "boost_library_usage_dashboard.collectors.publish_dashboard"
+        ) as publish_mock,
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
+            "org",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
+            "repo",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH",
+            "publish-branch",
+        ),
     ):
         call_command(dashboard_cmd_name)
 
@@ -155,26 +171,30 @@ def test_dashboard_command_publish_no_owner_repo_skips_publish(
     fake_analyzer.report_file = tmp_path / "report.md"
     fake_analyzer.stars_min_threshold = 10
 
-    with patch(
-        "boost_library_usage_dashboard.collectors.get_workspace_path",
-        return_value=tmp_path,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
-        return_value=fake_analyzer,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.write_summary_report"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.render_dashboard_html"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.publish_dashboard"
-    ) as publish_mock, patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
-        "",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
-        "",
+    with (
+        patch(
+            "boost_library_usage_dashboard.collectors.get_workspace_path",
+            return_value=tmp_path,
+        ),
+        patch(
+            "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
+            return_value=fake_analyzer,
+        ),
+        patch("boost_library_usage_dashboard.collectors.write_summary_report"),
+        patch("boost_library_usage_dashboard.collectors.render_dashboard_html"),
+        patch(
+            "boost_library_usage_dashboard.collectors.publish_dashboard"
+        ) as publish_mock,
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
+            "",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
+            "",
+        ),
     ):
         call_command(dashboard_cmd_name)
 
@@ -186,25 +206,29 @@ def test_dashboard_command_publish_refuses_without_html_artifacts(
     dashboard_cmd_name, tmp_path
 ):
     """Publish with owner/repo but no *.html under output_dir raises CommandError."""
-    with patch(
-        "boost_library_usage_dashboard.collectors.get_workspace_path",
-        return_value=tmp_path,
-    ), patch(
-        "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
-    ), patch(
-        "boost_library_usage_dashboard.collectors.write_summary_report"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.render_dashboard_html"
-    ), patch(
-        "boost_library_usage_dashboard.collectors.publish_dashboard"
-    ) as publish_mock, patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
-        "org",
-    ), patch.object(
-        settings,
-        "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
-        "repo",
+    with (
+        patch(
+            "boost_library_usage_dashboard.collectors.get_workspace_path",
+            return_value=tmp_path,
+        ),
+        patch(
+            "boost_library_usage_dashboard.collectors.BoostUsageDashboardAnalyzer",
+        ),
+        patch("boost_library_usage_dashboard.collectors.write_summary_report"),
+        patch("boost_library_usage_dashboard.collectors.render_dashboard_html"),
+        patch(
+            "boost_library_usage_dashboard.collectors.publish_dashboard"
+        ) as publish_mock,
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_OWNER",
+            "org",
+        ),
+        patch.object(
+            settings,
+            "BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_REPO",
+            "repo",
+        ),
     ):
         tmp_path.mkdir(parents=True, exist_ok=True)
         (tmp_path / "dashboard_data.json").write_text("{}")

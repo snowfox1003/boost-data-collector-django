@@ -76,12 +76,15 @@ def test_sync_channels_single_conversations_info_ok(
         "channel": sample_slack_channel_data,
     }
     mock_ch = MagicMock()
-    with patch(
-        "core.operations.slack_ops.tokens.get_slack_client",
-        return_value=mock_client,
-    ), patch(
-        "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
-        return_value=(mock_ch, True),
+    with (
+        patch(
+            "core.operations.slack_ops.tokens.get_slack_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
+            return_value=(mock_ch, True),
+        ),
     ):
         ok, err = sync_channels(
             sample_slack_team,
@@ -134,12 +137,15 @@ def test_sync_channels_list_malformed_and_ok(
     sample_slack_team, sample_slack_channel_data
 ):
     mock_ch = MagicMock()
-    with patch(
-        "cppa_slack_tracker.sync.sync_channel.fetch_channel_list",
-        return_value=["bad", sample_slack_channel_data],
-    ), patch(
-        "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
-        return_value=(mock_ch, True),
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.fetch_channel_list",
+            return_value=["bad", sample_slack_channel_data],
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_channel.get_or_create_slack_channel",
+            return_value=(mock_ch, True),
+        ),
     ):
         ok, err = sync_channels(sample_slack_team, team_id=sample_slack_team.team_id)
     assert err >= 1
@@ -196,12 +202,15 @@ def test_get_channels_to_sync_unknown_id_returns_all(
 
 @pytest.mark.django_db
 def test_sync_channel_users_ok(sample_slack_team, sample_slack_channel):
-    with patch(
-        "cppa_slack_tracker.sync.sync_channel_user.fetch_channel_user_list",
-        return_value=["U1"],
-    ), patch(
-        "cppa_slack_tracker.sync.sync_channel_user.sync_channel_memberships",
-    ) as m_sync:
+    with (
+        patch(
+            "cppa_slack_tracker.sync.sync_channel_user.fetch_channel_user_list",
+            return_value=["U1"],
+        ),
+        patch(
+            "cppa_slack_tracker.sync.sync_channel_user.sync_channel_memberships",
+        ) as m_sync,
+    ):
         ok, err = sync_channel_users(
             sample_slack_team, channel_id=sample_slack_channel.channel_id
         )

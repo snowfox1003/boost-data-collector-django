@@ -81,12 +81,13 @@ def test_import_deps_command_prepare_fails_short_circuits(tmp_path):
 @pytest.mark.django_db
 def test_import_deps_dry_run_logs_tag_count(tmp_path, caplog):
     caplog.set_level(logging.INFO)
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=["boost-1.84.0", "boost-1.85.0"],
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=["boost-1.84.0", "boost-1.85.0"],
+        ),
     ):
         call_command(
             "import_boost_dependencies",
@@ -100,12 +101,13 @@ def test_import_deps_dry_run_logs_tag_count(tmp_path, caplog):
 @pytest.mark.django_db
 def test_import_deps_no_tags_logs_error(tmp_path, caplog):
     caplog.set_level(logging.ERROR)
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=[],
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=[],
+        ),
     ):
         call_command("import_boost_dependencies", "--clone-dir", str(tmp_path / "c"))
     assert any("No tags to process" in r.message for r in caplog.records)
@@ -124,14 +126,14 @@ def test_import_deps_writes_dependencies(tmp_path, boost_library_repository):
     def fake_gen(_clone: Path, tags: list[str]):
         yield tags[0], [("AlgorithmClient", ["AlgorithmDep"])]
 
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=["boost-1.84.0"],
-    ), patch.object(
-        ibd, "_generate_deps_output", side_effect=fake_gen
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=["boost-1.84.0"],
+        ),
+        patch.object(ibd, "_generate_deps_output", side_effect=fake_gen),
     ):
         call_command("import_boost_dependencies", "--clone-dir", str(tmp_path / "c"))
 
@@ -150,14 +152,14 @@ def test_import_deps_skips_unknown_library(tmp_path, caplog, boost_library_repos
     def fake_gen(_clone: Path, tags: list[str]):
         yield tags[0], [("MissingClient", ["Known"])]
 
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=["boost-1.84.0"],
-    ), patch.object(
-        ibd, "_generate_deps_output", side_effect=fake_gen
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=["boost-1.84.0"],
+        ),
+        patch.object(ibd, "_generate_deps_output", side_effect=fake_gen),
     ):
         call_command("import_boost_dependencies", "--clone-dir", str(tmp_path / "c"))
 
@@ -176,8 +178,9 @@ def test_prepare_boost_clone_submodule_init_failure(tmp_path):
     d = tmp_path / "boost"
     d.mkdir()
     (d / ".git").mkdir()
-    with patch.object(ibd, "_fetch_tags", return_value=True), patch.object(
-        ibd, "_init_submodules", return_value=(False, "submodule failed")
+    with (
+        patch.object(ibd, "_fetch_tags", return_value=True),
+        patch.object(ibd, "_init_submodules", return_value=(False, "submodule failed")),
     ):
         assert ibd._prepare_boost_clone_for_import(d) is False
 
@@ -186,9 +189,11 @@ def test_prepare_boost_clone_build_boostdep_failure(tmp_path):
     d = tmp_path / "boost"
     d.mkdir()
     (d / ".git").mkdir()
-    with patch.object(ibd, "_fetch_tags", return_value=True), patch.object(
-        ibd, "_init_submodules", return_value=(True, "")
-    ), patch.object(ibd, "_build_boostdep", return_value=False):
+    with (
+        patch.object(ibd, "_fetch_tags", return_value=True),
+        patch.object(ibd, "_init_submodules", return_value=(True, "")),
+        patch.object(ibd, "_build_boostdep", return_value=False),
+    ):
         assert ibd._prepare_boost_clone_for_import(d) is False
 
 
@@ -388,12 +393,12 @@ def test_prepare_boost_clone_succeeds_when_steps_pass(tmp_path):
     root = tmp_path / "boost"
     root.mkdir()
     (root / ".git").mkdir()
-    with patch.object(ibd.sys, "platform", "linux"), patch.object(
-        ibd, "_fetch_tags", return_value=True
-    ), patch.object(ibd, "_init_submodules", return_value=(True, "")), patch.object(
-        ibd, "_build_boostdep", return_value=True
-    ), patch.object(
-        ibd, "_remove_macos_appledouble_files", return_value=0
+    with (
+        patch.object(ibd.sys, "platform", "linux"),
+        patch.object(ibd, "_fetch_tags", return_value=True),
+        patch.object(ibd, "_init_submodules", return_value=(True, "")),
+        patch.object(ibd, "_build_boostdep", return_value=True),
+        patch.object(ibd, "_remove_macos_appledouble_files", return_value=0),
     ):
         assert ibd._prepare_boost_clone_for_import(root) is True
 
@@ -448,8 +453,9 @@ def test_remove_macos_appledouble_oserror_on_unlink_is_ignored(tmp_path):
             raise OSError("nope")
         return orig_unlink(self, *a, **k)
 
-    with patch.object(ibd.sys, "platform", "darwin"), patch.object(
-        Path, "unlink", bad_unlink
+    with (
+        patch.object(ibd.sys, "platform", "darwin"),
+        patch.object(Path, "unlink", bad_unlink),
     ):
         assert ibd._remove_macos_appledouble_files(root) == 0
 
@@ -457,9 +463,12 @@ def test_remove_macos_appledouble_oserror_on_unlink_is_ignored(tmp_path):
 def test_build_boostdep_windows_bootstrap_failure(tmp_path):
     clone = tmp_path / "boost"
     clone.mkdir()
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        return_value=MagicMock(returncode=1, stdout="out", stderr="err"),
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            return_value=MagicMock(returncode=1, stdout="out", stderr="err"),
+        ),
     ):
         assert ibd._build_boostdep(clone) is False
 
@@ -467,9 +476,12 @@ def test_build_boostdep_windows_bootstrap_failure(tmp_path):
 def test_build_boostdep_unix_bootstrap_failure(tmp_path):
     clone = tmp_path / "boost"
     clone.mkdir()
-    with patch.object(ibd.sys, "platform", "linux"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        return_value=MagicMock(returncode=1, stdout="o", stderr="e"),
+    with (
+        patch.object(ibd.sys, "platform", "linux"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            return_value=MagicMock(returncode=1, stdout="o", stderr="e"),
+        ),
     ):
         assert ibd._build_boostdep(clone) is False
 
@@ -477,9 +489,12 @@ def test_build_boostdep_unix_bootstrap_failure(tmp_path):
 def test_build_boostdep_b2_missing_after_bootstrap(tmp_path):
     clone = tmp_path / "boost"
     clone.mkdir()
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        return_value=MagicMock(returncode=0, stdout="", stderr=""),
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
     ):
         assert ibd._build_boostdep(clone) is False
 
@@ -498,9 +513,12 @@ def test_build_boostdep_b2_compile_failure(tmp_path):
             return MagicMock(returncode=1, stdout="x", stderr="y")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        side_effect=run_side_effect,
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            side_effect=run_side_effect,
+        ),
     ):
         assert ibd._build_boostdep(clone) is False
 
@@ -521,9 +539,12 @@ def test_build_boostdep_darwin_retries_b2_with_clang(tmp_path):
             return MagicMock(returncode=1, stdout="", stderr="first")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch.object(ibd.sys, "platform", "darwin"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        side_effect=run_side_effect,
+    with (
+        patch.object(ibd.sys, "platform", "darwin"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            side_effect=run_side_effect,
+        ),
     ):
         assert ibd._build_boostdep(clone) is True
 
@@ -531,9 +552,12 @@ def test_build_boostdep_darwin_retries_b2_with_clang(tmp_path):
 def test_build_boostdep_subprocess_raises_file_not_found(tmp_path):
     clone = tmp_path / "boost"
     clone.mkdir()
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        side_effect=FileNotFoundError("cmd"),
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            side_effect=FileNotFoundError("cmd"),
+        ),
     ):
         assert ibd._build_boostdep(clone) is False
 
@@ -560,9 +584,12 @@ def test_generate_deps_output_win32_retries_submodule_update(tmp_path):
             return MagicMock(returncode=0, stdout="x -> y\n", stderr="")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        side_effect=run,
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            side_effect=run,
+        ),
     ):
         pairs = list(ibd._generate_deps_output(clone, ["boost-1.84.0"]))
     assert len(sm_calls) == 2
@@ -584,9 +611,12 @@ def test_generate_deps_output_submodule_fails_after_windows_retry(tmp_path, capl
             return MagicMock(returncode=1, stdout="", stderr="fail")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    with patch.object(ibd.sys, "platform", "win32"), patch(
-        "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
-        side_effect=run,
+    with (
+        patch.object(ibd.sys, "platform", "win32"),
+        patch(
+            "boost_library_tracker.management.commands.import_boost_dependencies.subprocess.run",
+            side_effect=run,
+        ),
     ):
         assert list(ibd._generate_deps_output(clone, ["boost-1.84.0"])) == []
     assert caplog.records
@@ -682,14 +712,14 @@ def test_import_deps_skips_unknown_dependency_library(
     def fake_gen(_clone: Path, tags: list[str]):
         yield tags[0], [(client.name, ["MissingDep"])]
 
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=["boost-1.84.0"],
-    ), patch.object(
-        ibd, "_generate_deps_output", side_effect=fake_gen
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=["boost-1.84.0"],
+        ),
+        patch.object(ibd, "_generate_deps_output", side_effect=fake_gen),
     ):
         call_command("import_boost_dependencies", "--clone-dir", str(tmp_path / "c"))
 
@@ -706,16 +736,15 @@ def test_import_deps_duplicate_dependency_does_not_increment_added(
     def fake_gen(_clone: Path, tags: list[str]):
         yield tags[0], [(client.name, [dep.name])]
 
-    with patch.object(
-        ibd, "_prepare_boost_clone_for_import", return_value=True
-    ), patch.object(
-        ibd,
-        "_get_tags_to_process",
-        return_value=["boost-1.84.0"],
-    ), patch.object(
-        ibd, "_generate_deps_output", side_effect=fake_gen
-    ), patch.object(
-        ibd, "add_boost_dependency", return_value=(None, False)
+    with (
+        patch.object(ibd, "_prepare_boost_clone_for_import", return_value=True),
+        patch.object(
+            ibd,
+            "_get_tags_to_process",
+            return_value=["boost-1.84.0"],
+        ),
+        patch.object(ibd, "_generate_deps_output", side_effect=fake_gen),
+        patch.object(ibd, "add_boost_dependency", return_value=(None, False)),
     ):
         call_command("import_boost_dependencies", "--clone-dir", str(tmp_path / "c"))
 

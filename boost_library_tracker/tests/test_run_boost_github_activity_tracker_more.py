@@ -80,15 +80,18 @@ def test_push_markdown_no_settings_logs(tmp_path, caplog):
 
 
 def test_push_markdown_upload_failure_raises(tmp_path):
-    with override_settings(
-        BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
-        BOOST_LIBRARY_TRACKER_REPO_NAME="r",
-    ), patch.object(gh_cmd, "get_github_token", return_value="t"), patch.object(
-        gh_cmd, "detect_renames_from_dirs", return_value=[]
-    ), patch.object(
-        gh_cmd,
-        "upload_folder_to_github",
-        return_value={"success": False, "message": "nope"},
+    with (
+        override_settings(
+            BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
+            BOOST_LIBRARY_TRACKER_REPO_NAME="r",
+        ),
+        patch.object(gh_cmd, "get_github_token", return_value="t"),
+        patch.object(gh_cmd, "detect_renames_from_dirs", return_value=[]),
+        patch.object(
+            gh_cmd,
+            "upload_folder_to_github",
+            return_value={"success": False, "message": "nope"},
+        ),
     ):
         with pytest.raises(CommandError, match="nope"):
             gh_cmd._push_markdown_to_github(tmp_path, {"f.md": "p"})
@@ -97,15 +100,18 @@ def test_push_markdown_upload_failure_raises(tmp_path):
 def test_push_markdown_success_cleans_files(tmp_path):
     dirty = tmp_path / "keep.txt"
     dirty.write_text("z", encoding="utf-8")
-    with override_settings(
-        BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
-        BOOST_LIBRARY_TRACKER_REPO_NAME="r",
-    ), patch.object(gh_cmd, "get_github_token", return_value="t"), patch.object(
-        gh_cmd, "detect_renames_from_dirs", return_value=[]
-    ), patch.object(
-        gh_cmd,
-        "upload_folder_to_github",
-        return_value={"success": True},
+    with (
+        override_settings(
+            BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
+            BOOST_LIBRARY_TRACKER_REPO_NAME="r",
+        ),
+        patch.object(gh_cmd, "get_github_token", return_value="t"),
+        patch.object(gh_cmd, "detect_renames_from_dirs", return_value=[]),
+        patch.object(
+            gh_cmd,
+            "upload_folder_to_github",
+            return_value={"success": True},
+        ),
     ):
         gh_cmd._push_markdown_to_github(tmp_path, {"f.md": "p"})
     assert not dirty.exists()
@@ -114,15 +120,18 @@ def test_push_markdown_success_cleans_files(tmp_path):
 def test_push_markdown_deletes_stale_renamed_locals(tmp_path):
     stale = tmp_path / "gone.md"
     stale.write_text("old", encoding="utf-8")
-    with override_settings(
-        BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
-        BOOST_LIBRARY_TRACKER_REPO_NAME="r",
-    ), patch.object(gh_cmd, "get_github_token", return_value="t"), patch.object(
-        gh_cmd, "detect_renames_from_dirs", return_value=["gone.md"]
-    ), patch.object(
-        gh_cmd,
-        "upload_folder_to_github",
-        return_value={"success": True},
+    with (
+        override_settings(
+            BOOST_LIBRARY_TRACKER_REPO_OWNER="o",
+            BOOST_LIBRARY_TRACKER_REPO_NAME="r",
+        ),
+        patch.object(gh_cmd, "get_github_token", return_value="t"),
+        patch.object(gh_cmd, "detect_renames_from_dirs", return_value=["gone.md"]),
+        patch.object(
+            gh_cmd,
+            "upload_folder_to_github",
+            return_value={"success": True},
+        ),
     ):
         gh_cmd._push_markdown_to_github(tmp_path, {"n.md": "p"})
     assert not stale.exists()
@@ -137,12 +146,13 @@ def test_task_fetch_logs_date_window(caplog, github_account):
     mock_client.get_file_content.return_value = (b"", "utf-8")
     start = datetime(2019, 1, 1)
     end = datetime(2019, 2, 1)
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True, start_date=start, end_date=end)
     messages = " ".join(r.message for r in caplog.records)
@@ -163,12 +173,13 @@ def test_task_fetch_gitmodules_http_error_non404_raises(github_account):
 
     mock_client = MagicMock()
     mock_client.get_file_content.side_effect = raise_500
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         with pytest.raises(requests.exceptions.HTTPError):
             gh_cmd.task_fetch_github_activity(dry_run=True)
@@ -185,12 +196,13 @@ def test_task_fetch_from_repo_finds_submodule(caplog, github_account):
     )
     mock_client = MagicMock()
     mock_client.get_file_content.return_value = (gm, "utf-8")
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True, from_repo="timer")
     assert any("starting from" in r.message.lower() for r in caplog.records)
@@ -223,12 +235,13 @@ def test_task_fetch_dry_run_lists_submodules(caplog, github_account):
     gm = b'[submodule "x"]\n\tpath = x\n\turl = https://github.com/boostorg/timer.git\n'
     mock_client = MagicMock()
     mock_client.get_file_content.return_value = (gm, "utf-8")
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True)
     assert any("dry-run would sync" in r.message.lower() for r in caplog.records)
@@ -247,12 +260,13 @@ def test_task_fetch_gitmodules_http404(caplog, github_account):
 
     mock_client = MagicMock()
     mock_client.get_file_content.side_effect = raise_404
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True)
     assert any(".gitmodules" in r.message for r in caplog.records)
@@ -263,12 +277,13 @@ def test_task_fetch_gitmodules_generic_warning(caplog, github_account):
     caplog.set_level("WARNING")
     mock_client = MagicMock()
     mock_client.get_file_content.side_effect = RuntimeError("net")
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True)
     assert any("Could not fetch .gitmodules" in r.message for r in caplog.records)
@@ -279,12 +294,13 @@ def test_task_fetch_from_repo_unknown_warns(caplog, github_account):
     caplog.set_level("WARNING")
     mock_client = MagicMock()
     mock_client.get_file_content.return_value = (b"", "utf-8")
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        return_value=github_account,
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            return_value=github_account,
+        ),
     ):
         gh_cmd.task_fetch_github_activity(dry_run=True, from_repo="missing-lib")
     assert any("No submodule" in r.message for r in caplog.records)
@@ -293,12 +309,13 @@ def test_task_fetch_from_repo_unknown_warns(caplog, github_account):
 @pytest.mark.django_db
 def test_task_fetch_owner_account_rate_limit_raises():
     mock_client = MagicMock()
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd,
-        "get_or_create_owner_account",
-        side_effect=gh_cmd.RateLimitException("slow"),
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd,
+            "get_or_create_owner_account",
+            side_effect=gh_cmd.RateLimitException("slow"),
+        ),
     ):
         with pytest.raises(RateLimitException):
             gh_cmd.task_fetch_github_activity(dry_run=False)
@@ -310,19 +327,19 @@ def test_handle_core_invalid_range_resets_dates(caplog):
     cmd = gh_cmd.Command()
     start = datetime(2025, 1, 2, tzinfo=timezone.utc)
     end = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    with patch.object(
-        gh_cmd, "parse_iso_datetime", side_effect=[start, end]
-    ), patch.object(
-        gh_cmd,
-        "task_fetch_github_activity",
-        return_value=[],
-    ) as fetch_mock, patch.object(
-        gh_cmd, "_generate_markdown_for_synced", return_value={}
-    ), patch.object(
-        gh_cmd, "_push_markdown_to_github"
-    ), override_settings(
-        BOOST_LIBRARY_TRACKER_REPO_OWNER="",
-        BOOST_LIBRARY_TRACKER_REPO_NAME="",
+    with (
+        patch.object(gh_cmd, "parse_iso_datetime", side_effect=[start, end]),
+        patch.object(
+            gh_cmd,
+            "task_fetch_github_activity",
+            return_value=[],
+        ) as fetch_mock,
+        patch.object(gh_cmd, "_generate_markdown_for_synced", return_value={}),
+        patch.object(gh_cmd, "_push_markdown_to_github"),
+        override_settings(
+            BOOST_LIBRARY_TRACKER_REPO_OWNER="",
+            BOOST_LIBRARY_TRACKER_REPO_NAME="",
+        ),
     ):
         cmd._handle_core(
             {
@@ -345,9 +362,12 @@ def test_handle_core_invalid_range_resets_dates(caplog):
 def test_handle_core_skip_sync_skip_md_branch(caplog):
     caplog.set_level("INFO")
     cmd = gh_cmd.Command()
-    with patch.object(gh_cmd, "_push_markdown_to_github"), override_settings(
-        BOOST_LIBRARY_TRACKER_REPO_OWNER="",
-        BOOST_LIBRARY_TRACKER_REPO_NAME="",
+    with (
+        patch.object(gh_cmd, "_push_markdown_to_github"),
+        override_settings(
+            BOOST_LIBRARY_TRACKER_REPO_OWNER="",
+            BOOST_LIBRARY_TRACKER_REPO_NAME="",
+        ),
     ):
         cmd._handle_core(
             {
@@ -387,12 +407,15 @@ def test_handle_core_sync_writes_markdown(tmp_path):
             {"issues": [1], "pull_requests": [2]},
         )
     ]
-    with patch.object(
-        gh_cmd, "task_fetch_github_activity", return_value=synced
-    ), patch.object(gh_cmd, "get_md_export_dir", return_value=tmp_path), patch.object(
-        gh_cmd, "_generate_markdown_for_synced", return_value={"f.md": str(tmp_path)}
-    ), patch.object(
-        gh_cmd, "_push_markdown_to_github"
+    with (
+        patch.object(gh_cmd, "task_fetch_github_activity", return_value=synced),
+        patch.object(gh_cmd, "get_md_export_dir", return_value=tmp_path),
+        patch.object(
+            gh_cmd,
+            "_generate_markdown_for_synced",
+            return_value={"f.md": str(tmp_path)},
+        ),
+        patch.object(gh_cmd, "_push_markdown_to_github"),
     ):
         cmd._handle_core(
             {
@@ -417,18 +440,17 @@ def test_task_fetch_github_activity_non_dry_single_repo(github_account):
     gh_repo = MagicMock()
     boost_repo = MagicMock()
     sync_result = {"issues": [], "pull_requests": []}
-    with patch.object(
-        gh_cmd, "get_github_client", return_value=mock_client
-    ), patch.object(
-        gh_cmd, "get_or_create_owner_account", return_value=github_account
-    ), patch.object(
-        gh_cmd, "get_or_create_repository", return_value=(gh_repo, False)
-    ), patch.object(
-        gh_cmd, "ensure_repository_owner"
-    ), patch.object(
-        gh_cmd, "get_or_create_boost_library_repo", return_value=(boost_repo, False)
-    ), patch.object(
-        gh_cmd, "sync_github", return_value=sync_result
+    with (
+        patch.object(gh_cmd, "get_github_client", return_value=mock_client),
+        patch.object(
+            gh_cmd, "get_or_create_owner_account", return_value=github_account
+        ),
+        patch.object(gh_cmd, "get_or_create_repository", return_value=(gh_repo, False)),
+        patch.object(gh_cmd, "ensure_repository_owner"),
+        patch.object(
+            gh_cmd, "get_or_create_boost_library_repo", return_value=(boost_repo, False)
+        ),
+        patch.object(gh_cmd, "sync_github", return_value=sync_result),
     ):
         synced = gh_cmd.task_fetch_github_activity(dry_run=False)
     assert len(synced) == 1

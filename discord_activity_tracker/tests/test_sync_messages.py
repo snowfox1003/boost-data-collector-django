@@ -429,12 +429,15 @@ def test_sync_channel_messages_async_full_sync():
         msg = _sample_api_message(mid=_uniq_id(), uid=author_uid)
         client.fetch_messages_since = AsyncMock(return_value=[msg])
 
-        with patch.object(
-            messages_mod,
-            "_process_messages_in_batches",
-            new_callable=AsyncMock,
-            return_value=1,
-        ), _sync_to_async_updates_only():
+        with (
+            patch.object(
+                messages_mod,
+                "_process_messages_in_batches",
+                new_callable=AsyncMock,
+                return_value=1,
+            ),
+            _sync_to_async_updates_only(),
+        ):
             await sync_channel_messages_async(client, channel, gid, full_sync=True)
 
     asyncio.run(main())
@@ -491,11 +494,12 @@ def test_sync_guild_wrapper_runs_and_closes():
     async def fake_guild(_client, _gid):
         return MagicMock()
 
-    with patch(
-        "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch(
-        "discord_activity_tracker.sync.messages.sync_guild_async",
-        new=fake_guild,
+    with (
+        patch("discord_activity_tracker.sync.messages.DiscordSyncClient") as Cls,
+        patch(
+            "discord_activity_tracker.sync.messages.sync_guild_async",
+            new=fake_guild,
+        ),
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
@@ -523,11 +527,12 @@ def test_sync_channels_wrapper():
     async def fake_channels(_c, _s, _g):
         return []
 
-    with patch(
-        "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch(
-        "discord_activity_tracker.sync.messages.sync_channels_async",
-        new=fake_channels,
+    with (
+        patch("discord_activity_tracker.sync.messages.DiscordSyncClient") as Cls,
+        patch(
+            "discord_activity_tracker.sync.messages.sync_channels_async",
+            new=fake_channels,
+        ),
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
@@ -562,11 +567,12 @@ def test_sync_channel_messages_wrapper():
     async def fake_sync(*_args, **_kwargs):
         return None
 
-    with patch(
-        "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch(
-        "discord_activity_tracker.sync.messages.sync_channel_messages_async",
-        new=fake_sync,
+    with (
+        patch("discord_activity_tracker.sync.messages.DiscordSyncClient") as Cls,
+        patch(
+            "discord_activity_tracker.sync.messages.sync_channel_messages_async",
+            new=fake_sync,
+        ),
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
@@ -618,17 +624,20 @@ def test_sync_all_channels_respects_active_filter():
 
     sync_body = AsyncMock()
 
-    with patch(
-        "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch(
-        "discord_activity_tracker.sync.messages.sync_guild_async",
-        new=guild_ok,
-    ), patch(
-        "discord_activity_tracker.sync.messages.sync_channels_async",
-        new=channels_ok,
-    ), patch(
-        "discord_activity_tracker.sync.messages._sync_all_channels_async",
-        new=sync_body,
+    with (
+        patch("discord_activity_tracker.sync.messages.DiscordSyncClient") as Cls,
+        patch(
+            "discord_activity_tracker.sync.messages.sync_guild_async",
+            new=guild_ok,
+        ),
+        patch(
+            "discord_activity_tracker.sync.messages.sync_channels_async",
+            new=channels_ok,
+        ),
+        patch(
+            "discord_activity_tracker.sync.messages._sync_all_channels_async",
+            new=sync_body,
+        ),
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()
@@ -676,17 +685,20 @@ def test_sync_all_channels_full_sync_no_active_filter():
 
     sync_body = AsyncMock()
 
-    with patch(
-        "discord_activity_tracker.sync.messages.DiscordSyncClient"
-    ) as Cls, patch(
-        "discord_activity_tracker.sync.messages.sync_guild_async",
-        new=guild_ok,
-    ), patch(
-        "discord_activity_tracker.sync.messages.sync_channels_async",
-        new=channels_ok,
-    ), patch(
-        "discord_activity_tracker.sync.messages._sync_all_channels_async",
-        new=sync_body,
+    with (
+        patch("discord_activity_tracker.sync.messages.DiscordSyncClient") as Cls,
+        patch(
+            "discord_activity_tracker.sync.messages.sync_guild_async",
+            new=guild_ok,
+        ),
+        patch(
+            "discord_activity_tracker.sync.messages.sync_channels_async",
+            new=channels_ok,
+        ),
+        patch(
+            "discord_activity_tracker.sync.messages._sync_all_channels_async",
+            new=sync_body,
+        ),
     ):
         inst = Cls.return_value
         inst.close = AsyncMock()

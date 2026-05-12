@@ -38,19 +38,22 @@ def test_sync_issues_and_prs_processes_both_types(
         {"pr_info": {"number": 2}, "comments": [], "reviews": []},
     ]
 
-    with patch(
-        "github_activity_tracker.sync.issues_and_prs._process_issue_data"
-    ) as mock_proc_issue, patch(
-        "github_activity_tracker.sync.issues_and_prs._process_pr_data"
-    ) as mock_proc_pr, patch(
-        "github_activity_tracker.sync.issues_and_prs.save_issue_raw_source"
-    ), patch(
-        "github_activity_tracker.sync.issues_and_prs.save_pr_raw_source"
-    ), patch(
-        "github_activity_tracker.sync.issues_and_prs.get_issue_json_path"
-    ) as mock_issue_path, patch(
-        "github_activity_tracker.sync.issues_and_prs.get_pr_json_path"
-    ) as mock_pr_path:
+    with (
+        patch(
+            "github_activity_tracker.sync.issues_and_prs._process_issue_data"
+        ) as mock_proc_issue,
+        patch(
+            "github_activity_tracker.sync.issues_and_prs._process_pr_data"
+        ) as mock_proc_pr,
+        patch("github_activity_tracker.sync.issues_and_prs.save_issue_raw_source"),
+        patch("github_activity_tracker.sync.issues_and_prs.save_pr_raw_source"),
+        patch(
+            "github_activity_tracker.sync.issues_and_prs.get_issue_json_path"
+        ) as mock_issue_path,
+        patch(
+            "github_activity_tracker.sync.issues_and_prs.get_pr_json_path"
+        ) as mock_pr_path,
+    ):
 
         mock_issue_path.return_value = MagicMock()
         mock_pr_path.return_value = MagicMock()
@@ -187,13 +190,13 @@ def test_sync_issues_and_prs_saves_and_removes_json_files(
 
     mock_json_path = MagicMock()
 
-    with patch(
-        "github_activity_tracker.sync.issues_and_prs._process_issue_data"
-    ), patch(
-        "github_activity_tracker.sync.issues_and_prs.save_issue_raw_source"
-    ), patch(
-        "github_activity_tracker.sync.issues_and_prs.get_issue_json_path",
-        return_value=mock_json_path,
+    with (
+        patch("github_activity_tracker.sync.issues_and_prs._process_issue_data"),
+        patch("github_activity_tracker.sync.issues_and_prs.save_issue_raw_source"),
+        patch(
+            "github_activity_tracker.sync.issues_and_prs.get_issue_json_path",
+            return_value=mock_json_path,
+        ),
     ):
 
         sync_issues_and_prs(mock_repo)
@@ -246,18 +249,16 @@ def test_process_existing_pr_jsons_bad_file(github_repository, tmp_path):
 def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository):
     item = {"issue_info": {"number": None}, "comments": []}
 
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        issues_mod.fetcher,
-        "fetch_issues_and_prs_from_github",
-        lambda *a, **k: [item],
-    ), patch.object(
-        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            issues_mod.fetcher,
+            "fetch_issues_and_prs_from_github",
+            lambda *a, **k: [item],
+        ),
+        patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
     ):
         out = issues_mod.sync_issues_and_prs(github_repository)
     assert out["issues"] == []
@@ -265,12 +266,10 @@ def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository)
 
 @pytest.mark.django_db
 def test_sync_issues_and_prs_unexpected_error_wraps(github_repository):
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", side_effect=RuntimeError("boom")
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "get_github_client", side_effect=RuntimeError("boom")),
     ):
         with pytest.raises(RuntimeError, match="boom"):
             issues_mod.sync_issues_and_prs(github_repository)
@@ -296,18 +295,16 @@ def test_sync_issues_start_date_issue_only_branch(github_repository):
 
     mock_fetch = MagicMock(return_value=[])
 
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        issues_mod.fetcher,
-        "fetch_issues_and_prs_from_github",
-        mock_fetch,
-    ), patch.object(
-        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            issues_mod.fetcher,
+            "fetch_issues_and_prs_from_github",
+            mock_fetch,
+        ),
+        patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
     ):
         issues_mod.sync_issues_and_prs(github_repository)
 
@@ -335,18 +332,16 @@ def test_sync_issues_start_date_pr_only_branch(github_repository):
 
     mock_fetch = MagicMock(return_value=[])
 
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        issues_mod.fetcher,
-        "fetch_issues_and_prs_from_github",
-        mock_fetch,
-    ), patch.object(
-        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            issues_mod.fetcher,
+            "fetch_issues_and_prs_from_github",
+            mock_fetch,
+        ),
+        patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
     ):
         issues_mod.sync_issues_and_prs(github_repository)
 
@@ -541,12 +536,12 @@ def test_process_pr_data_reviews_comments_labels(
 def test_sync_issues_and_prs_rate_limit(github_repository):
     from core.operations.github_ops.client import RateLimitException
 
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", side_effect=RateLimitException("rl")
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(
+            issues_mod, "get_github_client", side_effect=RateLimitException("rl")
+        ),
     ):
         with pytest.raises(RateLimitException):
             issues_mod.sync_issues_and_prs(github_repository)
@@ -583,11 +578,14 @@ def test_process_existing_issue_jsons_success_nested(
     }
     p = tmp_path / "602.json"
     p.write_text(json.dumps(body), encoding="utf-8")
-    with patch.object(
-        issues_mod,
-        "iter_existing_issue_jsons",
-        lambda owner, repo: [p],
-    ), patch.object(issues_mod, "save_issue_raw_source"):
+    with (
+        patch.object(
+            issues_mod,
+            "iter_existing_issue_jsons",
+            lambda owner, repo: [p],
+        ),
+        patch.object(issues_mod, "save_issue_raw_source"),
+    ):
         n, nums = issues_mod._process_existing_issue_jsons(github_repository)
     assert n == 1 and nums == [602]
     assert not p.exists()
@@ -596,18 +594,16 @@ def test_process_existing_issue_jsons_success_nested(
 @pytest.mark.django_db
 def test_sync_issues_pr_info_present_but_number_none(github_repository):
     item = {"pr_info": {}, "comments": []}
-    with patch.object(
-        issues_mod, "_process_existing_issue_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "_process_existing_pr_jsons", return_value=(0, [])
-    ), patch.object(
-        issues_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        issues_mod.fetcher,
-        "fetch_issues_and_prs_from_github",
-        lambda *a, **k: [item],
-    ), patch.object(
-        issues_mod, "RedisListETagCache", return_value=MagicMock()
+    with (
+        patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "_process_existing_pr_jsons", return_value=(0, [])),
+        patch.object(issues_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            issues_mod.fetcher,
+            "fetch_issues_and_prs_from_github",
+            lambda *a, **k: [item],
+        ),
+        patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
     ):
         out = issues_mod.sync_issues_and_prs(github_repository)
     assert out["pull_requests"] == []
@@ -645,11 +641,14 @@ def test_process_existing_pr_jsons_success_nested(github_repository, tmp_path):
     }
     p = tmp_path / "703.json"
     p.write_text(json.dumps(body), encoding="utf-8")
-    with patch.object(
-        issues_mod,
-        "iter_existing_pr_jsons",
-        lambda owner, repo: [p],
-    ), patch.object(issues_mod, "save_pr_raw_source"):
+    with (
+        patch.object(
+            issues_mod,
+            "iter_existing_pr_jsons",
+            lambda owner, repo: [p],
+        ),
+        patch.object(issues_mod, "save_pr_raw_source"),
+    ):
         n, nums = issues_mod._process_existing_pr_jsons(github_repository)
     assert n == 1 and nums == [703]
     assert not p.exists()

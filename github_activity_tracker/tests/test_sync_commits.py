@@ -77,15 +77,19 @@ def test_process_commit_files_creates_files_and_changes():
     mock_add_change = MagicMock()
     mock_set_previous = MagicMock()
 
-    with patch(
-        "github_activity_tracker.sync.commits.services.create_or_update_github_file",
-        mock_create_file,
-    ), patch(
-        "github_activity_tracker.sync.commits.services.add_commit_file_change",
-        mock_add_change,
-    ), patch(
-        "github_activity_tracker.sync.commits.services.set_github_file_previous_filename",
-        mock_set_previous,
+    with (
+        patch(
+            "github_activity_tracker.sync.commits.services.create_or_update_github_file",
+            mock_create_file,
+        ),
+        patch(
+            "github_activity_tracker.sync.commits.services.add_commit_file_change",
+            mock_add_change,
+        ),
+        patch(
+            "github_activity_tracker.sync.commits.services.set_github_file_previous_filename",
+            mock_set_previous,
+        ),
     ):
         _process_commit_files(mock_repo, mock_commit, files)
 
@@ -179,15 +183,19 @@ def test_process_commit_files_renamed_already_linked_does_not_call_set_previous(
     mock_add_change = MagicMock()
     mock_set_previous = MagicMock()
 
-    with patch(
-        "github_activity_tracker.sync.commits.services.create_or_update_github_file",
-        mock_create_file,
-    ), patch(
-        "github_activity_tracker.sync.commits.services.add_commit_file_change",
-        mock_add_change,
-    ), patch(
-        "github_activity_tracker.sync.commits.services.set_github_file_previous_filename",
-        mock_set_previous,
+    with (
+        patch(
+            "github_activity_tracker.sync.commits.services.create_or_update_github_file",
+            mock_create_file,
+        ),
+        patch(
+            "github_activity_tracker.sync.commits.services.add_commit_file_change",
+            mock_add_change,
+        ),
+        patch(
+            "github_activity_tracker.sync.commits.services.set_github_file_previous_filename",
+            mock_set_previous,
+        ),
     ):
         _process_commit_files(mock_repo, mock_commit, files)
 
@@ -247,11 +255,14 @@ def test_process_existing_commit_jsons_success_then_unlink(
     p = tmp_path / f"{sha}.json"
     p.write_text(json.dumps(body), encoding="utf-8")
 
-    with patch.object(
-        sync_commits_mod,
-        "iter_existing_commit_jsons",
-        lambda owner, repo: [p],
-    ), patch.object(sync_commits_mod, "save_commit_raw_source"):
+    with (
+        patch.object(
+            sync_commits_mod,
+            "iter_existing_commit_jsons",
+            lambda owner, repo: [p],
+        ),
+        patch.object(sync_commits_mod, "save_commit_raw_source"),
+    ):
         n = sync_commits_mod._process_existing_commit_jsons(github_repository)
     assert n == 1
     assert not p.exists()
@@ -292,24 +303,23 @@ def test_sync_commits_normal_fetch_and_persist(
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        fake_fetch,
-    ), patch.object(
-        sync_commits_mod.big_commit, "is_commit_truncated", return_value=False
-    ), patch.object(
-        sync_commits_mod, "get_commit_json_path", return_value=json_path
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "save_commit_raw_source"
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            fake_fetch,
+        ),
+        patch.object(
+            sync_commits_mod.big_commit, "is_commit_truncated", return_value=False
+        ),
+        patch.object(sync_commits_mod, "get_commit_json_path", return_value=json_path),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "save_commit_raw_source"),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
     ):
         sync_commits_mod.sync_commits(github_repository)
 
@@ -353,28 +363,32 @@ def test_sync_commits_big_commit_submits_worker(
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        fake_fetch,
-    ), patch.object(
-        sync_commits_mod.big_commit, "is_commit_truncated", return_value=True
-    ), patch.object(
-        sync_commits_mod.big_commit,
-        "get_full_commit_files",
-        return_value=[{"filename": "only.py", "status": "added"}],
-    ), patch.object(
-        sync_commits_mod, "get_commit_json_path", return_value=out_json
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", side_effect=lambda *a, **k: _Exec()
-    ), patch.object(
-        sync_commits_mod, "_process_existing_commit_jsons", return_value=0
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            fake_fetch,
+        ),
+        patch.object(
+            sync_commits_mod.big_commit, "is_commit_truncated", return_value=True
+        ),
+        patch.object(
+            sync_commits_mod.big_commit,
+            "get_full_commit_files",
+            return_value=[{"filename": "only.py", "status": "added"}],
+        ),
+        patch.object(sync_commits_mod, "get_commit_json_path", return_value=out_json),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod, "ThreadPoolExecutor", side_effect=lambda *a, **k: _Exec()
+        ),
+        patch.object(
+            sync_commits_mod, "_process_existing_commit_jsons", return_value=0
+        ),
     ):
         sync_commits_mod.sync_commits(github_repository)
 
@@ -401,11 +415,14 @@ def test_sync_commits_big_worker_get_files_falls_back(
     }
     out_json = tmp_path / "fb.json"
 
-    with patch.object(
-        sync_commits_mod.big_commit,
-        "get_full_commit_files",
-        side_effect=RuntimeError("git fail"),
-    ), patch.object(sync_commits_mod, "get_commit_json_path", return_value=out_json):
+    with (
+        patch.object(
+            sync_commits_mod.big_commit,
+            "get_full_commit_files",
+            side_effect=RuntimeError("git fail"),
+        ),
+        patch.object(sync_commits_mod, "get_commit_json_path", return_value=out_json),
+    ):
         sync_commits_mod._process_big_commit_worker(
             github_repository.owner_account.username,
             github_repository.repo_name,
@@ -431,22 +448,23 @@ def test_sync_commits_skips_fetch_item_without_sha(github_repository, tmp_path):
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        fake_fetch,
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
-    ), patch.object(
-        sync_commits_mod,
-        "_process_commit_data",
-    ) as mock_process_commit_data:
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            fake_fetch,
+        ),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
+        patch.object(
+            sync_commits_mod,
+            "_process_commit_data",
+        ) as mock_process_commit_data,
+    ):
         sync_commits_mod.sync_commits(github_repository)
 
     mock_process_commit_data.assert_not_called()
@@ -466,16 +484,14 @@ def test_sync_commits_raises_rate_limit(github_repository):
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher, "fetch_commits_from_github", boom
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(sync_commits_mod.fetcher, "fetch_commits_from_github", boom),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
     ):
         with pytest.raises(RateLimitException):
             sync_commits_mod.sync_commits(github_repository)
@@ -513,24 +529,25 @@ def test_sync_commits_future_result_exception_logged(
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        fake_fetch,
-    ), patch.object(
-        sync_commits_mod.big_commit, "is_commit_truncated", return_value=True
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
-    ), patch.object(
-        sync_commits_mod, "_process_existing_commit_jsons", return_value=0
-    ), caplog.at_level(
-        logging.ERROR, logger="github_activity_tracker.sync.commits"
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            fake_fetch,
+        ),
+        patch.object(
+            sync_commits_mod.big_commit, "is_commit_truncated", return_value=True
+        ),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
+        patch.object(
+            sync_commits_mod, "_process_existing_commit_jsons", return_value=0
+        ),
+        caplog.at_level(logging.ERROR, logger="github_activity_tracker.sync.commits"),
     ):
         sync_commits_mod.sync_commits(github_repository)
 
@@ -575,18 +592,18 @@ def test_sync_commits_start_date_from_last_commit(github_repository):
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        mock_fetch,
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            mock_fetch,
+        ),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
     ):
         sync_commits_mod.sync_commits(github_repository)
 
@@ -605,18 +622,18 @@ def test_sync_commits_unexpected_exception(github_repository):
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        side_effect=ValueError("unexpected"),
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
+    with (
+        patch.object(
+            sync_commits_mod, "iter_existing_commit_jsons", lambda o, r: iter(())
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            side_effect=ValueError("unexpected"),
+        ),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
     ):
         with pytest.raises(ValueError, match="unexpected"):
             sync_commits_mod.sync_commits(github_repository)
@@ -638,14 +655,17 @@ def test_process_big_commit_worker_primary_write_fails_then_fallback():
     fallback.parent.mkdir = MagicMock()
     fallback.write_text = MagicMock()
 
-    with patch.object(
-        sync_commits_mod,
-        "get_commit_json_path",
-        side_effect=[primary, fallback],
-    ), patch.object(
-        sync_commits_mod.big_commit,
-        "get_full_commit_files",
-        return_value=[{"filename": "g.py", "status": "added"}],
+    with (
+        patch.object(
+            sync_commits_mod,
+            "get_commit_json_path",
+            side_effect=[primary, fallback],
+        ),
+        patch.object(
+            sync_commits_mod.big_commit,
+            "get_full_commit_files",
+            return_value=[{"filename": "g.py", "status": "added"}],
+        ),
     ):
         sync_commits_mod._process_big_commit_worker("o", "r", commit_data)
 
@@ -663,20 +683,19 @@ def test_sync_commits_logs_existing_json_count(github_repository, caplog):
         def shutdown(self, wait=True):
             return None
 
-    with patch.object(
-        sync_commits_mod, "_process_existing_commit_jsons", return_value=4
-    ), patch.object(
-        sync_commits_mod, "get_github_client", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod.fetcher,
-        "fetch_commits_from_github",
-        lambda *a, **k: iter(()),
-    ), patch.object(
-        sync_commits_mod, "RedisListETagCache", return_value=MagicMock()
-    ), patch.object(
-        sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()
-    ), caplog.at_level(
-        logging.INFO, logger="github_activity_tracker.sync.commits"
+    with (
+        patch.object(
+            sync_commits_mod, "_process_existing_commit_jsons", return_value=4
+        ),
+        patch.object(sync_commits_mod, "get_github_client", return_value=MagicMock()),
+        patch.object(
+            sync_commits_mod.fetcher,
+            "fetch_commits_from_github",
+            lambda *a, **k: iter(()),
+        ),
+        patch.object(sync_commits_mod, "RedisListETagCache", return_value=MagicMock()),
+        patch.object(sync_commits_mod, "ThreadPoolExecutor", return_value=_Exec()),
+        caplog.at_level(logging.INFO, logger="github_activity_tracker.sync.commits"),
     ):
         sync_commits_mod.sync_commits(github_repository)
 
@@ -700,14 +719,17 @@ def test_process_big_commit_worker_fallback_write_also_fails():
     fallback.parent.mkdir = MagicMock()
     fallback.write_text = MagicMock(side_effect=OSError("fallback fail"))
 
-    with patch.object(
-        sync_commits_mod,
-        "get_commit_json_path",
-        side_effect=[primary, fallback],
-    ), patch.object(
-        sync_commits_mod.big_commit,
-        "get_full_commit_files",
-        return_value=[{"filename": "z.py", "status": "added"}],
+    with (
+        patch.object(
+            sync_commits_mod,
+            "get_commit_json_path",
+            side_effect=[primary, fallback],
+        ),
+        patch.object(
+            sync_commits_mod.big_commit,
+            "get_full_commit_files",
+            return_value=[{"filename": "z.py", "status": "added"}],
+        ),
     ):
         sync_commits_mod._process_big_commit_worker("o", "r", commit_data)
 

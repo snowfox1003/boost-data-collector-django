@@ -130,22 +130,28 @@ def test_run_update_created_repos_errors_stderr_and_exit_code():
 
 
 def test_run_boost_usage_dry_run_invokes_tasks():
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_content",
-    ) as t1, patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_stars",
-    ) as t2:
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_content",
+        ) as t1,
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_stars",
+        ) as t2,
+    ):
         call_command("run_boost_usage_tracker", "--dry-run", stdout=StringIO())
     t1.assert_called_once()
     t2.assert_called_once()
 
 
 def test_run_boost_usage_task_filter_monitor_content_only():
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_content",
-    ) as t1, patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_stars",
-    ) as t2:
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_content",
+        ) as t1,
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.task_monitor_stars",
+        ) as t2,
+    ):
         call_command(
             "run_boost_usage_tracker",
             "--task=monitor_content",
@@ -173,12 +179,15 @@ def test_usage_collector_get_collector_invalid_since_falls_back():
 def test_ensure_github_repo_creates_repo(github_account, github_repository):
     client = MagicMock()
     result = RepoSearchResult(full_name="acme/demo", stars=3)
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_or_create_owner_account",
-        return_value=github_account,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_or_create_repository",
-        return_value=(github_repository, False),
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_or_create_owner_account",
+            return_value=github_account,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_or_create_repository",
+            return_value=(github_repository, False),
+        ),
     ):
         repo = _ensure_github_repo(client, result)
     assert repo is github_repository
@@ -221,18 +230,23 @@ def test_task_monitor_content_non_dry_run_processes_repo():
         "usages_excepted": 0,
         "missing_header_recorded": 0,
     }
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
-        return_value=repos,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_boost_include_files_batch",
-        return_value=[],
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.process_single_repo",
-        return_value=stats,
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
+            return_value=repos,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_boost_include_files_batch",
+            return_value=[],
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.process_single_repo",
+            return_value=stats,
+        ),
     ):
         task_monitor_content(since, until, min_stars=10, dry_run=False)
 
@@ -240,12 +254,15 @@ def test_task_monitor_content_non_dry_run_processes_repo():
 @pytest.mark.django_db
 def test_task_monitor_stars_dry_run_no_results():
     mock_client = MagicMock()
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
-        return_value=[],
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
+            return_value=[],
+        ),
     ):
         task_monitor_stars(min_stars=10, dry_run=True)
 
@@ -291,12 +308,15 @@ def test_run_update_created_repos_cli_passes_year_range():
 @pytest.mark.django_db
 def test_task_monitor_stars_non_dry_empty_search():
     mock_client = MagicMock()
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
-        return_value=[],
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
+            return_value=[],
+        ),
     ):
         task_monitor_stars(min_stars=10, dry_run=False)
 
@@ -376,12 +396,15 @@ def test_task_monitor_stars_bulk_updates_tracked_repo_stars(
 
     found = RepoSearchResult(full_name="bulkowner/bulkrepo", stars=77)
     mock_client = MagicMock()
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
-        return_value=[found],
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
+            return_value=[found],
+        ),
     ):
         task_monitor_stars(min_stars=10, dry_run=False)
     ext_repo.refresh_from_db()
@@ -469,12 +492,15 @@ def test_monitor_content_dry_run_truncates_long_repo_list(caplog):
     mock_client = MagicMock()
     since = datetime(2024, 1, 1, tzinfo=timezone.utc)
     until = datetime(2024, 1, 2, tzinfo=timezone.utc)
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
-        return_value=repos,
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_repos_with_date_splitting",
+            return_value=repos,
+        ),
     ):
         task_monitor_content(since, until, min_stars=10, dry_run=True)
     assert any("more" in r.message.lower() for r in caplog.records)
@@ -484,12 +510,15 @@ def test_run_boost_search_stage_skips_repo_when_processing_errors(caplog):
     caplog.set_level(logging.WARNING)
     client = MagicMock()
     repos = [RepoSearchResult(full_name="bad/repo", stars=9)]
-    with patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_boost_include_files_batch",
-        return_value=[],
-    ), patch(
-        "boost_usage_tracker.management.commands.run_boost_usage_tracker.process_single_repo",
-        side_effect=RuntimeError("bad repo"),
+    with (
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.search_boost_include_files_batch",
+            return_value=[],
+        ),
+        patch(
+            "boost_usage_tracker.management.commands.run_boost_usage_tracker.process_single_repo",
+            side_effect=RuntimeError("bad repo"),
+        ),
     ):
         totals = _run_boost_search_stage(
             client,

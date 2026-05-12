@@ -70,6 +70,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -91,9 +93,12 @@ jobs:
 
       # Fully pinned tree (requirements-dev.in → requirements-dev.lock).
       - name: Install dependencies
+        env:
+          SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"
         run: |
           uv venv
           uv pip install -r requirements-dev.lock
+          uv pip install -e .
 
       # Same DATABASE_URL as pytest; 127.0.0.1 avoids occasional localhost → IPv6 quirks on runners.
       - name: Verify PostgreSQL connection

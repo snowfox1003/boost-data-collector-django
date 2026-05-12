@@ -163,12 +163,16 @@ class TestSyncMessages:
 
         app_workspace = tmp_path / "workspace" / "cppa_slack_tracker"
         app_workspace.mkdir(parents=True, exist_ok=True)
-        with patch(
-            "cppa_slack_tracker.workspace.get_workspace_path",
-            return_value=app_workspace,
-        ), patch("cppa_slack_tracker.workspace.settings") as m_settings, patch(
-            "cppa_slack_tracker.sync.sync_message.fetch_messages",
-            return_value=[],
+        with (
+            patch(
+                "cppa_slack_tracker.workspace.get_workspace_path",
+                return_value=app_workspace,
+            ),
+            patch("cppa_slack_tracker.workspace.settings") as m_settings,
+            patch(
+                "cppa_slack_tracker.sync.sync_message.fetch_messages",
+                return_value=[],
+            ),
         ):
             m_settings.WORKSPACE_DIR = tmp_path / "workspace"
             m_settings.RAW_DIR = None

@@ -162,12 +162,15 @@ def test_prepare_local_source_download_error():
 def test_prepare_local_source_extract_error():
     cmd = Command()
     zip_path = Path("/fake/z.zip")
-    with patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.download_source_zip",
-        return_value=zip_path,
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.extract_source_zip",
-        side_effect=ValueError("bad zip"),
+    with (
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.download_source_zip",
+            return_value=zip_path,
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.extract_source_zip",
+            side_effect=ValueError("bad zip"),
+        ),
     ):
         with pytest.raises(CommandError, match="Failed to extract"):
             cmd._prepare_local_source(version="boost-1.81.0")
@@ -226,10 +229,13 @@ def test_process_library_skips_db_when_no_library_version(boost_library_version)
     ver.version = "boost-1.81.0"
     ver.save()
     cmd = Command()
-    with patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.crawl_library_pages",
-        return_value=[("https://x/", "body")],
-    ), patch.object(cmd, "_resolve_library_version_id", return_value=None):
+    with (
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.crawl_library_pages",
+            return_value=[("https://x/", "body")],
+        ),
+        patch.object(cmd, "_resolve_library_version_id", return_value=None),
+    ):
         n = cmd._process_library(
             version="boost-1.81.0",
             lib_key="algorithm",
@@ -250,14 +256,18 @@ def test_save_pages_workspace_failure_continues(boost_library_version):
     ver.save()
     cmd = Command()
     pages = [("https://a/", "x"), ("https://b/", "y")]
-    with patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.workspace.save_page",
-        side_effect=[OSError("write fail"), None],
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.get_or_create_doc_content",
-        return_value=(MagicMock(pk=1), "created"),
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.link_content_to_library_version",
+    with (
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.workspace.save_page",
+            side_effect=[OSError("write fail"), None],
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.get_or_create_doc_content",
+            return_value=(MagicMock(pk=1), "created"),
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.link_content_to_library_version",
+        ),
     ):
         cmd._save_pages_to_workspace_and_db(
             version="boost-1.81.0",
@@ -276,11 +286,14 @@ def test_save_pages_db_failure_continues(boost_library_version):
     ver.save()
     cmd = Command()
     pages = [("https://a/", "body")]
-    with patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.workspace.save_page",
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.get_or_create_doc_content",
-        side_effect=RuntimeError("db"),
+    with (
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.workspace.save_page",
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.get_or_create_doc_content",
+            side_effect=RuntimeError("db"),
+        ),
     ):
         cmd._save_pages_to_workspace_and_db(
             version="boost-1.81.0",
@@ -329,12 +342,15 @@ def test_sync_pinecone_marks_success_and_failed_ids():
         "failed_count": 1,
     }
     mock_sync = MagicMock(return_value=result)
-    with patch.dict(
-        "sys.modules",
-        {"cppa_pinecone_sync.sync": MagicMock(sync_to_pinecone=mock_sync)},
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.set_doc_content_upserted_by_ids",
-    ) as mark:
+    with (
+        patch.dict(
+            "sys.modules",
+            {"cppa_pinecone_sync.sync": MagicMock(sync_to_pinecone=mock_sync)},
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.set_doc_content_upserted_by_ids",
+        ) as mark,
+    ):
         cmd._sync_pinecone()
     assert mark.call_count == 2
 
@@ -350,17 +366,20 @@ def test_cleanup_extract_removes_zip_warns_on_oserror(boost_library_version, tmp
     extract_root = tmp_path / "extract"
     extract_root.mkdir()
     cmd = Command()
-    with patch.object(
-        Command,
-        "_prepare_local_source",
-        return_value=(extract_root, zip_path),
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.walk_library_html",
-        return_value=[],
-    ), patch(
-        "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.delete_extract_dir",
-    ), patch.object(
-        Path, "unlink", side_effect=OSError("perm")
+    with (
+        patch.object(
+            Command,
+            "_prepare_local_source",
+            return_value=(extract_root, zip_path),
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.walk_library_html",
+            return_value=[],
+        ),
+        patch(
+            "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.fetcher.delete_extract_dir",
+        ),
+        patch.object(Path, "unlink", side_effect=OSError("perm")),
     ):
         cmd._process_version(
             version="boost-1.81.0",
@@ -428,9 +447,10 @@ def test_call_command_dry_run_skips_pinecone(boost_library_version):
     ver.version = "boost-1.81.0"
     ver.save()
     buf = StringIO()
-    with patch.object(Command, "_run") as run_mock, patch.object(
-        Command, "_sync_pinecone"
-    ) as sync_mock:
+    with (
+        patch.object(Command, "_run") as run_mock,
+        patch.object(Command, "_sync_pinecone") as sync_mock,
+    ):
         call_command(
             "run_boost_library_docs_tracker",
             "--versions",

@@ -15,15 +15,19 @@ from github_activity_tracker.sync.raw_source import (
 def raw_source_tmp(tmp_path):
     """Patch workspace path helpers so raw source writes go to tmp_path."""
     root = tmp_path / "raw" / "github_activity_tracker"
-    with patch(
-        "github_activity_tracker.sync.raw_source.get_raw_source_commit_path",
-        side_effect=lambda o, r, sha: root / o / r / "commits" / f"{sha}.json",
-    ), patch(
-        "github_activity_tracker.sync.raw_source.get_raw_source_issue_path",
-        side_effect=lambda o, r, num: root / o / r / "issues" / f"{num}.json",
-    ), patch(
-        "github_activity_tracker.sync.raw_source.get_raw_source_pr_path",
-        side_effect=lambda o, r, num: root / o / r / "prs" / f"{num}.json",
+    with (
+        patch(
+            "github_activity_tracker.sync.raw_source.get_raw_source_commit_path",
+            side_effect=lambda o, r, sha: root / o / r / "commits" / f"{sha}.json",
+        ),
+        patch(
+            "github_activity_tracker.sync.raw_source.get_raw_source_issue_path",
+            side_effect=lambda o, r, num: root / o / r / "issues" / f"{num}.json",
+        ),
+        patch(
+            "github_activity_tracker.sync.raw_source.get_raw_source_pr_path",
+            side_effect=lambda o, r, num: root / o / r / "prs" / f"{num}.json",
+        ),
     ):
         yield root
 

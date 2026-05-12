@@ -475,8 +475,9 @@ def test_graphql_request_connection_error_retries_then_raises():
 
     client = GitHubAPIClient("token")
     client.session.request = MagicMock(side_effect=ReqConnectionError("fail"))
-    with patch("core.operations.github_ops.client.time.sleep"), pytest.raises(
-        ConnectionException
+    with (
+        patch("core.operations.github_ops.client.time.sleep"),
+        pytest.raises(ConnectionException),
     ):
         client.graphql_request("query { x }")
     assert client.session.request.call_count == client.max_retries

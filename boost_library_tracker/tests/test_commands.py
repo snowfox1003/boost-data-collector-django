@@ -165,12 +165,15 @@ def test_backfill_file_renames_failed_count_and_not_linked_list(
 
     out = StringIO()
     err = StringIO()
-    with patch(
-        "boost_library_tracker.management.commands.backfill_file_renames.Path",
-        side_effect=path_side_effect,
-    ), patch(
-        "boost_library_tracker.management.commands.backfill_file_renames.set_github_file_previous_filename",
-        side_effect=RuntimeError("DB error"),
+    with (
+        patch(
+            "boost_library_tracker.management.commands.backfill_file_renames.Path",
+            side_effect=path_side_effect,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.backfill_file_renames.set_github_file_previous_filename",
+            side_effect=RuntimeError("DB error"),
+        ),
     ):
         call_command(BACKFILL_CMD, stdout=out, stderr=err)
 
@@ -190,15 +193,19 @@ def test_run_boost_github_activity_tracker_dry_run_lists_repos(caplog):
     mock_account = MagicMock()
     mock_account.username = "boostorg"
     caplog.set_level(logging.INFO)
-    with patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_or_create_owner_account",
-        return_value=mock_account,
-    ), patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.sync_github",
-    ) as sync_mock:
+    with (
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_or_create_owner_account",
+            return_value=mock_account,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.sync_github",
+        ) as sync_mock,
+    ):
         call_command(ACTIVITY_CMD, "--dry-run", stdout=StringIO(), stderr=StringIO())
     sync_mock.assert_not_called()
     combined = caplog.text.lower()
@@ -212,17 +219,22 @@ def test_run_boost_github_activity_tracker_invalid_since_errors():
     mock_client.get_file_content.return_value = (b"", "utf-8")
     mock_account = MagicMock()
     mock_account.username = "boostorg"
-    with patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_or_create_owner_account",
-        return_value=mock_account,
-    ), patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.sync_github",
-    ), patch(
-        "boost_library_tracker.management.commands.run_boost_github_activity_tracker.task_fetch_github_activity",
-    ) as task_mock:
+    with (
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.get_or_create_owner_account",
+            return_value=mock_account,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.sync_github",
+        ),
+        patch(
+            "boost_library_tracker.management.commands.run_boost_github_activity_tracker.task_fetch_github_activity",
+        ) as task_mock,
+    ):
         with pytest.raises(CommandError, match="Invalid ISO datetime"):
             call_command(
                 ACTIVITY_CMD,

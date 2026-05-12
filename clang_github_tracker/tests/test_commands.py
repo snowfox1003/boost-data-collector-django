@@ -28,11 +28,14 @@ def test_run_clang_github_tracker_dry_run_logs_resolved(caplog):
 @pytest.mark.django_db
 def test_run_clang_github_tracker_skip_sync(caplog):
     """--skip-github-sync bypasses the GitHub sync step (not only under --dry-run)."""
-    with patch(
-        "clang_github_tracker.collectors.sync_clang_github_activity"
-    ) as sync_mock, patch(
-        "clang_github_tracker.collectors.write_md_files",
-        return_value={},
+    with (
+        patch(
+            "clang_github_tracker.collectors.sync_clang_github_activity"
+        ) as sync_mock,
+        patch(
+            "clang_github_tracker.collectors.write_md_files",
+            return_value={},
+        ),
     ):
         with caplog.at_level(logging.INFO):
             call_command(

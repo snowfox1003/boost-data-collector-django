@@ -18,6 +18,7 @@ from django.core.management.base import BaseCommand, CommandError
 from boost_collector_runner.schedule_config import (
     get_tasks_for_schedule,
 )
+from core import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Resolve tasks from YAML (group batch or single schedule), run them sequentially, exit non-zero on failure."""
+        logger.info(
+            "run_scheduled_collectors: starting collector_version=%s",
+            __version__,
+            extra={"collector_version": __version__},
+        )
         schedule_kind = options["schedule"]
         day_of_week = options.get("day_of_week")
         day_of_month = options.get("day_of_month")

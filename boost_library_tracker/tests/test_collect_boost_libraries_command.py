@@ -81,11 +81,14 @@ def test_collect_handle_dry_run_short_circuits(caplog):
 @pytest.mark.django_db
 def test_collect_handle_explicit_refs_no_api_list(caplog):
     caplog.set_level(logging.INFO)
-    with patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
-    ) as new_api, patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.all_boost_versions_from_api",
-    ) as all_api:
+    with (
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
+        ) as new_api,
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.all_boost_versions_from_api",
+        ) as all_api,
+    ):
         call_command(
             "collect_boost_libraries",
             "--boost-version=boost-1.84.0",
@@ -184,12 +187,15 @@ def test_process_library_data_creates_roles(boost_library_repository):
 @pytest.mark.django_db
 def test_collect_handle_process_refs_no_client(caplog):
     caplog.set_level(logging.ERROR)
-    with patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
-        return_value=[("boost-1.88.0", "sha1")],
-    ), patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
-        return_value=None,
+    with (
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
+            return_value=[("boost-1.88.0", "sha1")],
+        ),
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
+            return_value=None,
+        ),
     ):
         call_command("collect_boost_libraries", stdout=StringIO())
     assert any("Could not create GitHub Client" in r.message for r in caplog.records)
@@ -200,12 +206,15 @@ def test_collect_handle_process_refs_tag_sha_missing(caplog):
     caplog.set_level(logging.ERROR)
     mock_client = MagicMock()
     mock_client.get_tag_sha.return_value = None
-    with patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
-        return_value=[("boost-1.88.0", None)],
-    ), patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
-        return_value=mock_client,
+    with (
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
+            return_value=[("boost-1.88.0", None)],
+        ),
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
+            return_value=mock_client,
+        ),
     ):
         call_command("collect_boost_libraries", stdout=StringIO())
     assert any("Could not get SHA" in r.message for r in caplog.records)
@@ -218,15 +227,19 @@ def test_collect_handle_process_refs_rollback_on_exception(caplog):
     mock_client.get_tag_sha.return_value = "abc"
     mock_client.get_tag_published_at.return_value = None
     mock_client.rest_raw_request.return_value = b""
-    with patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
-        return_value=[("boost-1.88.0", None)],
-    ), patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
-        return_value=mock_client,
-    ), patch(
-        "boost_library_tracker.management.commands.collect_boost_libraries.get_or_create_boost_version",
-        side_effect=RuntimeError("boom"),
+    with (
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.new_boost_versions_from_api",
+            return_value=[("boost-1.88.0", None)],
+        ),
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.get_github_client",
+            return_value=mock_client,
+        ),
+        patch(
+            "boost_library_tracker.management.commands.collect_boost_libraries.get_or_create_boost_version",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         call_command("collect_boost_libraries", stdout=StringIO())
     assert any("Failed to process ref" in r.message for r in caplog.records)
