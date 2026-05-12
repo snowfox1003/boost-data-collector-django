@@ -1,49 +1,49 @@
 """
 Test-only Django settings.
-Imports base settings, then overrides for fast and isolated tests.
+Imports base settings, then overrides for isolated tests.
+
+Tests always use PostgreSQL (same as CI and production) so behavior matches
+JSONB, case-sensitive ILIKE, connection pooling, and transaction semantics.
+SQLite is not used: it can hide bugs that only appear on Postgres.
 """
 
 import os
-import sys
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .settings import *  # noqa: F401, F403
+from .settings import DATABASES  # explicit import for ruff F405 (after star import)
 
 # Never run workspace orphan cleanup during tests (CoreConfig.ready).
 WORKSPACE_ORPHAN_CLEANUP_ENABLED = False
 
-# In-memory SQLite for fast, isolated tests when we are not targeting Postgres (see below).
-_SQLITE_TEST_DB = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-    }
-}
+if not (os.environ.get("DATABASE_URL") or "").strip():
+    raise ImproperlyConfigured(
+        "config.test_settings requires DATABASE_URL (PostgreSQL). "
+        "Start the local test database: "
+        "docker compose -f docker-compose.test.yml up -d "
+        "then set DATABASE_URL, for example: "
+        "postgres://postgres:postgres@127.0.0.1:5433/postgres "
+        "See README.md → Running tests."
+    )
 
-# Prefer SQLite when DATABASE_URL is unset, or under pytest without USE_POSTGRES_TESTS so a
-# developer .env DATABASE_URL (Docker Postgres) does not require a running server.
-# GitHub Actions Postgres jobs set USE_POSTGRES_TESTS=1 so DATABASE_URL still applies under pytest.
-_under_pytest = "pytest" in sys.modules
-_use_postgres_tests = os.environ.get("USE_POSTGRES_TESTS", "").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-)
-_want_sqlite = (not os.environ.get("DATABASE_URL", "").strip()) or (
-    _under_pytest and not _use_postgres_tests
-)
-if _want_sqlite:
-    DATABASES = _SQLITE_TEST_DB
-
-# When tests target PostgreSQL (e.g. CI), prefer short-lived connections and a bounded
-# connect timeout so flaky networking fails fast instead of hanging pytest.
+# Prefer short-lived connections and a bounded connect timeout so flaky
+# networking fails fast instead of hanging pytest.
 _default_db = DATABASES.get("default", {})
-if "postgresql" in (_default_db.get("ENGINE") or "").lower():
-    _opts = dict(_default_db.get("OPTIONS") or {})
-    _opts.setdefault("connect_timeout", 15)
-    _default_db["OPTIONS"] = _opts
-    _default_db["CONN_MAX_AGE"] = 0
-    DATABASES["default"] = _default_db
+_engine = (_default_db.get("ENGINE") or "").lower()
+if "postgresql" not in _engine:
+    raise ImproperlyConfigured(
+        "config.test_settings requires PostgreSQL. "
+        f"Got DATABASES['default']['ENGINE']={_default_db.get('ENGINE')!r}; "
+        "use a postgres:// or postgresql:// DATABASE_URL. "
+        "See README.md → Running tests."
+    )
+_opts = dict(_default_db.get("OPTIONS") or {})
+_opts.setdefault("connect_timeout", 15)
+_default_db["OPTIONS"] = _opts
+_default_db["CONN_MAX_AGE"] = 0
+DATABASES["default"] = _default_db
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",

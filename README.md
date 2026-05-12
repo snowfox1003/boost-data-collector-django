@@ -83,7 +83,9 @@ On Windows, the project configures the worker to use the `solo` pool automatical
 
 ## Running tests
 
-The project uses **pytest** with **pytest-django**. Tests run against `config.test_settings` (SQLite in-memory by default; set `DATABASE_URL` to use PostgreSQL).
+The project uses **pytest** with **pytest-django**. Tests run against **`config.test_settings`**, which **always uses PostgreSQL** (same engine as CI and production). **`DATABASE_URL` must be set** when you run pytest; if it is missing, Django raises a clear error (see [`config/test_settings.py`](config/test_settings.py)).
+
+**Why not SQLite:** the ORM behaves differently on SQLite versus PostgreSQL (for example JSONB, `ILIKE` case rules, types such as arrays, and transaction isolation). Using Postgres for tests catches those issues before CI or production.
 
 1. Install test dependencies (once):
 
@@ -91,42 +93,52 @@ The project uses **pytest** with **pytest-django**. Tests run against `config.te
 pip install -r requirements-dev.txt
 ```
 
-2. Run the full test suite:
+2. Start a local PostgreSQL 16 instance for tests (recommended; uses host port **5433** so it does not clash with Postgres on **5432**):
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+```
+
+3. Set **`DATABASE_URL`** and a dummy **`SECRET_KEY`** for the test process (CI sets these for pytest):
+
+```bash
+# Linux / macOS (Git Bash / WSL)
+export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/postgres
+export SECRET_KEY=for-testing-only
+```
+
+```bash
+# Windows (Command Prompt)
+set DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/postgres
+set SECRET_KEY=for-testing-only
+```
+
+If you already run PostgreSQL yourself, you may point `DATABASE_URL` at that server instead; the user in the URL must be allowed to **create databases** (pytest-django creates a separate database named `test_<dbname>` with `--reuse-db` from [`pytest.ini`](pytest.ini)).
+
+4. Run the full test suite:
 
 ```bash
 python -m pytest
 ```
 
-3. Optional: run with coverage and enforce a minimum percentage locally:
+5. Optional: run with coverage and enforce a minimum percentage locally:
 
 ```bash
 python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=90
 ```
 
-Coverage writes a local **`.coverage`** file (binary SQLite data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
+Coverage writes a local **`.coverage`** file (binary data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**PostgreSQL parity (recommended before merging DB-sensitive changes):** GitHub Actions runs the full suite against Postgres (`DATABASE_URL` in `.github/workflows/actions.yml`; tests use `127.0.0.1` for a stable loopback connection). Locally, `pytest.ini` defaults to SQLite in-memory when `DATABASE_URL` is unset (`config.test_settings`). Run the full suite against Postgres when you touch JSONB, enums, or locks, for example:
+**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs pytest with `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres` and the same `DJANGO_SETTINGS_MODULE=config.test_settings` as local.
 
-```bash
-# Linux / macOS
-export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
-python -m pytest
-```
-
-```bash
-# Windows (Command Prompt)
-set DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
-python -m pytest
-```
-
-4. Run a subset of tests (e.g. one app or one file):
+6. Run a subset of tests (e.g. one app or one file):
 
 ```bash
 python -m pytest cppa_user_tracker/tests/ -v
 python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 ```
 
-CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 3 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
+CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 5 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 

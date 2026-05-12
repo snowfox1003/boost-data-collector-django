@@ -219,7 +219,7 @@ groups:
 
 ### `tests/test_skeleton_collector.py`
 
-Tests use the same **pytest + pytest-django** stack as the rest of the repo. CI uses **PostgreSQL** when `DATABASE_URL` is set; locally you can use SQLite in-memory or set `DATABASE_URL` to match CI—see [README.md](../README.md#running-tests).
+Tests use the same **pytest + pytest-django** stack as the rest of the repo. **`config.test_settings` requires PostgreSQL** via `DATABASE_URL` (local Docker: `docker-compose.test.yml`; CI matches the same settings module). See [README.md](../README.md#running-tests).
 
 ```python
 # my_skeleton_tracker/tests/test_skeleton_collector.py

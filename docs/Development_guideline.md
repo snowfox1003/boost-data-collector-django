@@ -99,6 +99,7 @@ Use these steps to get the Django project running on your machine.
 
 Run tests often so you catch problems early.
 
+- **PostgreSQL for pytest:** `config.test_settings` requires `DATABASE_URL` pointing at PostgreSQL (see [README.md](../README.md#running-tests): `docker compose -f docker-compose.test.yml up -d`, then export `DATABASE_URL` / `SECRET_KEY`). This matches CI and avoids SQLite-only passes that fail in production.
 - **Before each commit:** run the test suite for the code you changed (`python -m pytest` or a subset).
 - **For app commands:** ensure the command runs successfully (e.g. `python manage.py run_boost_library_tracker` exits with 0 and does the expected work).
 - **Full workflow:** run `python manage.py run_scheduled_collectors --schedule default --group <group_id>` / `--schedule interval --interval-minutes <n>` when testing the YAML-driven path (matches how Celery Beat invokes it).
