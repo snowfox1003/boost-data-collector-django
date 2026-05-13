@@ -1,14 +1,19 @@
 """Tests for core.operations.github_ops.tokens (get_github_token, get_github_client)."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch
+import requests
 
 from django.conf import settings
 
 from core.operations.github_ops.client import GitHubAPIClient
-from core.operations.github_ops.tokens import get_github_client, get_github_token
+from core.operations.github_ops.tokens import (
+    get_github_client,
+    get_github_token,
+    validate_github_token_for_use,
+)
 from core.operations.github_ops import tokens as tokens_module
 
 
@@ -220,3 +225,78 @@ def test_get_github_client_returns_none_when_token_empty():
         return_value="",
     ):
         assert get_github_client(use="write") is None
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_re_raises_get_github_token_valueerror():
+    """Missing/invalid token errors from get_github_token must not be masked."""
+    with patch(
+        "core.operations.github_ops.tokens.get_github_token",
+        side_effect=ValueError(
+            "No scraping token: set GITHUB_TOKENS_SCRAPING or GITHUB_TOKEN."
+        ),
+    ):
+        with pytest.raises(
+            ValueError, match="No scraping token: set GITHUB_TOKENS_SCRAPING"
+        ):
+            validate_github_token_for_use("scraping")
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_unknown_use_propagates():
+    """Invalid ``use`` must surface get_github_token's message, not 'not configured'."""
+    with pytest.raises(ValueError, match="Unknown use"):
+        validate_github_token_for_use("not_a_valid_use")  # type: ignore[arg-type]
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_empty_token_after_resolution():
+    """Defensive: empty string token yields configured message (should not happen via get_github_token)."""
+    with patch(
+        "core.operations.github_ops.tokens.get_github_token",
+        return_value="",
+    ):
+        with pytest.raises(ValueError, match="No GitHub scraping token configured"):
+            validate_github_token_for_use("scraping")
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_401_raises():
+    """Invalid credentials from GitHub /user map to ValueError."""
+    client = MagicMock()
+    resp = MagicMock()
+    resp.status_code = 401
+    err = requests.exceptions.HTTPError()
+    err.response = resp
+    client.rest_request.side_effect = err
+    with (
+        patch(
+            "core.operations.github_ops.tokens.get_github_token",
+            return_value="fake",
+        ),
+        patch(
+            "core.operations.github_ops.tokens.GitHubAPIClient",
+            return_value=client,
+        ),
+    ):
+        with pytest.raises(ValueError, match="invalid or not authorized"):
+            validate_github_token_for_use("scraping")
+
+
+@pytest.mark.django_db
+def test_validate_github_token_for_use_success():
+    """Happy path: rest_request /user succeeds."""
+    client = MagicMock()
+    client.rest_request.return_value = {"login": "test"}
+    with (
+        patch(
+            "core.operations.github_ops.tokens.get_github_token",
+            return_value="fake",
+        ),
+        patch(
+            "core.operations.github_ops.tokens.GitHubAPIClient",
+            return_value=client,
+        ),
+    ):
+        validate_github_token_for_use("write")
+    client.rest_request.assert_called_once_with("/user")

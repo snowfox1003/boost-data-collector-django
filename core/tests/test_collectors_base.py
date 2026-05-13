@@ -6,8 +6,9 @@ from unittest.mock import patch
 import pytest
 from django.core.management.base import CommandError
 
-import core.collectors.base as collector_base
+import core.collectors.base_collector as collector_lifecycle
 from core.collectors.base import CollectorBase, DjangoCommandCollector
+from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
 
 
@@ -67,7 +68,7 @@ def test_collector_base_handle_error_logs_failure_category():
     collector = PhaseCollector()
     collector._error_phase = "fetch"
 
-    with patch.object(collector_base.logger, "exception") as mock_exc:
+    with patch.object(collector_lifecycle.logger, "exception") as mock_exc:
         collector.handle_error(RuntimeError("boom"))
 
     mock_exc.assert_called_once()
@@ -90,3 +91,41 @@ def test_base_collector_command_logs_and_reraises_generic_exception():
             Cmd(stdout=StringIO(), stderr=StringIO()).handle()
     mock_handle.assert_called_once()
     assert isinstance(mock_handle.call_args[0][0], RuntimeError)
+
+
+def test_abstract_collector_run_calls_validate_then_collect():
+    order = []
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac_test"
+
+        def validate_config(self) -> None:
+            order.append("validate")
+
+        def collect(self) -> None:
+            order.append("collect")
+
+    AC().run()
+    assert order == ["validate", "collect"]
+
+
+def test_abstract_collector_handle_error_uses_name_in_log_extra():
+    class Named(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "named_slug"
+
+        def validate_config(self) -> None:
+            pass
+
+        def collect(self) -> None:
+            pass
+
+    c = Named()
+    c._error_phase = "collect"
+    with patch.object(collector_lifecycle.logger, "exception") as mock_exc:
+        c.handle_error(RuntimeError("x"))
+    mock_exc.assert_called_once()
+    assert "named_slug" in str(mock_exc.call_args)

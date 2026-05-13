@@ -18,8 +18,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from django.utils.dateparse import parse_datetime
+from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
 
 from boost_usage_tracker.models import BoostExternalRepository
@@ -40,6 +41,7 @@ from github_activity_tracker.services import (
 )
 from core.operations.github_ops import get_github_client
 from core.operations.github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops.tokens import validate_github_token_for_use
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +319,7 @@ def task_monitor_stars(
 # ---------------------------------------------------------------------------
 
 
-class BoostUsageTrackerCollector(CollectorBase):
+class BoostUsageTrackerCollector(AbstractCollector):
     """Run monitor_content and/or monitor_stars."""
 
     def __init__(
@@ -337,7 +339,17 @@ class BoostUsageTrackerCollector(CollectorBase):
         self.until = until
         self.now = now
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "boost_usage_tracker"
+
+    def validate_config(self) -> None:
+        try:
+            validate_github_token_for_use("scraping")
+        except ValueError as e:
+            raise CommandError(str(e)) from e
+
+    def collect(self) -> None:
         logger.info(
             "run_boost_usage_tracker: starting (task=%s, dry_run=%s)",
             self.task_filter or "all",

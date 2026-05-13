@@ -13,16 +13,21 @@ Add a task under the right group in `config/boost_collector_schedule.yaml` (see 
 
 ## 3. Shared abstractions (recommended)
 
-- Subclass [`CollectorBase`](../core/collectors/base.py) for a common `run()` / `handle_error()` / `sync_pinecone()` contract, and use [`BaseCollectorCommand`](../core/collectors/command_base.py) so the management command stays thin.
-- [`DjangoCommandCollector`](../core/collectors/base.py) remains available for tests or internal `call_command` wrappers.
+Stable imports live under **`core.collectors`** (re-exported in [`core/collectors/__init__.py`](../core/collectors/__init__.py)); see the **Collectors** table in [Core_public_API.md](Core_public_API.md#collectors) for `AbstractCollector`, `CollectorBase`, `CollectorRunnable`, `BaseCollectorCommand`, and `DjangoCommandCollector`.
+
+- **Preferred:** Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` aligned with legacy **`CollectorBase`**. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`).
+- **Legacy:** Subclass **`CollectorBase`** and implement `run()` only (same error/Pinecone hooks). New work should prefer **`AbstractCollector`**.
+- **`DjangoCommandCollector`** remains available for tests or internal `call_command` wrappers.
 
 ## 4. Skeleton collector (minimal copy-paste example)
 
-This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`CollectorBase` subclass** wires steps together in `run()`. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [Contributing.md](Contributing.md#service-layer-single-place-for-writes)).
+This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`AbstractCollector` subclass** implements `name`, `validate_config`, and `collect` (orchestration); `BaseCollectorCommand` still calls `run()`, which the base implements as validate-then-collect. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [Contributing.md](Contributing.md#service-layer-single-place-for-writes)).
+
+Keep imports and calls inside `collect()` going through `services.py` (for example `import my_skeleton_tracker.services as services` and only call functions from that module) so the write path stays obvious.
 
 **Not a repo artifact:** The snippets below use a placeholder app name `my_skeleton_tracker`. They are meant to be copied into a **new** Django app directory and adjusted; this repository does not ship that app. For a **full** production-sized collector (fetch, raw files, Pinecone, many models), use [`github_activity_tracker/`](../github_activity_tracker/) as reference; use this skeleton to learn the shape without noise.
 
-**Failure taxonomy:** `CollectorBase.handle_error` logs with [`classify_failure`](../core/errors.py) so log records include a stable `failure_category` (see [`CollectorFailureCategory`](../core/errors.py)). Override `handle_error` only when you need extra context; map domain errors to categories there if the default classifier is not enough.
+**Failure taxonomy:** `AbstractCollector.handle_error` (same mixin as `CollectorBase`) logs with [`classify_failure`](../core/errors.py) so log records include a stable `failure_category` (see [`CollectorFailureCategory`](../core/errors.py)). When `name` is set, logs use that slug for the `collector=` field. Override `handle_error` only when you need extra context; map domain errors to categories there if the default classifier is not enough.
 
 ### Layout (after find-replace)
 
@@ -49,7 +54,7 @@ my_skeleton_tracker/
 
 ### Import rules (read before pasting)
 
-- **Do import** from **`core`** (e.g. `core.collectors.base`, `core.collectors.command_base`, and `core.errors` if you customize error handling) and from **Django**.
+- **Do import** from **`core`** using the public **`core.collectors`** surface (e.g. `from core.collectors import AbstractCollector, BaseCollectorCommand`, as in [Core_public_API.md — Collectors](Core_public_API.md#collectors)) and **`core.errors`** if you customize error handling, plus **Django**.
 - **Do import** from **your own app** (`my_skeleton_tracker.services`, `my_skeleton_tracker.collectors`, etc.).
 - **Do not import** from other tracker apps in the collector or command unless you have a deliberate integration; shared protocols belong in `core` (see [Core_public_API.md](Core_public_API.md) if applicable).
 
@@ -111,13 +116,13 @@ def record_skeleton_run(*, source_key: str) -> tuple[SkeletonRun, bool]:
 
 ```python
 # my_skeleton_tracker/collectors.py
-"""Customize: orchestration in run(); optional sync_pinecone() for post-run indexing."""
+"""Customize: name + validate_config + collect; optional sync_pinecone() for post-run indexing."""
 
 from __future__ import annotations
 
 import logging
 
-from core.collectors.base import CollectorBase
+from core.collectors import AbstractCollector
 from my_skeleton_tracker.services import record_skeleton_run
 
 # If you override handle_error, you can log or map errors explicitly, e.g.:
@@ -126,18 +131,26 @@ from my_skeleton_tracker.services import record_skeleton_run
 logger = logging.getLogger(__name__)
 
 
-class MySkeletonCollector(CollectorBase):
+class MySkeletonCollector(AbstractCollector):
     """
-    STANDARD: CollectorBase gives handle_error (uses classify_failure) and a no-op sync_pinecone.
+    STANDARD: AbstractCollector gives run() = validate_config + collect, handle_error
+    (uses classify_failure / CollectorFailureCategory), and a no-op sync_pinecone.
     CUSTOMIZE: constructor options from the management command.
     """
 
     def __init__(self, *, source_key: str = "default") -> None:
         self.source_key = source_key
 
-    def run(self) -> None:
-        # CUSTOMIZE: call your services / fetchers; keep side effects in services.py.
-        obj, created = record_skeleton_run(source_key=self.source_key)
+    @property
+    def name(self) -> str:
+        return "my_skeleton_tracker"
+
+    def validate_config(self) -> None:
+        if not self.source_key or not self.source_key.strip():
+            raise ValueError("source_key must not be empty")
+
+    def collect(self) -> None:
+        obj, created = record_skeleton_run(source_key=self.source_key.strip())
         logger.info(
             "skeleton run recorded source_key=%s run_count=%s created=%s",
             obj.source_key,
@@ -158,8 +171,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import BaseCollectorCommand, CollectorRunnable
 from my_skeleton_tracker.collectors import MySkeletonCollector
 
 
@@ -176,8 +188,7 @@ class Command(BaseCollectorCommand):
             help="Stub key for SkeletonRun.source_key.",
         )
 
-    def get_collector(self, **options: Any) -> CollectorBase:
-        # STANDARD: only construct the collector; heavy work stays in run().
+    def get_collector(self, **options: Any) -> CollectorRunnable:
         return MySkeletonCollector(source_key=options["source_key"])
 ```
 

@@ -11,7 +11,7 @@ For setup steps (venv, migrate, tests), start with the root **[README.md](../REA
 1. **One Django project, one database** — All installed apps share PostgreSQL (`boost_dashboard`). There is no per-app database isolation.
 2. **Collectors are management commands** — Scheduled work is `python manage.py <command>`. Production batches run **`run_scheduled_collectors`**, which reads **`config/boost_collector_schedule.yaml`** (see **[Workflow.md](Workflow.md)**).
 3. **Writes go through `services.py`** — For apps that define models, creates/updates/deletes belong in that app’s **`services.py`**. Commands, fetchers, and other apps call those functions; they do not write models ad hoc (see **[Contributing.md](Contributing.md)**).
-4. **Shared “collector contract” lives in `core`** — **`CollectorBase`** + **`BaseCollectorCommand`** give a consistent `run()` / `sync_pinecone()` / error-handling shape. Not every command uses them yet; new collectors should (see **[Core_public_API.md](Core_public_API.md)** and **[How_to_add_a_collector.md](How_to_add_a_collector.md)**).
+4. **Shared “collector contract” lives in `core`** — Prefer **`AbstractCollector`** (`name`, `validate_config`, `collect`) plus **`BaseCollectorCommand`** for a consistent shape; legacy **`CollectorBase`** (`run()` only) remains supported. See **[Core_public_API.md](Core_public_API.md)** and **[How_to_add_a_collector.md](How_to_add_a_collector.md)**.
 5. **Cross-app coupling is intentionally loose** — Avoid **ForeignKeys** from one tracker app into another’s models when it would create tight coupling or import cycles. Prefer querying by IDs or shared reference tables (e.g. **Language**, **Identity**) as documented in **[Schema.md](Schema.md)** and **[Development_guideline.md](Development_guideline.md)**.
 
 ---
@@ -39,7 +39,7 @@ These are the Django apps under **`INSTALLED_APPS`** (excluding `django.contrib.
 
 | App | Role | Typical entry / notes |
 |-----|------|------------------------|
-| **core** | Shared infrastructure | Collectors base classes, **`core.operations`** (GitHub, markdown, files). Not a “collector” app by itself. |
+| **core** | Shared infrastructure | **`core.collectors`** (`AbstractCollector`, `BaseCollectorCommand`, …), **`core.operations`** (GitHub, Markdown, files). Not a “collector” app by itself. |
 | **boost_collector_runner** | Scheduling | **`run_scheduled_collectors`** reads YAML; wires Celery Beat. |
 | **cppa_user_tracker** | Identity / profiles | Canonical **Identity**, **BaseProfile**, GitHub/Slack/mailing-list profile rows; staging merge tables. |
 | **github_activity_tracker** | GitHub mirror | Repos, commits, issues, PRs, **Language** / **License** reference data; workspace JSON cache patterns. |
@@ -77,7 +77,7 @@ When adding a feature, ask: **who owns the table?** Only that app’s **`service
 
 Historically, collectors evolved separately: some subclass **`CollectorBase`**, some use plain **`BaseCommand`**, workspace layouts differ, and docstring coverage varies. Use this **practical** approach:
 
-1. **Anchor on contracts** — Prefer **`CollectorBase` + `BaseCollectorCommand`** for new work (**[How_to_add_a_collector.md](How_to_add_a_collector.md)**).
+1. **Anchor on contracts** — Prefer **`AbstractCollector` + `BaseCollectorCommand`** for new collectors (`name`, `validate_config`, `collect`; see **[How_to_add_a_collector.md](How_to_add_a_collector.md)** and **[Core_public_API.md](Core_public_API.md)**). Older commands may still use legacy **`CollectorBase`** (`run()` only) or plain **`BaseCommand`**.
 2. **Pick two reference apps** — For GitHub + DB + workspace: **`github_activity_tracker`** + **`boost_library_tracker`**. For Pinecone + docs: **`boost_library_docs_tracker`** + **`cppa_pinecone_sync`**.
 3. **Trace one vertical slice** — Example: “new Boost release” → **`collect_boost_libraries`** / **`check_new_boost_release`** → downstream **`run_boost_library_docs_tracker`** / usage jobs. Follow imports and **`services`** calls.
 4. **Operations vs services** — **`core.operations.github_ops`** = talking to GitHub/git; **`github_activity_tracker.services`** = persisting ORM rows. Do not mix the two responsibilities in one module.

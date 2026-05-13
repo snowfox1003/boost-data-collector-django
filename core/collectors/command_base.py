@@ -8,7 +8,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors.base_collector import CollectorRunnable
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class BaseCollectorCommand(BaseCommand):
     """Runs ``get_collector(**options).run()`` then ``sync_pinecone()`` with shared error handling."""
 
     @abstractmethod
-    def get_collector(self, **options: Any) -> CollectorBase:
+    def get_collector(self, **options: Any) -> CollectorRunnable:
         """Instantiate the collector from parsed CLI options."""
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -27,13 +27,13 @@ class BaseCollectorCommand(BaseCommand):
 
     def _run_collector_phase(
         self,
-        collector: CollectorBase,
+        collector: CollectorRunnable,
         phase: Any,
     ) -> None:
         """
         Run one collector phase (``run`` or ``sync_pinecone``).
 
-        On unexpected exceptions, :meth:`CollectorBase.handle_error` is invoked with
+        On unexpected exceptions, :meth:`CollectorRunnable.handle_error` is invoked with
         ``collector._error_phase`` set to the phase name for structured logs
         (``collector``, ``collector_phase``, ``failure_category`` on the log record).
         """
