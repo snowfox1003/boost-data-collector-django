@@ -114,7 +114,7 @@ def loose_version_tuple(version: str) -> tuple[int, int, int]:
         out.append(int(number) if number else 0)
     while len(out) < 3:
         out.append(0)
-    return tuple(out[:3])
+    return (out[0], out[1], out[2])
 
 
 # --- Normalization ------------------------------------------------------------

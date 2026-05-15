@@ -63,9 +63,17 @@ distlib==0.4.0
 django==4.2.30
     # via
     #   -r requirements.in
+    #   django-stubs
+    #   django-stubs-ext
     #   model-bakery
 django-environ==0.13.0
     # via -r requirements.in
+django-stubs==4.2.7
+    # via -r requirements-dev.in
+django-stubs-ext==4.2.7
+    # via
+    #   -r requirements-dev.in
+    #   django-stubs
 django-test-plus==2.4.1
     # via -r requirements-dev.in
 faker==37.12.0
@@ -256,10 +264,16 @@ trio==0.33.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
+types-pytz==2026.2.0.20260506
+    # via django-stubs
+types-pyyaml==6.0.12.20260510
+    # via django-stubs
 typing-extensions==4.15.0
     # via
     #   aiosignal
     #   beautifulsoup4
+    #   django-stubs
+    #   django-stubs-ext
     #   pinecone
     #   psycopg
     #   pydantic

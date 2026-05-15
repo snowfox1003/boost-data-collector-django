@@ -21,11 +21,26 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 
 Log records from `CollectorBase.handle_error` / `AbstractCollector.handle_error` include `extra` keys: `collector`, `collector_phase`, `failure_category`.
 
+## Tracker protocols (DTOs)
+
+Structural contracts for **data** that crosses tracker layers (sync outcomes, activity events before ORM persistence, incremental checkpoints). These live in **`core.protocols`** and complement **orchestration** types in `core.collectors` (for example `CollectorRunnable` for management-command phases).
+
+| Import | Purpose |
+|--------|---------|
+| `core.protocols.TrackerResult` | `@runtime_checkable` protocol: `success`, `counts` (`Mapping[str, int]`). |
+| `core.protocols.ActivityRecord` | `@runtime_checkable` protocol: portable activity row (`source_system`, `external_id`, `occurred_at`, …). |
+| `core.protocols.IncrementalState` | `@runtime_checkable` protocol: `checkpoint_token`, `human_readable_marker`, `extras`. |
+| `core.protocols.require_tracker_result` / `require_activity_record` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
+
+Implementations are frozen dataclasses in each tracker app (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`). Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+
+**Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, and `discord_activity_tracker` and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
+
 ## Reducing coupling
 
 - Prefer **no** `ForeignKey` from one tracker app into another's models (see Development guideline).
 - When you need shared behavior, add it under `core` (for example **`core.operations`** for Slack/markdown/file helpers, or **`core.operations.github_ops`** for GitHub API/git/tokens). Those utilities are **not** separate Django apps—they live under the **`core`** package and are not listed in **`INSTALLED_APPS`**.
-- Long-term: shrink opportunistic imports between tracker apps by extracting shared protocols into `core` or small neutral apps.
+- Long-term: shrink opportunistic imports between tracker apps by extracting shared protocols into `core` or small neutral apps (see **[Tracker protocols (DTOs)](#tracker-protocols-dtos)** for typed data shapes).
 - The current state of all cross-app FKs, ORM read-coupling, and Python imports is catalogued in **[cross-app-dependencies.md](cross-app-dependencies.md)**, together with `import-linter` contracts that can enforce the coupling guideline mechanically.
 
 ## Related docs

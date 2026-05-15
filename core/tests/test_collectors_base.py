@@ -93,6 +93,58 @@ def test_base_collector_command_logs_and_reraises_generic_exception():
     assert isinstance(mock_handle.call_args[0][0], RuntimeError)
 
 
+def test_base_collector_command_requires_get_collector_at_instantiation():
+    class IncompleteCmd(BaseCollectorCommand):
+        help = "test"
+
+    with pytest.raises(TypeError, match="get_collector"):
+        IncompleteCmd(stdout=StringIO(), stderr=StringIO())
+
+
+def test_base_collector_command_failure_classifies_in_handle_error():
+    class BadCollector(CollectorBase):
+        def run(self) -> None:
+            raise ValueError("bad input")
+
+    class Cmd(BaseCollectorCommand):
+        help = "test"
+
+        def get_collector(self, **options):
+            return BadCollector()
+
+    with patch.object(collector_lifecycle.logger, "exception") as mock_exc:
+        with pytest.raises(ValueError, match="bad input"):
+            Cmd(stdout=StringIO(), stderr=StringIO()).handle()
+    mock_exc.assert_called_once()
+    assert mock_exc.call_args[1]["extra"]["failure_category"] == "validation"
+
+
+def test_base_collector_command_double_fault_clears_error_phase():
+    class BadCollector(CollectorBase):
+        def run(self) -> None:
+            raise RuntimeError("primary")
+
+    held: dict[str, CollectorBase] = {}
+
+    class Cmd(BaseCollectorCommand):
+        help = "test"
+
+        def get_collector(self, **options):
+            c = BadCollector()
+            held["c"] = c
+            return c
+
+    cmd = Cmd(stdout=StringIO(), stderr=StringIO())
+    with patch.object(
+        BadCollector,
+        "handle_error",
+        side_effect=AssertionError("secondary"),
+    ):
+        with pytest.raises(AssertionError, match="secondary"):
+            cmd.handle()
+    assert not hasattr(held["c"], "_error_phase")
+
+
 def test_abstract_collector_run_calls_validate_then_collect():
     order = []
 

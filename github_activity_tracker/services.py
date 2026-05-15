@@ -140,7 +140,7 @@ def ensure_repository_owner(
 ) -> None:
     """Ensure repo has owner_account set (fixes rows with null owner_account_id)."""
     repo.refresh_from_db()
-    if repo.owner_account_id is None:
+    if getattr(repo, "owner_account_id", None) is None:
         repo.owner_account = owner_account
         repo.save(update_fields=["owner_account_id"])
 
@@ -272,7 +272,7 @@ def set_github_file_previous_filename(
     previous_file: GitHubFile,
 ) -> None:
     """Set the previous_filename reference for a renamed file."""
-    if github_file.previous_filename_id != previous_file.id:
+    if getattr(github_file, "previous_filename_id", None) != previous_file.id:
         github_file.previous_filename = previous_file
         github_file.save(update_fields=["previous_filename"])
 

@@ -117,7 +117,7 @@ def _pinecone_channel_display_name(channel: DiscordChannel) -> str:
 
 def _format_chain_message_line(msg: DiscordMessage, cleaned: str) -> str:
     """One line for merged reply-chain content: ``username: "message text"``."""
-    username = msg.author.username if msg.author_id else "unknown"
+    username = msg.author.username if getattr(msg, "author_id", None) else "unknown"
     escaped = cleaned.replace("\\", "\\\\").replace('"', '\\"')
     return f'{username}: "{escaped}"'
 
@@ -164,7 +164,9 @@ def _chain_to_document(
             "channel_name": _pinecone_channel_display_name(channel),
             "server_id": str(server.server_id),
             "server_name": server.server_name,
-            "author": root.author.username if root.author_id else "unknown",
+            "author": (
+                root.author.username if getattr(root, "author_id", None) else "unknown"
+            ),
             "timestamp": ts,
             "is_reply_chain": len(chain) > 1,
             "source_ids": ",".join(ids),

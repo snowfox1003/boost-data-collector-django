@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, NoReturn, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -130,7 +130,7 @@ class NormalizedDiscordMessage(BaseModel):
         return v
 
 
-def _validation_error(prefix: str, err: ValidationError) -> None:
+def _validation_error(prefix: str, err: ValidationError) -> NoReturn:
     detail = err.errors()[:5]
     msg = f"{prefix}: " + "; ".join(
         f"{e.get('loc', ())}: {e.get('msg', '')}" for e in detail
@@ -150,7 +150,7 @@ def validate_envelope(
     try:
         return DiscordChatExporterEnvelope.model_validate(data)
     except ValidationError as e:
-        raise _validation_error(prefix, e) from e
+        _validation_error(prefix, e)
 
 
 def validate_normalized_message(
@@ -163,7 +163,7 @@ def validate_normalized_message(
     try:
         return NormalizedDiscordMessage.model_validate(obj)
     except ValidationError as e:
-        raise _validation_error(prefix, e) from e
+        _validation_error(prefix, e)
 
 
 def build_staging_json_schema_bundle() -> dict[str, Any]:

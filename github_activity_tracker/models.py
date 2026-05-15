@@ -8,30 +8,30 @@ from django.db import models
 
 # --- Enums ---
 class FileChangeStatus(models.TextChoices):
-    ADDED = "added", "Added"
-    MODIFIED = "modified", "Modified"
-    REMOVED = "removed", "Removed"
-    RENAMED = "renamed", "Renamed"
-    COPIED = "copied", "Copied"
-    CHANGED = "changed", "Changed"
+    ADDED = "added", "Added"  # pyright: ignore[reportCallIssue]
+    MODIFIED = "modified", "Modified"  # pyright: ignore[reportCallIssue]
+    REMOVED = "removed", "Removed"  # pyright: ignore[reportCallIssue]
+    RENAMED = "renamed", "Renamed"  # pyright: ignore[reportCallIssue]
+    COPIED = "copied", "Copied"  # pyright: ignore[reportCallIssue]
+    CHANGED = "changed", "Changed"  # pyright: ignore[reportCallIssue]
 
 
 class IssueState(models.TextChoices):
-    OPEN = "open", "Open"
-    CLOSED = "closed", "Closed"
+    OPEN = "open", "Open"  # pyright: ignore[reportCallIssue]
+    CLOSED = "closed", "Closed"  # pyright: ignore[reportCallIssue]
 
 
 class IssueStateReason(models.TextChoices):
-    COMPLETED = "completed", "Completed"
-    NOT_PLANNED = "not_planned", "Not planned"
-    REOPENED = "reopened", "Reopened"
-    NULL = "null", "Null"
+    COMPLETED = "completed", "Completed"  # pyright: ignore[reportCallIssue]
+    NOT_PLANNED = "not_planned", "Not planned"  # pyright: ignore[reportCallIssue]
+    REOPENED = "reopened", "Reopened"  # pyright: ignore[reportCallIssue]
+    NULL = "null", "Null"  # pyright: ignore[reportCallIssue]
 
 
 class PullRequestState(models.TextChoices):
-    OPEN = "open", "Open"
-    CLOSED = "closed", "Closed"
-    MERGED = "merged", "Merged"
+    OPEN = "open", "Open"  # pyright: ignore[reportCallIssue]
+    CLOSED = "closed", "Closed"  # pyright: ignore[reportCallIssue]
+    MERGED = "merged", "Merged"  # pyright: ignore[reportCallIssue]
 
 
 # --- Part 1: Repository, Language, License ---

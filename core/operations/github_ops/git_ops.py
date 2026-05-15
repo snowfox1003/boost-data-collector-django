@@ -154,12 +154,14 @@ def _url_with_token(url: str, token: str) -> str:
     )
 
 
-def sanitize_git_output(text: str) -> str:
+def sanitize_git_output(text: str | bytes) -> str:
     """Redact credentials from git stderr/stdout snippets before logging.
 
     Masks GitHub HTTPS PAT forms and other userinfo-in-URL patterns so logs do not
     leak tokens when clone/push echoes the remote URL.
     """
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="replace")
     if not text:
         return text
     out = re.sub(
@@ -565,6 +567,8 @@ def fetch_file_content(
     """
     if client is None:
         client = get_github_client(use="scraping")
+    if client is None:
+        raise RuntimeError("GitHub scraping client unavailable (missing token?)")
     content, _ = client.get_file_content(owner, repo, path, ref=ref)
     return content
 
@@ -589,6 +593,8 @@ def upload_file(
         return None
     if client is None:
         client = get_github_client(use="write")
+    if client is None:
+        raise RuntimeError("GitHub write client unavailable (missing token?)")
     content = local_file_path.read_bytes()
     content_base64 = base64.b64encode(content).decode("utf-8")
     if commit_message is None:

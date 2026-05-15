@@ -58,6 +58,44 @@ def test_classify_command_error():
     assert classify_failure(CommandError("bad")) is CollectorFailureCategory.COMMAND
 
 
+def test_classify_django_db_error_unknown():
+    from django.db import OperationalError
+
+    assert classify_failure(OperationalError("db")) is CollectorFailureCategory.UNKNOWN
+
+
+def test_classify_discord_errors_module_429():
+    class HTTPException(Exception):
+        pass
+
+    HTTPException.__module__ = "discord.errors"
+    exc = HTTPException("rate limited")
+    exc.status = 429
+    assert classify_failure(exc) is CollectorFailureCategory.RATE_LIMIT
+
+
+def test_classify_discord_errors_module_unknown_without_status():
+    class DiscordExc(Exception):
+        pass
+
+    DiscordExc.__module__ = "discord.errors"
+    assert classify_failure(DiscordExc("x")) is CollectorFailureCategory.UNKNOWN
+
+
+def test_classify_slack_sdk_errors_module_401():
+    class SlackApiError(Exception):
+        pass
+
+    SlackApiError.__module__ = "slack_sdk.errors"
+
+    class Resp:
+        status_code = 401
+
+    exc = SlackApiError("auth")
+    exc.response = Resp()
+    assert classify_failure(exc) is CollectorFailureCategory.AUTH
+
+
 def test_classify_validation_error():
     assert classify_failure(ValidationError("x")) is CollectorFailureCategory.VALIDATION
 

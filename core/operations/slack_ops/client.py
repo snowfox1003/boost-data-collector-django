@@ -145,7 +145,7 @@ class SlackAPIClient:
     ) -> dict:
         """List users in the workspace. Returns members with profile, etc."""
         safe_limit = max(1, min(limit, 1000))
-        params = {"limit": safe_limit}
+        params: dict[str, int | str] = {"limit": safe_limit}
         if cursor:
             params["cursor"] = cursor
         return self._request("GET", "users.list", params=params)

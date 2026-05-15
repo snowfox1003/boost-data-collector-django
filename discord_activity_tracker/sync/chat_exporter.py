@@ -1,5 +1,7 @@
 """DiscordChatExporter CLI wrapper for user token-based scraping."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -16,6 +18,8 @@ from core.utils.datetime_parsing import (
     CANONICAL_INSTANT_UTC_Z_PATTERN,
     format_instant_iso_z,
 )
+
+from discord_activity_tracker.protocol_impl import DiscordActivityRecord
 
 from .utils import format_discord_url
 from ..workspace import get_workspace_root
@@ -449,7 +453,7 @@ def _export_guild_sequential(
     before_date: Optional[datetime],
     include_threads: str,
     channel_ids: Optional[Sequence[int]],
-) -> List[Path]:
+) -> None:
     logger.info(
         "DiscordChatExporter sequential mode (DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT)"
     )
@@ -776,3 +780,22 @@ def export_and_parse_guild(
             continue
 
     return parsed_channels
+
+
+def exporter_message_to_activity_record(
+    msg_data: Dict[str, Any],
+    *,
+    server_id: int,
+    channel_id: int,
+) -> DiscordActivityRecord:
+    """Convert exporter JSON to :class:`~discord_activity_tracker.protocol_impl.DiscordActivityRecord`.
+
+    Thin bridge for :mod:`core.protocols` without changing :func:`convert_exporter_message_to_dict`
+    return shape for existing callers.
+    """
+    converted = convert_exporter_message_to_dict(
+        msg_data, server_id=server_id, channel_id=channel_id
+    )
+    return DiscordActivityRecord.from_converted_export_dict(
+        converted, server_id=server_id, channel_id=channel_id
+    )

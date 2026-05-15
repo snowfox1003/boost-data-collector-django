@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import re
 import time
 from email.utils import parsedate_to_datetime
@@ -71,12 +72,13 @@ class GitHubAPIClient:
                     self.rate_limit_reset_time = data["resources"]["core"]["reset"]
 
                     if self.rate_limit_remaining == 0:
-                        wait_time = max(
-                            0, self.rate_limit_reset_time - int(time.time())
-                        )
+                        reset_ts = self.rate_limit_reset_time
+                        if reset_ts is None:
+                            reset_ts = int(time.time()) + 60
+                        wait_time = max(0, reset_ts - int(time.time()))
                         if wait_time > 0:
                             raise RateLimitException(
-                                f"Rate limit exceeded. Reset at {datetime.fromtimestamp(self.rate_limit_reset_time)}. "
+                                f"Rate limit exceeded. Reset at {datetime.fromtimestamp(float(reset_ts))}. "
                                 f"Wait {wait_time} seconds."
                             )
                 return True
@@ -133,7 +135,7 @@ class GitHubAPIClient:
                         dt = dt.replace(tzinfo=timezone.utc)
                     wait = (dt - datetime.now(timezone.utc)).total_seconds()
                     if wait > 0:
-                        return wait
+                        return math.ceil(wait)
                 except (ValueError, TypeError):
                     pass
         # Retry-After missing or did not yield a positive delay; try X-RateLimit-*.
@@ -289,6 +291,9 @@ class GitHubAPIClient:
             raise ConnectionException(
                 f"Connection error for {endpoint_for_log}: max retries exceeded"
             )
+        raise ConnectionException(
+            f"Rate limit / connection handling exhausted for {endpoint_for_log}"
+        )
 
     def _handle_rate_limit(
         self, wait_time: int, max_delay: Optional[int] = 3600

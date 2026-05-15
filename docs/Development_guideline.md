@@ -100,6 +100,7 @@ Use these steps to get the Django project running on your machine.
 Run tests often so you catch problems early.
 
 - **PostgreSQL for pytest:** `config.test_settings` requires `DATABASE_URL` pointing at PostgreSQL (see [README.md](../README.md#running-tests): `docker compose -f docker-compose.test.yml up -d`, then export `DATABASE_URL` / `SECRET_KEY`). This matches CI and avoids SQLite-only passes that fail in production.
+- **Pyright:** Install dev dependencies (`requirements-dev.lock`), then from the project root run **`uv run pyright`**. Configuration lives in **`pyrightconfig.json`** at the repo root (typed paths: `core`, `github_activity_tracker`, `discord_activity_tracker`; `core/pyright_samples/**` is excluded from the default run—see **`core/tests/test_protocols.py`** for protocol assignment checks). The **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml) runs the same check in CI.
 - **Before each commit:** run the test suite for the code you changed (`python -m pytest` or a subset).
 - **For app commands:** ensure the command runs successfully (e.g. `python manage.py run_boost_library_tracker` exits with 0 and does the expected work).
 - **Full workflow:** run `python manage.py run_scheduled_collectors --schedule default --group <group_id>` / `--schedule interval --interval-minutes <n>` when testing the YAML-driven path (matches how Celery Beat invokes it).
@@ -111,7 +112,7 @@ This guide walks you from setup to merged code.
 
 1. Set up locally - Follow "Local development setup" above.
 2. Create a feature branch - Branch from `develop` (e.g. `git checkout develop && git pull && git checkout -b feature/your-feature-name`).
-3. Develop and test - Make your changes in the Django app. Run the testing workflow (e.g. run tests and the app command) after each logical change.
+3. Develop and test - Make your changes in the Django app. Run the testing workflow (e.g. **`uv run pyright`**, tests, and the app command) after each logical change.
 4. Commit and push - Commit with clear messages and push the feature branch to the remote.
 5. Open a pull request - Open a PR targeting the `develop` branch. Describe what changed and how to test it.
 6. Address review - Respond to reviewer comments and update the PR as needed.

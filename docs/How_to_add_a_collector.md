@@ -19,6 +19,16 @@ Stable imports live under **`core.collectors`** (re-exported in [`core/collector
 - **Legacy:** Subclass **`CollectorBase`** and implement `run()` only (same error/Pinecone hooks). New work should prefer **`AbstractCollector`**.
 - **`DjangoCommandCollector`** remains available for tests or internal `call_command` wrappers.
 
+### Collector contracts (source of truth)
+
+The detailed contracts (abstract methods, lifecycle hooks, error handling, template-method flow) live in the **class docstrings** in the codebase—read these when wiring a new collector:
+
+- [`core/collectors/base.py`](../core/collectors/base.py) — `CollectorBase`
+- [`core/collectors/command_base.py`](../core/collectors/command_base.py) — `BaseCollectorCommand`
+- [`core/collectors/base_collector.py`](../core/collectors/base_collector.py) — `CollectorRunnable`, `AbstractCollector`, `_CollectorLifecycleMixin`
+
+**At a glance:** `BaseCollectorCommand` calls `get_collector(**options)` then runs `run` and `sync_pinecone`. During each phase it sets `collector._error_phase` (for example `"run"`) and clears it in a `finally` block. `django.core.management.base.CommandError` is logged with `failure_category="command"` and is **not** passed to `handle_error`; any other exception is passed to `handle_error`, which logs using **`classify_failure()`** from [`core/errors.py`](../core/errors.py) (the function maps exceptions to **`CollectorFailureCategory`** values—it is not a method on the enum). Override `handle_error` when the default classifier does not fit your domain.
+
 ## 4. Skeleton collector (minimal copy-paste example)
 
 This section is a **canonical minimal pattern**: the management command is only responsible for parsing options and returning a collector from `get_collector()` (often ~10–15 lines). The **`AbstractCollector` subclass** implements `name`, `validate_config`, and `collect` (orchestration); `BaseCollectorCommand` still calls `run()`, which the base implements as validate-then-collect. The **service layer** (`services.py`) is the main place for DB and API logic—match the project rule that writes go through services (see [Contributing.md](Contributing.md#service-layer-single-place-for-writes)).
@@ -275,7 +285,7 @@ def test_run_my_skeleton_tracker_command_integration():
 ## 6. Tests
 
 - Add tests under `<app>/tests/`; keep exit codes and boundaries mockable.
-- Run `python -m pytest` locally; CI runs with `DATABASE_URL` pointing at Postgres (see [README.md](../README.md#running-tests) for local Postgres parity).
+- Run `python -m pytest` locally; CI runs **lint** (pre-commit), **Pyright**, and **test** (pytest with Postgres and coverage); see [README.md](../README.md#running-tests) for local Postgres parity and `uv run pyright` for typing.
 
 ## 7. Docs
 

@@ -19,25 +19,56 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class CollectorRunnable(Protocol):
-    """Collector instance with ``run``, ``sync_pinecone``, and ``handle_error`` (see ``BaseCollectorCommand``)."""
+    """
+    Structural type for objects executed by :class:`BaseCollectorCommand`.
 
-    def run(self) -> None: ...
+    Implementations are typically :class:`CollectorBase` or :class:`AbstractCollector`
+    subclasses. The command invokes :meth:`run`, then :meth:`sync_pinecone`, and
+    routes failures through :meth:`handle_error` (except :class:`~django.core.management.base.CommandError`).
+    """
 
-    def sync_pinecone(self) -> None: ...
+    def run(self) -> None:
+        """Main collection phase; see :class:`CollectorBase` or :class:`AbstractCollector`."""
+        ...
 
-    def handle_error(self, exc: BaseException) -> None: ...
+    def sync_pinecone(self) -> None:
+        """Optional post-run sync; may be a no-op."""
+        ...
+
+    def handle_error(self, exc: BaseException) -> None:
+        """Log *exc* with structured ``failure_category``; must not swallow *exc*."""
+        ...
 
 
 class _CollectorLifecycleMixin:
     """
     Shared ``handle_error`` / ``sync_pinecone`` for legacy and structured collectors.
 
-    Uses :func:`core.errors.classify_failure` so logs align with
-    :class:`core.errors.CollectorFailureCategory`.
+    Uses :func:`core.errors.classify_failure` (not a method on
+    :class:`~core.errors.CollectorFailureCategory`) so log ``extra`` includes a stable
+    ``failure_category`` enum value.
+
+    **``_error_phase``:** Set only by :class:`~core.collectors.command_base.BaseCollectorCommand`
+    around each phase; used when logging. If :func:`~core.errors.classify_failure`
+    or logging raises, the command's ``finally`` still clears ``_error_phase`` on the
+    collector instance.
+
+    **Intentional gaps:** Many domain or SDK exceptions map to ``unknown``. Override
+    :meth:`handle_error` when you need a different category or extra context.
     """
 
     def handle_error(self, exc: BaseException) -> None:
-        """Log failures with ``failure_category`` from :class:`CollectorFailureCategory`."""
+        """
+        Log *exc* at exception level with structured fields for metrics and alerting.
+
+        Args:
+            exc: The exception from ``run`` or ``sync_pinecone`` (never a
+                :class:`~django.core.management.base.CommandError`; those are handled
+                in the command).
+
+        ``logger.exception`` receives ``extra`` keys: ``collector``, ``collector_phase``,
+        ``failure_category`` (string value of :class:`~core.errors.CollectorFailureCategory`).
+        """
         category = classify_failure(exc)
         phase = getattr(self, "_error_phase", None) or "unknown"
         collector_id = getattr(self, "name", None)
@@ -56,7 +87,12 @@ class _CollectorLifecycleMixin:
         )
 
     def sync_pinecone(self) -> None:
-        """Optional post-run Pinecone sync; default is no-op."""
+        """
+        Optional post-run Pinecone sync; default is no-op.
+
+        Returns:
+            None
+        """
         return None
 
 
@@ -74,15 +110,43 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Stable collector id for logs and metrics (e.g. app or command slug)."""
+        """
+        Stable collector id for logs and metrics (e.g. app or command slug).
+
+        Returns:
+            Non-empty string used as the ``collector`` field in structured logs when
+            :meth:`handle_error` runs.
+        """
 
     @abstractmethod
     def validate_config(self) -> None:
-        """Raise or no-op before :meth:`collect`; keep side effects in services."""
+        """
+        Validate settings and environment before :meth:`collect`.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: Typically validation-related errors; should not perform
+                heavy I/O—keep that in :meth:`collect` via services.
+        """
 
     @abstractmethod
     def collect(self) -> None:
-        """Main collection work; DB writes belong in ``services.py``."""
+        """
+        Main collection work (fetch, transform, persist).
+
+        Returns:
+            None
+
+        Raises:
+            Exception: Domain failures; propagate after logging when run under
+                :class:`~core.collectors.command_base.BaseCollectorCommand`.
+
+        Note:
+            DB writes should go through the app's ``services.py`` module per project
+            conventions.
+        """
 
     def run(self) -> None:
         self.validate_config()

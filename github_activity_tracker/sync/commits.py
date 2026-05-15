@@ -20,7 +20,7 @@ from cppa_user_tracker.services import (
     get_or_create_unknown_github_account,
 )
 from github_activity_tracker import big_commit, fetcher, services
-from github_activity_tracker.models import FileChangeStatus
+from github_activity_tracker.models import FileChangeStatus, GitCommit
 from github_activity_tracker.workspace import (
     get_commit_json_path,
     iter_existing_commit_jsons,
@@ -35,7 +35,7 @@ from github_activity_tracker.sync.utils import (
 )
 
 if TYPE_CHECKING:
-    from github_activity_tracker.models import GitCommit, GitHubRepository
+    from github_activity_tracker.models import GitHubRepository
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def _process_commit_files(
                 repo, filename, is_deleted=is_deleted
             )
             # Link new file to old file
-            if github_file.previous_filename_id != old_file.id:
+            if getattr(github_file, "previous_filename_id", None) != old_file.id:
                 services.set_github_file_previous_filename(github_file, old_file)
         else:
             github_file, _ = services.create_or_update_github_file(
@@ -116,7 +116,11 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         name, email = _commit_author_name_and_email(commit_data)
         account, _ = get_or_create_unknown_github_account(name=name, email=email)
 
-    commit_hash = commit_data.get("sha")
+    commit_hash_raw = commit_data.get("sha")
+    if not isinstance(commit_hash_raw, str) or not commit_hash_raw.strip():
+        logger.warning("Commit payload missing sha; skipping")
+        return
+    commit_hash = commit_hash_raw.strip()
     comment = commit_data.get("commit", {}).get("message", "")
     commit_date_str = commit_data.get("commit", {}).get("author", {}).get(
         "date"
@@ -167,6 +171,10 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
     """
     try:
         sha = commit_data.get("sha")
+        if not isinstance(sha, str) or not sha.strip():
+            logger.warning("Big commit payload missing sha; skipping worker")
+            return
+        sha = sha.strip()
         logger.info(
             "Processing big commit %s/%s:%s in background",
             owner,
@@ -221,7 +229,12 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
         )
         # Write original commit data (with 300 files) so we don't lose the commit
         try:
-            json_path = get_commit_json_path(owner, repo_name, commit_data.get("sha"))
+            sha_fallback = commit_data.get("sha")
+            if not isinstance(sha_fallback, str) or not sha_fallback.strip():
+                logger.error("Cannot write fallback JSON: missing sha")
+                return
+            sha_fallback = sha_fallback.strip()
+            json_path = get_commit_json_path(owner, repo_name, sha_fallback)
             json_path.parent.mkdir(parents=True, exist_ok=True)
             json_path.write_text(
                 json.dumps(commit_data, indent=2, default=str),
@@ -229,7 +242,7 @@ def _process_big_commit_worker(owner: str, repo_name: str, commit_data: dict) ->
             )
             logger.warning(
                 "Wrote partial commit data (300 files) for %s after error",
-                commit_data.get("sha")[:7],
+                sha_fallback[:7],
             )
         except Exception as write_error:
             logger.error("Failed to write fallback commit JSON: %s", write_error)
@@ -269,8 +282,12 @@ def sync_commits(
 
         # Phase 2: fetch from GitHub
         client = get_github_client()
+        if client is None:
+            raise RuntimeError("GitHub client unavailable for sync_commits")
         if start_date is None:
-            last_commit = repo.commits.order_by("-commit_at").first()
+            last_commit = (
+                GitCommit.objects.filter(repo=repo).order_by("-commit_at").first()
+            )
             if last_commit:
                 start_date = last_commit.commit_at + timedelta(seconds=1)
         # Leave end_date as None when not set so the fetcher uses until_iso=""
@@ -289,8 +306,9 @@ def sync_commits(
                 client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
             ):
                 sha = commit_data.get("sha")
-                if not sha:
+                if not isinstance(sha, str) or not sha.strip():
                     continue
+                sha = sha.strip()
 
                 # Check if commit is truncated (300 files = possible truncation)
                 is_truncated = big_commit.is_commit_truncated(commit_data)

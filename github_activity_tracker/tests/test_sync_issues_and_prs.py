@@ -12,19 +12,28 @@ from github_activity_tracker.sync.issues_and_prs import (
 )
 
 
+@patch("github_activity_tracker.sync.issues_and_prs.PullRequest.objects")
+@patch("github_activity_tracker.sync.issues_and_prs.Issue.objects")
 @patch("github_activity_tracker.sync.issues_and_prs.get_github_client")
 @patch("github_activity_tracker.sync.issues_and_prs.fetcher")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_issue_jsons")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_pr_jsons")
 def test_sync_issues_and_prs_processes_both_types(
-    mock_existing_prs, mock_existing_issues, mock_fetcher, mock_get_client
+    mock_existing_prs,
+    mock_existing_issues,
+    mock_fetcher,
+    mock_get_client,
+    mock_issue_objects,
+    mock_pr_objects,
 ):
     """sync_issues_and_prs routes items by key to issue or PR processing."""
     mock_repo = MagicMock()
     mock_repo.owner_account.username = "owner"
     mock_repo.repo_name = "repo"
-    mock_repo.issues.order_by.return_value.first.return_value = None
-    mock_repo.pull_requests.order_by.return_value.first.return_value = None
+    mock_issue_objects.filter.return_value.order_by.return_value.first.return_value = (
+        None
+    )
+    mock_pr_objects.filter.return_value.order_by.return_value.first.return_value = None
 
     mock_existing_issues.return_value = (0, [])
     mock_existing_prs.return_value = (0, [])
@@ -65,12 +74,19 @@ def test_sync_issues_and_prs_processes_both_types(
     mock_proc_pr.assert_called_once()
 
 
+@patch("github_activity_tracker.sync.issues_and_prs.PullRequest.objects")
+@patch("github_activity_tracker.sync.issues_and_prs.Issue.objects")
 @patch("github_activity_tracker.sync.issues_and_prs.get_github_client")
 @patch("github_activity_tracker.sync.issues_and_prs.fetcher")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_issue_jsons")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_pr_jsons")
 def test_sync_issues_and_prs_uses_max_start_date(
-    mock_existing_prs, mock_existing_issues, mock_fetcher, mock_get_client
+    mock_existing_prs,
+    mock_existing_issues,
+    mock_fetcher,
+    mock_get_client,
+    mock_issue_objects,
+    mock_pr_objects,
 ):
     """sync_issues_and_prs uses the later of last_issue and last_pr (+1s) as start_date."""
     mock_repo = MagicMock()
@@ -80,12 +96,16 @@ def test_sync_issues_and_prs_uses_max_start_date(
     # Last issue updated at 2024-01-05
     mock_last_issue = MagicMock()
     mock_last_issue.issue_updated_at = datetime(2024, 1, 5, tzinfo=timezone.utc)
-    mock_repo.issues.order_by.return_value.first.return_value = mock_last_issue
+    mock_issue_objects.filter.return_value.order_by.return_value.first.return_value = (
+        mock_last_issue
+    )
 
     # Last PR updated at 2024-01-03 (older than last issue)
     mock_last_pr = MagicMock()
     mock_last_pr.pr_updated_at = datetime(2024, 1, 3, tzinfo=timezone.utc)
-    mock_repo.pull_requests.order_by.return_value.first.return_value = mock_last_pr
+    mock_pr_objects.filter.return_value.order_by.return_value.first.return_value = (
+        mock_last_pr
+    )
 
     mock_existing_issues.return_value = (0, [])
     mock_existing_prs.return_value = (0, [])
@@ -102,19 +122,28 @@ def test_sync_issues_and_prs_uses_max_start_date(
     assert start_date == datetime(2024, 1, 5, 0, 0, 1, tzinfo=timezone.utc)
 
 
+@patch("github_activity_tracker.sync.issues_and_prs.PullRequest.objects")
+@patch("github_activity_tracker.sync.issues_and_prs.Issue.objects")
 @patch("github_activity_tracker.sync.issues_and_prs.get_github_client")
 @patch("github_activity_tracker.sync.issues_and_prs.fetcher")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_issue_jsons")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_pr_jsons")
 def test_sync_issues_and_prs_processes_existing_jsons_first(
-    mock_existing_prs, mock_existing_issues, mock_fetcher, mock_get_client
+    mock_existing_prs,
+    mock_existing_issues,
+    mock_fetcher,
+    mock_get_client,
+    mock_issue_objects,
+    mock_pr_objects,
 ):
     """sync_issues_and_prs processes leftover JSON files before fetching from GitHub."""
     mock_repo = MagicMock()
     mock_repo.owner_account.username = "owner"
     mock_repo.repo_name = "repo"
-    mock_repo.issues.order_by.return_value.first.return_value = None
-    mock_repo.pull_requests.order_by.return_value.first.return_value = None
+    mock_issue_objects.filter.return_value.order_by.return_value.first.return_value = (
+        None
+    )
+    mock_pr_objects.filter.return_value.order_by.return_value.first.return_value = None
 
     # Existing JSONs found
     mock_existing_issues.return_value = (2, [10, 11])
@@ -134,12 +163,19 @@ def test_sync_issues_and_prs_processes_existing_jsons_first(
     mock_existing_prs.assert_called_once_with(mock_repo)
 
 
+@patch("github_activity_tracker.sync.issues_and_prs.PullRequest.objects")
+@patch("github_activity_tracker.sync.issues_and_prs.Issue.objects")
 @patch("github_activity_tracker.sync.issues_and_prs.get_github_client")
 @patch("github_activity_tracker.sync.issues_and_prs.fetcher")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_issue_jsons")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_pr_jsons")
 def test_sync_issues_and_prs_respects_override_start_date(
-    mock_existing_prs, mock_existing_issues, mock_fetcher, mock_get_client
+    mock_existing_prs,
+    mock_existing_issues,
+    mock_fetcher,
+    mock_get_client,
+    mock_issue_objects,
+    mock_pr_objects,
 ):
     """sync_issues_and_prs uses provided start_date instead of deriving from DB."""
     mock_repo = MagicMock()
@@ -157,27 +193,36 @@ def test_sync_issues_and_prs_respects_override_start_date(
     sync_issues_and_prs(mock_repo, start_date=override_start)
 
     # Should NOT query DB for last issue/PR
-    mock_repo.issues.order_by.assert_not_called()
-    mock_repo.pull_requests.order_by.assert_not_called()
+    mock_issue_objects.filter.assert_not_called()
+    mock_pr_objects.filter.assert_not_called()
 
     # Should pass override_start to fetcher
     call_args = mock_fetcher.fetch_issues_and_prs_from_github.call_args
     assert call_args[0][3] == override_start
 
 
+@patch("github_activity_tracker.sync.issues_and_prs.PullRequest.objects")
+@patch("github_activity_tracker.sync.issues_and_prs.Issue.objects")
 @patch("github_activity_tracker.sync.issues_and_prs.get_github_client")
 @patch("github_activity_tracker.sync.issues_and_prs.fetcher")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_issue_jsons")
 @patch("github_activity_tracker.sync.issues_and_prs._process_existing_pr_jsons")
 def test_sync_issues_and_prs_saves_and_removes_json_files(
-    mock_existing_prs, mock_existing_issues, mock_fetcher, mock_get_client
+    mock_existing_prs,
+    mock_existing_issues,
+    mock_fetcher,
+    mock_get_client,
+    mock_issue_objects,
+    mock_pr_objects,
 ):
     """sync_issues_and_prs writes JSON, processes, then removes file for each item."""
     mock_repo = MagicMock()
     mock_repo.owner_account.username = "owner"
     mock_repo.repo_name = "repo"
-    mock_repo.issues.order_by.return_value.first.return_value = None
-    mock_repo.pull_requests.order_by.return_value.first.return_value = None
+    mock_issue_objects.filter.return_value.order_by.return_value.first.return_value = (
+        None
+    )
+    mock_pr_objects.filter.return_value.order_by.return_value.first.return_value = None
 
     mock_existing_issues.return_value = (0, [])
     mock_existing_prs.return_value = (0, [])

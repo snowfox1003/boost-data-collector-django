@@ -3,6 +3,8 @@
 This document maps every cross-app dependency between the tracker Django apps in this
 project.  It exists to make the [Contributing.md](Contributing.md) guideline — "prefer no
 ForeignKey from one tracker app into another's models" — visible and therefore enforceable.
+For **typed data boundaries** (run results, activity rows, checkpoints) shared across apps,
+prefer :mod:`core.protocols` (see [Core_public_API.md](Core_public_API.md#tracker-protocols-dtos)).
 
 **Re-generate the import tables** after large refactors:
 

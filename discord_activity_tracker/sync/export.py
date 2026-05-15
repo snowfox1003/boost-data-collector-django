@@ -74,7 +74,8 @@ def generate_markdown_content(
         first_msg = messages[0]
         last_msg = messages[-1]
         message_count = len(messages)
-        unique_authors = set(msg.author_id for msg in messages)
+        unique_authors = {getattr(msg, "author_id", None) for msg in messages}
+        unique_authors.discard(None)
         active_users = len(unique_authors)
     else:
         first_msg = last_msg = None

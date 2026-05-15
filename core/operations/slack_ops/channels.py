@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Optional
+from typing import Any, Optional
 
 from core.operations.slack_ops.client import SlackAPIClient
 from core.operations.slack_ops.tokens import get_slack_client
@@ -139,7 +139,7 @@ def run_channel_join_check(
     public_only = config["public_only"]
     types = "public_channel" if public_only else "public_channel,private_channel"
 
-    result = {"joined": [], "failed": [], "skipped_policy": []}
+    result: dict[str, Any] = {"joined": [], "failed": [], "skipped_policy": []}
     try:
         channels_to_consider = []
         cursor = None

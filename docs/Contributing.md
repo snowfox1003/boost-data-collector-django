@@ -51,7 +51,7 @@ For a full list of functions, parameter/return types, and validation (e.g. empty
 
 ### Testing
 
-- **Running tests:** From the project root, install dev deps (`pip install -r requirements-dev.txt`), start the test database (`docker compose -f docker-compose.test.yml up -d`), set `DATABASE_URL` (and `SECRET_KEY` for the process) as in [README.md](../README.md#running-tests), then run `python -m pytest`. Tests **always use PostgreSQL** (`config.test_settings`); there is no SQLite fallback.
+- **Running tests:** From the project root, install dev deps (`pip install -r requirements-dev.lock` or `uv pip install -r requirements-dev.lock`), start the test database (`docker compose -f docker-compose.test.yml up -d`), set `DATABASE_URL` (and `SECRET_KEY` for the process) as in [README.md](../README.md#running-tests), then run `python -m pytest`. Tests **always use PostgreSQL** (`config.test_settings`); there is no SQLite fallback.
 - See [README.md](../README.md#running-tests) and [Development_guideline.md](Development_guideline.md#testing-workflow) for full commands and options.
 - **Unit tests for `services.py`:** Call the service functions and assert on the database (or mocks) as needed.
 - **Other tests:** Prefer service functions when setting up data. If you must create models directly for tests, keep it in test code (e.g. fixtures or test helpers) and avoid doing the same in production code.
@@ -59,7 +59,7 @@ For a full list of functions, parameter/return types, and validation (e.g. empty
 ## Other guidelines
 
 - **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [Development_guideline.md](Development_guideline.md).
-- **Code style:** Use Python 3.11+ and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`).
+- **Code style:** Use Python 3.11+ and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
 - **Docs:** Update this doc (and app `services.py` docstrings) when adding new apps or changing the write rules.
 

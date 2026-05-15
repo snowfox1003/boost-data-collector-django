@@ -7,7 +7,7 @@ This project uses a GitHub Actions CI/CD pipeline that automatically deploys to 
 ```
 Push to main/develop
       ↓
-CI workflow (lint + tests)
+CI workflow (lint, Pyright, tests)
       ↓ on success
 Deploy workflow
       ↓

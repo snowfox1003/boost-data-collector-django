@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from cppa_user_tracker.services import get_or_create_github_account
 from github_activity_tracker import fetcher, services
@@ -36,8 +36,13 @@ from github_activity_tracker.workspace import (
 from core.operations.github_ops import get_github_client
 from core.operations.github_ops.client import ConnectionException, RateLimitException
 
-if TYPE_CHECKING:
-    from github_activity_tracker.models import GitHubRepository
+from github_activity_tracker.models import (
+    GitHubRepository,
+    Issue,
+    IssueLabel,
+    PullRequest,
+    PullRequestLabel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +65,31 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
         avatar_url=user_info["avatar_url"],
     )
 
+    issue_number_raw = issue_data.get("number")
+    issue_id_raw = issue_data.get("id")
+    if issue_number_raw is None or issue_id_raw is None:
+        logger.warning(
+            "Issue missing number or id; skipping (got number=%r id=%r)",
+            issue_number_raw,
+            issue_id_raw,
+        )
+        return
+    try:
+        issue_number = int(issue_number_raw)
+        issue_id = int(issue_id_raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Issue number/id not numeric; skipping (got number=%r id=%r)",
+            issue_number_raw,
+            issue_id_raw,
+        )
+        return
+
     issue_obj, _ = services.create_or_update_issue(
         repo=repo,
         account=account,
-        issue_number=issue_data.get("number"),
-        issue_id=issue_data.get("id"),
+        issue_number=issue_number,
+        issue_id=issue_id,
         title=issue_data.get("title", ""),
         body=issue_data.get("body", ""),
         state=issue_data.get("state", "open"),
@@ -113,7 +138,9 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
         if (label_data.get("name") or "")
     }
     existing_label_names = {
-        il.label_name for il in issue_obj.labels.all() if il.label_name
+        il.label_name
+        for il in IssueLabel.objects.filter(issue=issue_obj)
+        if il.label_name
     }
     for label_name in existing_label_names - incoming_label_names:
         services.remove_issue_label(issue_obj, label_name)
@@ -168,11 +195,31 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
         avatar_url=user_info["avatar_url"],
     )
 
+    pr_number_raw = pr_data.get("number")
+    pr_id_raw = pr_data.get("id")
+    if pr_number_raw is None or pr_id_raw is None:
+        logger.warning(
+            "PR missing number or id; skipping (got number=%r id=%r)",
+            pr_number_raw,
+            pr_id_raw,
+        )
+        return
+    try:
+        pr_number = int(pr_number_raw)
+        pr_id = int(pr_id_raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "PR number/id not numeric; skipping (got number=%r id=%r)",
+            pr_number_raw,
+            pr_id_raw,
+        )
+        return
+
     pr_obj, _ = services.create_or_update_pull_request(
         repo=repo,
         account=account,
-        pr_number=pr_data.get("number"),
-        pr_id=pr_data.get("id"),
+        pr_number=pr_number,
+        pr_id=pr_id,
         title=pr_data.get("title", ""),
         body=pr_data.get("body", ""),
         state=pr_data.get("state", "open"),
@@ -242,7 +289,9 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
         if (label_data.get("name") or "")
     }
     existing_pr_label_names = {
-        pl.label_name for pl in pr_obj.labels.all() if pl.label_name
+        pl.label_name
+        for pl in PullRequestLabel.objects.filter(pr=pr_obj)
+        if pl.label_name
     }
     for label_name in existing_pr_label_names - incoming_pr_label_names:
         services.remove_pull_request_label(pr_obj, label_name)
@@ -326,8 +375,12 @@ def sync_issues_and_prs(
 
         # Phase 2: determine start date as max(last issue, last PR) +1s — shared /issues timeline.
         if start_date is None:
-            last_issue = repo.issues.order_by("-issue_updated_at").first()
-            last_pr = repo.pull_requests.order_by("-pr_updated_at").first()
+            last_issue = (
+                Issue.objects.filter(repo=repo).order_by("-issue_updated_at").first()
+            )
+            last_pr = (
+                PullRequest.objects.filter(repo=repo).order_by("-pr_updated_at").first()
+            )
 
             issue_date = (
                 (last_issue.issue_updated_at + timedelta(seconds=1))
@@ -347,6 +400,8 @@ def sync_issues_and_prs(
 
         # Phase 3: fetch from GitHub, write JSON, persist to DB, remove file.
         client = get_github_client()
+        if client is None:
+            raise RuntimeError("GitHub client unavailable for sync_issues_and_prs")
         etag_cache = RedisListETagCache(repo_id=repo.pk)
         count_issues = 0
         count_prs = 0

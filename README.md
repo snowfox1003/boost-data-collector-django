@@ -129,7 +129,7 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=9
 
 Coverage writes a local **`.coverage`** file (binary data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs pytest with `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres` and the same `DJANGO_SETTINGS_MODULE=config.test_settings` as local.
+**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs three jobs on pushes/PRs (see the workflow for triggers): **`lint`** (pre-commit on all files), **`pyright`** (static analysis from `pyrightconfig.json`), and **`test`** (pytest with Postgres, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`).
 
 6. Run a subset of tests (e.g. one app or one file):
 
@@ -139,6 +139,8 @@ python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 ```
 
 CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 5 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
+
+**Pyright (local):** with dev dependencies installed (`uv pip install -r requirements-dev.lock`), run **`uv run pyright`** from the repo root to match the **`pyright`** CI job (`pyrightconfig.json` scopes `core`, `github_activity_tracker`, and `discord_activity_tracker`).
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 
@@ -202,7 +204,7 @@ Docs are organized **by topic** (one doc per concern: workflow, workspace, servi
 
 - [Onboarding.md](docs/Onboarding.md) – First-day orientation for contributors (mental model, app roles, data flow).
 - [docs/README.md](docs/README.md) – Per-topic index and how to find app-specific info.
-- [Running tests](#running-tests) – How to run the test suite (pytest, coverage).
+- [Running tests](#running-tests) – How to run the test suite (pytest, coverage) and **Pyright** (`uv run pyright`).
 - [Celery](#celery) – How to start the Celery worker and Beat.
 - [Celery_test.md](docs/Celery_test.md) – Testing the Celery task (run once, Beat, Redis).
 - [operations/](docs/operations/README.md) – **Operations group:** shared I/O (GitHub, Discord, etc.); index and per-operation docs.

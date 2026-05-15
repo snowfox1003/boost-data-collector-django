@@ -25,7 +25,8 @@ def sync_repos(repo: GitHubRepository) -> None:
 
     try:
         client = get_github_client()
-
+        if client is None:
+            raise RuntimeError("GitHub client unavailable for sync_repos")
         owner = repo.owner_account.username
         repo_name = repo.repo_name
 

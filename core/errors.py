@@ -138,10 +138,35 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     """
     Map an exception to a failure category for structured logging.
 
-    ``requests.HTTPError`` with ``response.status_code`` 429 maps to
-    :attr:`CollectorFailureCategory.RATE_LIMIT`; 401 and 403 map to
-    :attr:`CollectorFailureCategory.AUTH`. ``discord.errors.HTTPException``
-    with ``status`` is classified similarly when discord.py is in use.
+    **Django:** :class:`~django.core.management.base.CommandError` and
+    :class:`~django.core.exceptions.ValidationError` are recognized when Django is
+    importable; if those imports fail (e.g. unusual test doubles), matching exceptions
+    fall through to :attr:`~CollectorFailureCategory.UNKNOWN`. All
+    :class:`~django.db.Error` subclasses map to :attr:`~CollectorFailureCategory.UNKNOWN`
+    (schema vs transport ambiguity—override :meth:`handle_error` on the collector when
+    you need finer buckets).
+
+    **HTTP clients:** ``requests`` / ``urllib3`` / ``httpx`` exceptions are classified
+    by module and type name; ``requests.HTTPError`` with ``response.status_code`` 429
+    maps to :attr:`~CollectorFailureCategory.RATE_LIMIT`; 401 and 403 map to
+    :attr:`~CollectorFailureCategory.AUTH`.
+
+    **discord.py:** ``discord.errors.HTTPException`` and related types use ``status``
+    when present (429 → rate limit; 401/403 → auth; 5xx → network; other 4xx → unknown).
+    ``HTTPException`` without a status is treated as network; ``LoginFailure`` and
+    similar map to auth.
+
+    **slack_sdk:** Exceptions use ``response.status_code`` when present; otherwise
+    :attr:`~CollectorFailureCategory.UNKNOWN`.
+
+    Everything else maps to :attr:`~CollectorFailureCategory.UNKNOWN` unless it matches
+    built-ins (for example :class:`OSError`, :class:`ValueError`) handled below.
+
+    Args:
+        exc: Any exception raised during collector work.
+
+    Returns:
+        A :class:`CollectorFailureCategory` member (use ``.value`` for logs).
     """
     # Django / app
     try:
@@ -158,6 +183,13 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
         return CollectorFailureCategory.COMMAND
     if ValidationError and isinstance(exc, ValidationError):
         return CollectorFailureCategory.VALIDATION
+
+    try:
+        from django.db import Error as DjangoDBError
+    except ImportError:
+        DjangoDBError = ()  # type: ignore[misc, assignment]
+    if DjangoDBError and isinstance(exc, DjangoDBError):
+        return CollectorFailureCategory.UNKNOWN
 
     if isinstance(exc, PermissionError):
         return CollectorFailureCategory.PERMISSION
@@ -209,6 +241,20 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
             return CollectorFailureCategory.NETWORK
         if exc_name in ("LoginFailure", "PrivilegedIntentsRequired", "ClientException"):
             return CollectorFailureCategory.AUTH
+
+    if exc_mod.startswith("slack_sdk"):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            if status == 429:
+                return CollectorFailureCategory.RATE_LIMIT
+            if status in (401, 403):
+                return CollectorFailureCategory.AUTH
+            if status >= 500:
+                return CollectorFailureCategory.NETWORK
+            if status >= 400:
+                return CollectorFailureCategory.NETWORK
+        return CollectorFailureCategory.UNKNOWN
 
     if isinstance(exc, OSError):
         return _classify_os_error(exc)

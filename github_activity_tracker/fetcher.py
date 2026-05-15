@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Iterator, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -206,7 +206,9 @@ def fetch_commits_from_github(
 
     if next_url:
         # rel="last" omitted but rel="next" is present: fetch remaining pages, oldest-first.
-        pages: list[list[dict]] = [first_page_data]
+        pages: list[list[dict[str, Any]]] = [
+            cast(list[dict[str, Any]], first_page_data or [])
+        ]
         current_links = first_page_links
         while current_links.get("next"):
             forward_url = current_links["next"]
@@ -219,7 +221,7 @@ def fetch_commits_from_github(
                 forward_url,
             )
             time.sleep(0.2)
-            pages.append(page_data or [])
+            pages.append(cast(list[dict[str, Any]], page_data or []))
 
         for page_data in reversed(pages):
             for commit in reversed(page_data):
@@ -317,7 +319,7 @@ def fetch_pr_reviews_from_github(
     page = 1
     per_page = 100
     while True:
-        params = {
+        params: dict[str, Any] = {
             "per_page": per_page,
             "page": page,
         }
@@ -394,8 +396,8 @@ def fetch_issues_and_prs_from_github(
     next_url: Optional[str] = None
     page_num = 1
 
-    def _issues_list_params(page: int) -> dict:
-        params: dict = {
+    def _issues_list_params(page: int) -> dict[str, Any]:
+        params: dict[str, Any] = {
             "state": "all",
             "per_page": per_page,
             "page": page,
@@ -501,7 +503,7 @@ def fetch_issues_and_prs_from_github(
             "Fetched %d items (issues+PRs combined) from page %s", len(items), page_num
         )
 
-        yield from _yield_issue_pr_items_for_list_page(items)
+        yield from _yield_issue_pr_items_for_list_page(cast(list[Any], items))
 
         if etag_cache is not None and response_etag:
             etag_cache.set("issues_and_prs", page_num, since_iso, "", response_etag)
@@ -533,7 +535,7 @@ def fetch_issues_and_prs_from_github(
             "Fetched %d items (issues+PRs combined) from page %s", len(items), page_num
         )
 
-        yield from _yield_issue_pr_items_for_list_page(items)
+        yield from _yield_issue_pr_items_for_list_page(cast(list[Any], items))
 
         if next_url is None:
             logger.debug('Last page reached (no Link rel="next")')

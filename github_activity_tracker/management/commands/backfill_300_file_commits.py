@@ -60,7 +60,9 @@ class Command(BaseCommand):
         )
         if limit > 0:
             commits_300 = list(commits_300[:limit])
-        total = len(commits_300) if limit > 0 else commits_300.count()
+            total = len(commits_300)
+        else:
+            total = commits_300.count()
         if total == 0:
             self.stdout.write(
                 self.style.SUCCESS("No commits with exactly 300 file changes found.")
@@ -102,7 +104,9 @@ class Command(BaseCommand):
                         GitCommitFileChange.objects.filter(commit=commit_obj).delete()
                         _process_commit_files(repo, commit_obj, full_files)
 
-                    new_count = commit_obj.file_changes.count()
+                    new_count = GitCommitFileChange.objects.filter(
+                        commit=commit_obj
+                    ).count()
                     self.stdout.write(
                         self.style.SUCCESS(
                             f"  Updated: 300 -> {new_count} file changes"

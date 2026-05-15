@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import Optional, cast
 
 from django.conf import settings
 
@@ -96,8 +96,8 @@ class RedisListETagCache:
             return None
         try:
             key = self._key(list_type, page, since_iso, until_iso)
-            value = self._client.get(key)
-            return value if value else None
+            raw = self._client.get(key)
+            return cast(str | None, raw if raw else None)
         except Exception as e:
             logger.debug("ETag cache get failed: %s", e)
             _invalidate_redis_client()

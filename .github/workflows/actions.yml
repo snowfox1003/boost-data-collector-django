@@ -46,6 +46,36 @@ jobs:
           uv pip install pre-commit
           uv run pre-commit run -a
 
+  pyright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-pyright-${{ hashFiles('requirements-dev.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-pyright-
+            ${{ runner.os }}-uv-
+
+      - name: Typecheck with Pyright
+        env:
+          SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"
+        run: |
+          uv venv
+          uv pip install -r requirements-dev.lock
+          uv pip install -e .
+          uv run pyright
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
