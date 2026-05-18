@@ -25,8 +25,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 from django.utils.dateparse import parse_datetime
 
 from cppa_user_tracker.services import get_or_create_youtube_speaker
@@ -408,14 +407,21 @@ def _run_pinecone_sync(app_id: str, namespace: str) -> None:
         )
 
 
-class CppaYoutubeScriptTrackerCollector(CollectorBase):
+class CppaYoutubeScriptTrackerCollector(AbstractCollector):
     """Phases 1–3 on the command; Pinecone in ``sync_pinecone``."""
 
     def __init__(self, cmd: Command, options: dict) -> None:
         self.cmd = cmd
         self.options = options
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "cppa_youtube_script_tracker"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         o = self.options
         start_time_arg = (o.get("start_time") or "").strip()
         end_time_arg = (o.get("end_time") or "").strip()
@@ -519,7 +525,7 @@ class Command(BaseCollectorCommand):
             help=f"Pinecone namespace. Default from env {PINECONE_NAMESPACE_ENV_KEY}.",
         )
 
-    def get_collector(self, **options):
+    def get_collector(self, **options) -> AbstractCollector:
         return CppaYoutubeScriptTrackerCollector(cmd=self, options=dict(options))
 
     def _phase_1(self, dry_run: bool) -> None:

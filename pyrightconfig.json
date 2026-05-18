@@ -12,5 +12,26 @@
   "pythonVersion": "3.11",
   "typeCheckingMode": "basic",
   "reportMissingImports": true,
-  "stubPath": ""
+  "executionEnvironments": [
+    {
+      "root": "github_activity_tracker",
+      "extraPaths": ["."],
+      "reportAttributeAccessIssue": "none",
+      "reportArgumentType": "none",
+      "reportAssignmentType": "none",
+      "reportCallIssue": "none",
+      "reportIndexIssue": "none",
+      "reportGeneralTypeIssues": "none"
+    },
+    {
+      "root": "discord_activity_tracker",
+      "extraPaths": ["."],
+      "reportAttributeAccessIssue": "none",
+      "reportArgumentType": "none",
+      "reportAssignmentType": "none",
+      "reportCallIssue": "none",
+      "reportIndexIssue": "none",
+      "reportGeneralTypeIssues": "none"
+    }
+  ]
 }

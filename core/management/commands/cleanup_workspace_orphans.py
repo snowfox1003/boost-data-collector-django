@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Any, cast
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -56,13 +57,12 @@ class Command(BaseCommand):
             )
         execute = options["execute"]
         root = Path(getattr(settings, "WORKSPACE_DIR", ""))
+        style = cast(Any, self.style)
         if not root.is_dir():
-            self.stderr.write(
-                self.style.ERROR(f"WORKSPACE_DIR is not a directory: {root}")
-            )
+            self.stderr.write(style.ERROR(f"WORKSPACE_DIR is not a directory: {root}"))
             return
 
-        suffix_found = self._run_suffix_scan(root, max_age, execute)
+        suffix_found = self._run_suffix_scan(root, max_age, execute, style)
 
         gh_stats = None
         if options["github_json_cache"]:
@@ -79,7 +79,7 @@ class Command(BaseCommand):
             )
             rel = "Removed" if execute else "Would remove / logged"
             self.stdout.write(
-                self.style.NOTICE(
+                style.NOTICE(
                     f"{rel} github_activity_tracker invalid JSON: scanned={gh_stats.scanned} "
                     f"removed_invalid={gh_stats.removed_invalid} "
                     f"quarantined={gh_stats.quarantined_invalid} "
@@ -89,13 +89,15 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(
-            self.style.NOTICE(
+            style.NOTICE(
                 f"{'Removed' if execute else 'Found'} {suffix_found} orphan suffix candidate(s) "
                 f"(suffix in {_ORPHAN_SUFFIXES}, older than {max_age}h)."
             )
         )
 
-    def _run_suffix_scan(self, root: Path, max_age: float, execute: bool) -> int:
+    def _run_suffix_scan(
+        self, root: Path, max_age: float, execute: bool, style: Any
+    ) -> int:
         cutoff = time.time() - max_age * 3600.0
         found: list[Path] = []
         for path in root.rglob("*"):
@@ -116,10 +118,10 @@ class Command(BaseCommand):
             if execute:
                 try:
                     p.unlink()
-                    self.stdout.write(self.style.SUCCESS(f"deleted {rel}"))
+                    self.stdout.write(style.SUCCESS(f"deleted {rel}"))
                 except OSError as e:
                     logger.warning("Could not delete %s: %s", p, e)
-                    self.stderr.write(self.style.WARNING(f"skip {rel}: {e}"))
+                    self.stderr.write(style.WARNING(f"skip {rel}: {e}"))
             else:
                 self.stdout.write(f"would delete (dry-run): {rel}")
 

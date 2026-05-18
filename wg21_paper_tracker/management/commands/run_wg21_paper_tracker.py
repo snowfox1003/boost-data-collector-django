@@ -4,7 +4,7 @@ Runs the pipeline to fetch new mailings, upsert paper metadata in the DB, and op
 trigger a GitHub repository_dispatch so another repo can download and convert documents.
 """
 
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 from wg21_paper_tracker.collectors import Wg21PaperTrackerCollector
 
 
@@ -43,7 +43,7 @@ class Command(BaseCollectorCommand):
             ),
         )
 
-    def get_collector(self, **options):
+    def get_collector(self, **options) -> AbstractCollector:
         dry_run = options.get("dry_run", False)
         from_date = options.get("from_date")
         to_date = options.get("to_date")

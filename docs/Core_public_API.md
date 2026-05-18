@@ -12,6 +12,28 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 | `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()` then `sync_pinecone()`. |
 | `core.collectors.DjangoCommandCollector` | Wraps `call_command(name)` for tests or glue code. |
 
+### Collector base class usage (migration status)
+
+All **application** collectors listed below subclass **`AbstractCollector`** (`name`, `validate_config()`, `collect()`). **`BaseCollectorCommand`** runs `run()` (validate then collect) and `sync_pinecone()` for each.
+
+| Management command | Collector class | Primary module |
+|--------|-----------------|----------------|
+| `run_boost_usage_tracker` | `BoostUsageTrackerCollector` | `boost_usage_tracker.management.commands.run_boost_usage_tracker` |
+| `run_boost_github_activity_tracker` | `BoostGithubActivityCollector` | `boost_library_tracker.management.commands.run_boost_github_activity_tracker` |
+| `run_clang_github_tracker` | `ClangGithubTrackerCollector` | `clang_github_tracker.collectors` |
+| `run_boost_library_usage_dashboard` | `BoostLibraryUsageDashboardCollector` | `boost_library_usage_dashboard.collectors` |
+| `run_boost_library_docs_tracker` | `BoostLibraryDocsTrackerCollector` | `boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker` |
+| `run_boost_mailing_list_tracker` | `BoostMailingListTrackerCollector` | `boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker` |
+| `run_cppa_user_tracker` | `CppaUserTrackerCollector` | `cppa_user_tracker.management.commands.run_cppa_user_tracker` |
+| `run_cppa_pinecone_sync` | `CppaPineconeSyncCollector` | `cppa_pinecone_sync.management.commands.run_cppa_pinecone_sync` |
+| `run_cppa_slack_tracker` | `CppaSlackTrackerCollector` | `cppa_slack_tracker.management.commands.run_cppa_slack_tracker` |
+| `run_cppa_youtube_script_tracker` | `CppaYoutubeScriptTrackerCollector` | `cppa_youtube_script_tracker.management.commands.run_cppa_youtube_script_tracker` |
+| `run_wg21_paper_tracker` | `Wg21PaperTrackerCollector` | `wg21_paper_tracker.collectors` |
+| `run_discord_activity_tracker` | `DiscordActivityCollector` | `discord_activity_tracker.management.commands.run_discord_activity_tracker` |
+| `backfill_discord_activity_tracker` | `DiscordBackfillCollector` | `discord_activity_tracker.management.commands.backfill_discord_activity_tracker` |
+
+**Still on `CollectorBase` (framework only):** `DjangoCommandCollector` in `core.collectors.base` subclasses the legacy abstract base for `call_command` glue. New app collectors should **not** subclass `CollectorBase`.
+
 ## Failure classification
 
 | Import | Purpose |

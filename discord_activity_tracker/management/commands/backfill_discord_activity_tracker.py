@@ -18,7 +18,7 @@ Side effects: DB writes to ``DiscordServer``, ``DiscordChannel``, ``DiscordMessa
 success; Pinecone sync when enabled.
 
 Raises:
-    Per-file parse/validation failures are caught inside ``DiscordBackfillCollector.run``
+    Per-file parse/validation failures are caught inside ``DiscordBackfillCollector.collect``
     (logged and reported on stdout); they do not abort the whole command. Uncaught
     exceptions from ``sync_pinecone`` or the base command layer may still propagate.
 """
@@ -32,8 +32,7 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
@@ -63,10 +62,10 @@ def _json_display_path(import_dir: Path, json_path: Path) -> str:
         return json_path.name
 
 
-class DiscordBackfillCollector(CollectorBase):
+class DiscordBackfillCollector(AbstractCollector):
     """Backfill collector: scan drop folder, import each JSON, delete on success.
 
-    ``run()`` lists JSON under ``get_cpp_discussion_import_dir()``, optionally
+    ``collect()`` lists JSON under ``get_cpp_discussion_import_dir()``, optionally
     dry-run prints paths, else for each file parses, validates staging schema,
     upserts messages in batches, unlinks the file on success, or logs failure and
     keeps the file.
@@ -83,7 +82,14 @@ class DiscordBackfillCollector(CollectorBase):
         self.dry_run: bool = opts["dry_run"]
         self.skip_pinecone: bool = bool(opts.get("skip_pinecone"))
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "discord_activity_tracker_backfill"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         import_dir = get_cpp_discussion_import_dir()
         json_files = sorted(
             filter_discord_export_json_paths(import_dir.rglob("*.json"))
@@ -226,7 +232,7 @@ class Command(BaseCollectorCommand):
             help="List JSON files that would be imported without writing or deleting",
         )
 
-    def get_collector(self, **options: Any) -> CollectorBase:
+    def get_collector(self, **options: Any) -> AbstractCollector:
         opts = dict(options)
         if opts.get("skip_pinecone") is None:
             opts["skip_pinecone"] = False

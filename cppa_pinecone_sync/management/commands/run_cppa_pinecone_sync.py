@@ -17,8 +17,7 @@ from typing import Any
 
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 
 from cppa_pinecone_sync.ingestion import PineconeInstance
 from cppa_pinecone_sync.sync import sync_to_pinecone
@@ -42,7 +41,7 @@ def _resolve_preprocessor(dotted_path: str):
     return fn
 
 
-class CppaPineconeSyncCollector(CollectorBase):
+class CppaPineconeSyncCollector(AbstractCollector):
     """Run sync_to_pinecone for one (app_type, namespace, preprocessor)."""
 
     def __init__(
@@ -57,8 +56,19 @@ class CppaPineconeSyncCollector(CollectorBase):
         self.namespace = namespace
         self.preprocessor_path = preprocessor_path
         self.instance = instance
+        self._preprocess_fn: Any = None
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "cppa_pinecone_sync"
+
+    def validate_config(self) -> None:
+        try:
+            self._preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
+        except ValueError as e:
+            raise CommandError(str(e)) from e
+
+    def collect(self) -> None:
         logger.info(
             "run_cppa_pinecone_sync: starting app_type=%s namespace=%s preprocessor=%s",
             self.app_type,
@@ -66,11 +76,10 @@ class CppaPineconeSyncCollector(CollectorBase):
             self.preprocessor_path,
         )
 
-        preprocess_fn = _resolve_preprocessor(self.preprocessor_path)
         result = sync_to_pinecone(
             self.app_type,
             self.namespace,
-            preprocess_fn,
+            self._preprocess_fn,
             instance=self.instance,
         )
         logger.info(
@@ -118,7 +127,7 @@ class Command(BaseCollectorCommand):
             help="Pinecone API key instance to use: 'public' (default) or 'private'.",
         )
 
-    def get_collector(self, **options: Any) -> CollectorBase:
+    def get_collector(self, **options: Any) -> AbstractCollector:
         app_type = (options.get("app_type") or "").strip() or None
         namespace = (options.get("namespace") or "").strip() or None
         preprocessor_path = (options.get("preprocessor") or "").strip() or None

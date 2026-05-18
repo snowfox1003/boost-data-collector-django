@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors import AbstractCollector
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 from boost_library_usage_dashboard.publisher import publish_dashboard
 from boost_library_usage_dashboard.renderer import render_dashboard_html
@@ -15,7 +15,7 @@ from config.workspace import get_workspace_path
 logger = logging.getLogger(__name__)
 
 
-class BoostLibraryUsageDashboardCollector(CollectorBase):
+class BoostLibraryUsageDashboardCollector(AbstractCollector):
     """Collect metrics, render HTML, optionally publish to GitHub."""
 
     def __init__(
@@ -35,7 +35,14 @@ class BoostLibraryUsageDashboardCollector(CollectorBase):
         self.repo = repo
         self.branch = branch
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "boost_library_usage_dashboard"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         output_dir = get_workspace_path("boost_library_usage_dashboard").resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 

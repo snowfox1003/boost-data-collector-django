@@ -1,4 +1,4 @@
-"""Tests for WG21 collector helpers (repository_dispatch + CollectorBase impl)."""
+"""Tests for WG21 collector helpers (repository_dispatch + AbstractCollector impl)."""
 
 import logging
 from unittest.mock import MagicMock, patch

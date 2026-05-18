@@ -8,7 +8,7 @@ import requests
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
+from core.collectors import AbstractCollector
 from wg21_paper_tracker.pipeline import run_tracker_pipeline
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def trigger_github_repository_dispatch(
     response.raise_for_status()
 
 
-class Wg21PaperTrackerCollector(CollectorBase):
+class Wg21PaperTrackerCollector(AbstractCollector):
     """Fetch mailings, update DB, optionally dispatch to GitHub."""
 
     def __init__(
@@ -63,7 +63,14 @@ class Wg21PaperTrackerCollector(CollectorBase):
         self.from_date = from_date
         self.to_date = to_date
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "wg21_paper_tracker"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         if self.dry_run:
             if self.from_date or self.to_date:
                 logger.info(
