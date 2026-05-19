@@ -25,15 +25,11 @@ Runs the WG21 mailing scrape / DB pipeline and optional **`repository_dispatch`*
 - **Path (from repo root):** `wg21_paper_tracker/`
 - **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `wg21_paper_tracker`.
 
-## Title
-
-**WG21 Paper Tracker**
-
 ## Management commands
 
 | Command | Description |
 | --- | --- |
-| `import_wg21_metadata_from_csv` | Management command: import_wg21_metadata_from_csv |
+| `import_wg21_metadata_from_csv` | Import WG21 mailing, paper, and author metadata from CSV. |
 | `run_wg21_paper_tracker` | Run WG21 paper tracker and optionally trigger GitHub repository_dispatch. |
 
 Run `python manage.py <command> --help` for options.

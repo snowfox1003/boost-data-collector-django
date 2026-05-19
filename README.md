@@ -195,7 +195,7 @@ Some packages include a **README.md** at the app (or `config/`) root when that h
 | [`core/`](core/README.md) | Collector abstractions and `core.operations` (GitHub, Slack, files, markdown). |
 | [`boost_collector_runner/`](boost_collector_runner/README.md) | YAML-driven `run_scheduled_collectors` orchestration. |
 | [`github_activity_tracker/`](github_activity_tracker/README.md) | GitHub ingest, workspace files, token/rate-limit considerations. |
-| [`boost_library_tracker/`](boost_library_tracker/README.md) | Boost metadata + many maintenance commands; see also [`management/commands/`](boost_library_tracker/management/commands/README.md). |
+| [`boost_library_tracker/`](boost_library_tracker/README.md) | Boost metadata + many maintenance commands. |
 | [`boost_usage_tracker/`](boost_usage_tracker/README.md) | Usage signals and DB update commands. |
 | [`cppa_youtube_script_tracker/`](cppa_youtube_script_tracker/README.md) | Large CLI surface; use `--help` and module docstrings. |
 | [`cppa_pinecone_sync/`](cppa_pinecone_sync/README.md) | Pinecone sync entrypoint (namespace + preprocessor contract). |

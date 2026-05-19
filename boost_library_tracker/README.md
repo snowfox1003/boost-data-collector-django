@@ -7,7 +7,7 @@ Tracks **Boost C++ libraries** (metadata, dependencies, GitHub linkage, releases
 ## Common tasks
 
 - Run the main collector: `python manage.py run_boost_github_activity_tracker` (see command `--help` and [docs/Workflow.md](../docs/Workflow.md)).
-- One-off imports/backfills: see [management/commands/README.md](management/commands/README.md) for the command list and pointers to module docstrings.
+- One-off imports/backfills: see the **Management commands** section below and module docstrings.
 
 ## Main command: `run_boost_github_activity_tracker`
 
