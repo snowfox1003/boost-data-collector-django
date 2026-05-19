@@ -207,6 +207,10 @@ jobs:
       - name: Run migrations
         run: docker compose exec -T web python manage.py migrate --noinput
 
+      - name: Verify Celery Beat schedule loaded
+        run: |
+          docker compose exec -T web python manage.py shell -c "from django.conf import settings; import sys; n = len(settings.CELERY_BEAT_SCHEDULE); print('Beat schedule entries:', n); sys.exit(1 if n <= 0 else 0)"
+
       - name: Health check
         run: make health
 

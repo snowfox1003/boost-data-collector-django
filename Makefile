@@ -32,7 +32,7 @@ help:
 	@echo ""
 	@echo "  Logs & status"
 	@echo "    ps             Show running containers"
-	@echo "    health         Verify DB, Redis, Selenium, and Celery containers"
+	@echo "    health         Verify DB, Redis, Selenium, Celery Beat schedule, and containers"
 	@echo "    notify         Send Slack/Discord startup notification (celery_beat; optional DEPLOY_BRANCH)"
 	@echo "    logs           Follow logs for all services"
 	@echo "    logs-web       Follow logs for the web service"
@@ -98,6 +98,7 @@ ps:
 .PHONY: health
 health:
 	$(COMPOSE) exec -T $(APP) python manage.py check --database default
+	$(COMPOSE) exec -T $(APP) python manage.py shell -c "from django.conf import settings; import sys; n = len(settings.CELERY_BEAT_SCHEDULE); print('Beat schedule entries:', n); sys.exit(1 if n <= 0 else 0)"
 	$(COMPOSE) exec -T redis redis-cli ping | grep -q PONG
 	$(COMPOSE) exec -T selenium curl -sf http://localhost:4444/status | grep -qE '"ready"[[:space:]]*:[[:space:]]*true'
 	$(COMPOSE) ps --status running celery_worker | grep -q celery_worker
