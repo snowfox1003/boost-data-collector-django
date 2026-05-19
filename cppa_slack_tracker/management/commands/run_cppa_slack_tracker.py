@@ -19,8 +19,7 @@ from typing import Any, Optional
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 
 from cppa_slack_tracker.models import SlackTeam
 from cppa_slack_tracker.services import save_slack_message
@@ -52,7 +51,7 @@ def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
-class CppaSlackTrackerCollector(CollectorBase):
+class CppaSlackTrackerCollector(AbstractCollector):
     """Sync Slack teams, users, channels, memberships, and messages; optional Pinecone upsert."""
 
     def __init__(
@@ -65,7 +64,14 @@ class CppaSlackTrackerCollector(CollectorBase):
         self.options = options
         self._team: SlackTeam | None = None
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "cppa_slack_tracker"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         dry_run = self.options.get("dry_run", False)
         if dry_run:
             self._print_dry_run()
@@ -434,7 +440,7 @@ class Command(BaseCollectorCommand):
             help="Skip Pinecone sync after message sync (default: sync to Pinecone)",
         )
 
-    def get_collector(self, **options: Any) -> CollectorBase:
+    def get_collector(self, **options: Any) -> AbstractCollector:
         team_id = (options.get("team_id") or "").strip()
         if not team_id:
             team_id = (getattr(settings, "SLACK_TEAM_ID", "") or "").strip()

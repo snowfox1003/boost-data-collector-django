@@ -15,8 +15,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.utils.dateparse import parse_datetime
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 
 from boost_mailing_list_tracker.email_formatter import format_email
 from boost_mailing_list_tracker.fetcher import (
@@ -179,7 +178,7 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
     return processed, skipped
 
 
-class BoostMailingListTrackerCollector(CollectorBase):
+class BoostMailingListTrackerCollector(AbstractCollector):
     """Fetch mailing lists via workspace pipeline."""
 
     def __init__(
@@ -201,7 +200,14 @@ class BoostMailingListTrackerCollector(CollectorBase):
         self.pinecone_app_type = pinecone_app_type
         self.pinecone_namespace = pinecone_namespace
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "boost_mailing_list_tracker"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         start_date = self.start_date
         end_date = self.end_date
         dry_run = self.dry_run
@@ -360,7 +366,7 @@ class Command(BaseCollectorCommand):
             help=f"Pinecone namespace for sync. Default from env {PINECONE_NAMESPACE_ENV_KEY}.",
         )
 
-    def get_collector(self, **options):
+    def get_collector(self, **options) -> AbstractCollector:
         start_date = options["start_date"]
         end_date = options["end_date"]
         dry_run = options["dry_run"]

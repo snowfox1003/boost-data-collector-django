@@ -43,8 +43,7 @@ from pathlib import Path
 
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 
 from boost_library_docs_tracker import fetcher, services, workspace
 from boost_library_docs_tracker.preprocessor import preprocess_for_pinecone
@@ -57,14 +56,23 @@ PINECONE_NAMESPACE = "boost-library-documentation"
 DEFAULT_MAX_PAGES = 10
 
 
-class BoostLibraryDocsTrackerCollector(CollectorBase):
+class BoostLibraryDocsTrackerCollector(AbstractCollector):
     """Scrape docs to DB/workspace; Pinecone upsert in ``sync_pinecone``."""
 
     def __init__(self, cmd: "Command", options: dict) -> None:
         self.cmd = cmd
         self.options = options
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "boost_library_docs_tracker"
+
+    def validate_config(self) -> None:
+        max_pages = self.options.get("max_pages")
+        if max_pages is not None and max_pages < 1:
+            raise CommandError("--max-pages must be at least 1.")
+
+    def collect(self) -> None:
         o = self.options
         try:
             self.cmd._run(
@@ -145,7 +153,7 @@ class Command(BaseCollectorCommand):
             ),
         )
 
-    def get_collector(self, **options):
+    def get_collector(self, **options) -> AbstractCollector:
         return BoostLibraryDocsTrackerCollector(cmd=self, options=dict(options))
 
     # Top-level flow

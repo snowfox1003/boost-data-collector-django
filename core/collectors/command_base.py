@@ -1,4 +1,4 @@
-"""Django management command base class for CollectorBase-backed collectors."""
+"""Django management command base class for CollectorRunnable-backed collectors."""
 
 # Design notes (review summary):
 # - Template method: handle() -> get_collector(**options) -> phase(run) -> phase(sync_pinecone).

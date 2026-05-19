@@ -1,4 +1,5 @@
 import logging
+from typing import ClassVar
 
 from django.apps import AppConfig
 from django.conf import settings
@@ -7,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class CoreConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
+    default_auto_field: ClassVar[str] = "django.db.models.BigAutoField"
     name = "core"
     verbose_name = "Core"
 

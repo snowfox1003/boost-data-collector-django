@@ -43,8 +43,7 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from core.collectors.base import CollectorBase
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 from core.utils.datetime_parsing import parse_iso_datetime
 from discord_activity_tracker.models import DiscordServer
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
@@ -333,13 +332,13 @@ def task_markdown_export_and_push(
         collector.stdout.write(collector.style.WARNING("No markdown files exported"))
 
 
-class DiscordActivityCollector(CollectorBase):
+class DiscordActivityCollector(AbstractCollector):
     """Collector implementation for ``run_discord_activity_tracker``.
 
     Holds stdout/style, resolved ``channel_ids`` (from ``--channels`` or
     ``settings.DISCORD_CHANNEL_IDS``), and delegates to ``Command._handle_core``.
 
-    ``run()`` drives fetch → Markdown → Pinecone according to options.
+    ``collect()`` drives fetch → Markdown → Pinecone according to options.
     ``sync_pinecone()`` runs ``task_discord_pinecone_sync`` when not dry-run and not
     skipping Pinecone.
 
@@ -359,7 +358,14 @@ class DiscordActivityCollector(CollectorBase):
         else:
             self.channel_ids = list(getattr(settings, "DISCORD_CHANNEL_IDS", []))
 
-    def run(self) -> None:
+    @property
+    def name(self) -> str:
+        return "discord_activity_tracker"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> None:
         self.cmd._handle_core(self.options, collector=self)
 
     def sync_pinecone(self) -> None:
@@ -512,7 +518,7 @@ class Command(BaseCollectorCommand):
             help="Deprecated: prefer --skip-*. sync=fetch only; export=markdown only; all=all phases.",
         )
 
-    def get_collector(self, **options: Any) -> CollectorBase:
+    def get_collector(self, **options: Any) -> AbstractCollector:
         opts = dict(options)
         if opts.get("skip_pinecone") is None:
             opts["skip_pinecone"] = False

@@ -1,6 +1,6 @@
 """Build the Boost library usage dashboard from DB data and optionally publish to GitHub."""
 
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import AbstractCollector, BaseCollectorCommand
 from boost_library_usage_dashboard.collectors import (
     BoostLibraryUsageDashboardCollector,
 )
@@ -49,7 +49,7 @@ class Command(BaseCollectorCommand):
             help="Branch to publish to (overrides BOOST_LIBRARY_USAGE_DASHBOARD_PUBLISH_BRANCH; default main).",
         )
 
-    def get_collector(self, **options):
+    def get_collector(self, **options) -> AbstractCollector:
         return BoostLibraryUsageDashboardCollector(
             skip_collect=options["skip_collect"],
             skip_render=options["skip_render"],

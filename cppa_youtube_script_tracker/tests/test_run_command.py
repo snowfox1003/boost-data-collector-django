@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test.utils import override_settings
 
 from cppa_youtube_script_tracker.management.commands.run_cppa_youtube_script_tracker import (
@@ -74,6 +75,70 @@ def test_resolve_end_time_default_now():
 def test_resolve_end_time_explicit():
     dt = _resolve_end_time("2021-01-02T00:00:00Z")
     assert dt.year == 2021
+
+
+def _collector_options(**overrides):
+    base = {
+        "start_time": "",
+        "end_time": "",
+        "channel_title": "",
+        "dry_run": False,
+        "skip_transcript": False,
+        "pinecone_app_id": "",
+        "pinecone_namespace": "",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_validate_config_rejects_malformed_start_time():
+    collector = CppaYoutubeScriptTrackerCollector(
+        cmd=Command(stdout=StringIO(), stderr=StringIO()),
+        options=_collector_options(start_time="not-an-iso-datetime"),
+    )
+    with pytest.raises(CommandError, match="--start-time"):
+        collector.validate_config()
+
+
+def test_validate_config_rejects_malformed_end_time():
+    collector = CppaYoutubeScriptTrackerCollector(
+        cmd=Command(stdout=StringIO(), stderr=StringIO()),
+        options=_collector_options(end_time="bogus"),
+    )
+    with pytest.raises(CommandError, match="--end-time"):
+        collector.validate_config()
+
+
+def test_validate_config_rejects_start_after_end():
+    collector = CppaYoutubeScriptTrackerCollector(
+        cmd=Command(stdout=StringIO(), stderr=StringIO()),
+        options=_collector_options(
+            start_time="2024-02-01T00:00:00Z",
+            end_time="2024-01-01T00:00:00Z",
+        ),
+    )
+    with pytest.raises(CommandError, match="earlier than or equal"):
+        collector.validate_config()
+
+
+def test_validate_config_rejects_start_after_effective_end_when_end_omitted():
+    collector = CppaYoutubeScriptTrackerCollector(
+        cmd=Command(stdout=StringIO(), stderr=StringIO()),
+        options=_collector_options(start_time="2099-01-01T00:00:00Z", end_time=""),
+    )
+    with pytest.raises(CommandError, match="effective end"):
+        collector.validate_config()
+
+
+def test_validate_config_accepts_valid_explicit_range():
+    collector = CppaYoutubeScriptTrackerCollector(
+        cmd=Command(stdout=StringIO(), stderr=StringIO()),
+        options=_collector_options(
+            start_time="2024-01-01T00:00:00Z",
+            end_time="2024-02-01T00:00:00Z",
+        ),
+    )
+    collector.validate_config()
 
 
 @pytest.mark.django_db

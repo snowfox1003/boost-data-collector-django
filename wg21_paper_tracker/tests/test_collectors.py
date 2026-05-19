@@ -1,4 +1,4 @@
-"""Tests for WG21 collector helpers (repository_dispatch + CollectorBase impl)."""
+"""Tests for WG21 collector helpers (repository_dispatch + AbstractCollector impl)."""
 
 import logging
 from unittest.mock import MagicMock, patch
@@ -32,6 +32,36 @@ def test_trigger_github_repository_dispatch_raises_on_http_error():
                 "tok",
                 ["https://example.com/a.pdf"],
             )
+
+
+def test_wg21_collector_validate_config_rejects_invalid_month():
+    collector = Wg21PaperTrackerCollector(
+        dry_run=True,
+        from_date="2025-13",
+        to_date=None,
+    )
+    with pytest.raises(CommandError, match="month must be"):
+        collector.run()
+
+
+def test_wg21_collector_validate_config_rejects_from_after_to_dry_run():
+    collector = Wg21PaperTrackerCollector(
+        dry_run=True,
+        from_date="2025-03",
+        to_date="2025-01",
+    )
+    with pytest.raises(CommandError, match="--from-date"):
+        collector.run()
+
+
+def test_wg21_collector_validate_config_rejects_bad_from_dry_run():
+    collector = Wg21PaperTrackerCollector(
+        dry_run=True,
+        from_date="bad",
+        to_date=None,
+    )
+    with pytest.raises(CommandError, match="Invalid from_mailing_date"):
+        collector.run()
 
 
 @pytest.mark.parametrize(
