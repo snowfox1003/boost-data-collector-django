@@ -1,8 +1,11 @@
 """Tests for boost_collector_runner.schedule_config: load_config, validation, get_tasks_for_schedule, get_beat_schedule."""
 
 import calendar
+from pathlib import Path
+
 import pytest
 import yaml
+from django.core.management import get_commands
 
 from boost_collector_runner.schedule_config import (
     DEFAULT_GROUP_BATCH_SCHEDULE_KIND,
@@ -729,3 +732,26 @@ def test_get_tasks_for_schedule_interval_scoped_by_group_id(tmp_path):
     assert len(tasks_all) == 2
     commands = {t[1]["command"] for t in tasks_all}
     assert commands == {"interval_g1", "interval_g2"}
+
+
+@pytest.mark.django_db
+def test_committed_schedule_yaml_loads_non_empty_beat_schedule(settings):
+    """Repo ships config/boost_collector_schedule.yaml; Beat must not be empty on clone."""
+    repo_yaml = Path(settings.BASE_DIR) / "config" / "boost_collector_schedule.yaml"
+    assert (
+        repo_yaml.is_file()
+    ), "committed schedule missing; add config/boost_collector_schedule.yaml"
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = repo_yaml
+    data = load_config(repo_yaml)
+    registered = get_commands()
+    for _group_id, group_data in (data.get("groups") or {}).items():
+        if not isinstance(group_data, dict):
+            continue
+        task_list = group_data.get("tasks") or []
+        for task in task_list:
+            if not isinstance(task, dict) or task.get("enabled") is False:
+                continue
+            cmd = task.get("command")
+            assert cmd in registered, f"unknown management command in YAML: {cmd!r}"
+    schedule = get_beat_schedule()
+    assert schedule, "CELERY_BEAT_SCHEDULE must not be empty when committed YAML exists"

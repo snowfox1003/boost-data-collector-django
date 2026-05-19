@@ -9,7 +9,7 @@ This checklist assumes you already have a Django app (or are creating one) with 
 
 ## 2. Register the command in YAML
 
-Add a task under the right group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). That file is often **local-only** (gitignored); copy from [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) if you do not have it yet. Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
+Add a task under the right group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). That file is **committed** to the repository; [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) only points to it. Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
 
 ## 3. Shared abstractions (recommended)
 

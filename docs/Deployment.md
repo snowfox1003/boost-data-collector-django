@@ -107,11 +107,11 @@ SSH into the server as the same user GitHub Actions uses (the account named in `
 cd /opt/boost-data-collector
 cp .env.example .env
 # edit .env
-cp config/boost_collector_schedule.yaml.example config/boost_collector_schedule.yaml
-# edit config/boost_collector_schedule.yaml
 ```
 
-Use `.env.example` and the YAML example as references for required variables and schedule entries.
+The collector schedule ships in the repo as `config/boost_collector_schedule.yaml`. Adjust it via pull request if you need different times or groups; see [Workflow.md](Workflow.md).
+
+Use `.env.example` as a reference for required environment variables.
 
 If you create or edit `.env` with `sudo` (e.g. `sudo nano`), the file is often owned by **root** with mode `600`. **Docker Compose reads `.env` as the user running `make build` / `make up`** (your deploy user), which causes `permission denied`. Fix ownership after saving:
 
