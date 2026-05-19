@@ -98,7 +98,7 @@ ps:
 .PHONY: health
 health:
 	$(COMPOSE) exec -T $(APP) python manage.py check --database default
-	$(COMPOSE) exec -T $(APP) python manage.py shell -c "from django.conf import settings; n = len(settings.CELERY_BEAT_SCHEDULE); assert n > 0, 'CELERY_BEAT_SCHEDULE is empty'; print('Beat schedule entries:', n)"
+	$(COMPOSE) exec -T $(APP) python manage.py shell -c "from django.conf import settings; import sys; n = len(settings.CELERY_BEAT_SCHEDULE); print('Beat schedule entries:', n); sys.exit(1 if n <= 0 else 0)"
 	$(COMPOSE) exec -T redis redis-cli ping | grep -q PONG
 	$(COMPOSE) exec -T selenium curl -sf http://localhost:4444/status | grep -qE '"ready"[[:space:]]*:[[:space:]]*true'
 	$(COMPOSE) ps --status running celery_worker | grep -q celery_worker
