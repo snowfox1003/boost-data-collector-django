@@ -158,29 +158,55 @@ See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workfl
 
 ## Project structure
 
+Typical top-level layout after clone (folder name is usually **`boost-data-collector-django`**; paths below are relative to that root):
+
 ```
-boost-data-collector/
+.
 ├── manage.py
-├── requirements.txt
-├── .env.example
+├── pyproject.toml
+├── pytest.ini
+├── Makefile
 ├── README.md
-├── config/ or <project_name>/   # Django project settings (settings.py)
-├── docs/                         # Documentation (per-topic)
-│   ├── operations/               # Shared I/O (GitHub, Discord, etc.)
-│   ├── service_api/              # Per-app service API
-│   ├── Workflow.md
-│   ├── Schema.md
-│   └── ...
-├── workspace/                    # Raw/processed files (see docs/Workspace.md)
+├── LICENSE
+├── CHANGELOG.md
+├── conftest.py
+├── requirements.txt
+├── requirements.lock
+├── requirements.in
+├── requirements-dev.txt
+├── requirements-dev.lock
+├── requirements-dev.in
+├── .env.example
+├── docker-compose.yml
+├── docker-compose.ci.yml
+├── docker-compose.test.yml
+├── Dockerfile
+├── docker-entrypoint.sh
+├── config/                      # Django project: settings, URLs, Celery, boost_collector_schedule.yaml
+├── docs/                        # Design docs, Schema, Workflow, service_api/, operations/, …
+├── workspace/                   # Per-app trees + shared areas (see docs/Workspace.md)
+│   ├── raw/
+│   ├── shared/
+│   ├── scripts/
 │   ├── github_activity_tracker/
-│   ├── boost_library_tracker/
-│   ├── ...
-│   └── shared/
-|   (Django Apps)
+│   └── …                        # e.g. boost_library_tracker/, discord_activity_tracker/, …
+├── scripts/                     # Repo maintenance and codegen helpers
+├── core/                        # Shared collectors + operations (GitHub, Slack, markdown, files)
+├── boost_collector_runner/      # YAML schedule → run_scheduled_collectors
+├── boost_library_docs_tracker/
+├── boost_library_tracker/
+├── boost_library_usage_dashboard/
+├── boost_mailing_list_tracker/
+├── boost_usage_tracker/
+├── clang_github_tracker/
+├── cppa_pinecone_sync/
+├── cppa_slack_tracker/
 ├── cppa_user_tracker/
+├── cppa_youtube_script_tracker/
+├── discord_activity_tracker/
 ├── github_activity_tracker/
-├── core/                         # Shared utilities (e.g. collector base types)
-└──     ...
+├── slack_event_handler/
+└── wg21_paper_tracker/
 ```
 
 Each Django app can expose management commands in `management/commands/`. All apps are in `INSTALLED_APPS` and use the shared database.
