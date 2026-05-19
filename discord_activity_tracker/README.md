@@ -14,7 +14,7 @@ Ingests **Discord server activity** (messages, threads, exports) into PostgreSQL
 
 ### How data is saved to the database
 
-Messages, threads, and related entities are upserted into this app’s models. **Raw JSON** exports and intermediate artifacts are archived under `WORKSPACE_DIR` for replay and backfills (`backfill_discord_activity_tracker` reads the fixed import subtree).
+Messages, threads, and related entities are upserted into this app’s models. **Raw JSON** exports and intermediate artifacts are archived under `WORKSPACE_DIR` for replay and backfills (`backfill_discord_activity_tracker` reads the fixed import subtree). **References:** [docs/Schema.md, section 11 — Discord Activity Tracker](../docs/Schema.md#11-discord-activity-tracker-discord_activity_tracker) · [`models.py`](models.py) · [docs/service_api/discord_activity_tracker.md](../docs/service_api/discord_activity_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Markdown is written under **`DISCORD_CONTEXT_REPO_PATH`**. When auto-commit is e
 
 ### How vectors sync to Pinecone
 
-Unless `--skip-pinecone` (or deprecated `--ignore-pinecone`) is set, the run invokes **`run_cppa_pinecone_sync`** with the Discord preprocessor so message text becomes searchable vectors in the configured namespace.
+Unless `--skip-pinecone` (or deprecated `--ignore-pinecone`) is set, the run invokes **`run_cppa_pinecone_sync`** with the Discord preprocessor so message text becomes searchable vectors in the configured namespace. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

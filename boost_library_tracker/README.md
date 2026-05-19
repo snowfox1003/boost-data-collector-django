@@ -6,7 +6,7 @@ Tracks **Boost C++ libraries** (metadata, dependencies, GitHub linkage, releases
 
 ## Data workflow
 
-The primary entry point is **`run_boost_github_activity_tracker`**, which ties together GitHub ingest, Markdown publishing, and optional Pinecone. Orchestration and Celery wiring are described in [docs/Workflow.md](../docs/Workflow.md) and [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+The primary entry point is **`run_boost_github_activity_tracker`**, which ties together GitHub ingest, Markdown publishing, and optional Pinecone. Service details: [docs/service_api/boost_library_tracker.md](../docs/service_api/boost_library_tracker.md). Orchestration and Celery wiring: [docs/Workflow.md](../docs/Workflow.md), [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ The primary entry point is **`run_boost_github_activity_tracker`**, which ties t
 
 ### How data is saved to the database
 
-ORM models in this app store **library metadata, Boost versions, dependencies, GitHub file linkage, and activity-derived fields**. Ingest also writes/updates related rows owned by [`github_activity_tracker`](../github_activity_tracker/README.md) when the GitHub sync phase runs. Intermediate and raw artifacts land under `WORKSPACE_DIR` as configured for the pipeline.
+ORM models in this app store **library metadata, Boost versions, dependencies, GitHub file linkage, and activity-derived fields**. Ingest also writes/updates related rows owned by [`github_activity_tracker`](../github_activity_tracker/README.md) when the GitHub sync phase runs. Intermediate and raw artifacts land under `WORKSPACE_DIR` as configured for the pipeline. **References:** [docs/Schema.md, section 3 — Boost Library Tracker](../docs/Schema.md#3-boost-library-tracker) · [`models.py`](models.py) · [docs/service_api/boost_library_tracker.md](../docs/service_api/boost_library_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ ORM models in this app store **library metadata, Boost versions, dependencies, G
 
 ### How vectors sync to Pinecone
 
-Unless `--skip-pinecone` is set, the command invokes **`run_cppa_pinecone_sync`** with the GitHub issue/PR preprocessor so vectors land in the configured Pinecone **namespace** for search/RAG. Status and failures are recorded in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) tables.
+Unless `--skip-pinecone` is set, the command invokes **`run_cppa_pinecone_sync`** with the GitHub issue/PR preprocessor so vectors land in the configured Pinecone **namespace** for search/RAG. Status and failures are recorded in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) tables. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

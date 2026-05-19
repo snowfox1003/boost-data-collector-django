@@ -6,7 +6,7 @@ Large surface area: ingests **YouTube / script–related** data for CPPA workflo
 
 ## Data workflow
 
-The command runs in **phases**: queued metadata JSON → **YouTube Data API** video discovery → **transcript download** (VTT/text) → optional **Pinecone** upsert. See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+The command runs in **phases**: queued metadata JSON → **YouTube Data API** video discovery → **transcript download** (VTT/text) → optional **Pinecone** upsert. Service details: [docs/service_api/cppa_youtube_script_tracker.md](../docs/service_api/cppa_youtube_script_tracker.md). See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ The command runs in **phases**: queued metadata JSON → **YouTube Data API** vi
 
 ### How data is saved to the database
 
-Videos, transcripts, channels, and related linkage rows are persisted in this app’s models. Raw transcript files and metadata snapshots are also stored under **`WORKSPACE_DIR`** for auditing and replays.
+Videos, transcripts, channels, and related linkage rows are persisted in this app’s models. Raw transcript files and metadata snapshots are also stored under **`WORKSPACE_DIR`** for auditing and replays. **References:** [docs/Schema.md, section 10 — CPPA YouTube Script Tracker](../docs/Schema.md#10-cppa-youtube-script-tracker) · [`models.py`](models.py) · [docs/service_api/cppa_youtube_script_tracker.md](../docs/service_api/cppa_youtube_script_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Videos, transcripts, channels, and related linkage rows are persisted in this ap
 
 ### How vectors sync to Pinecone
 
-After successful ingest, the collector can shell out to **`run_cppa_pinecone_sync`** using **`--pinecone-app-id`** and **`--pinecone-namespace`** (defaults from environment—see `--help`). Failures are surfaced in logs; detailed retry state lives in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) models.
+After successful ingest, the collector can shell out to **`run_cppa_pinecone_sync`** using **`--pinecone-app-id`** and **`--pinecone-namespace`** (defaults from environment—see `--help`). Failures are surfaced in logs; detailed retry state lives in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) models. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

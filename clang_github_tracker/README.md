@@ -6,7 +6,7 @@ Collects **LLVM/Clang GitHub** activity (issues, PRs, commits) for configured re
 
 ## Data workflow
 
-`run_clang_github_tracker` mirrors the Boost pipeline at a smaller scope: **GitHub → DB + raw JSON → Markdown → optional git push → optional Pinecone**. `backfill_clang_github_tracker` replays **existing raw JSON** into the Clang tables without calling the network.
+`run_clang_github_tracker` mirrors the Boost pipeline at a smaller scope: **GitHub → DB + raw JSON → Markdown → optional git push → optional Pinecone**. `backfill_clang_github_tracker` replays **existing raw JSON** into the Clang tables without calling the network. Service details: [docs/service_api/clang_github_tracker.md](../docs/service_api/clang_github_tracker.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ Collects **LLVM/Clang GitHub** activity (issues, PRs, commits) for configured re
 
 ### How data is saved to the database
 
-Issues, PRs, commits, and supporting rows are upserted into this app’s models. **Raw JSON** mirrors the `github_activity_tracker` workspace layout under `WORKSPACE_DIR` for compatibility with shared tooling.
+PostgreSQL rows in this app are **minimal sync state**, not full GitHub payloads. **`ClangGithubIssueItem`** stores one row per issue or PR **number** (plus `is_pull_request`, `github_created_at`, **`github_updated_at`** as the API watermark for the next incremental fetch). **`ClangGithubCommit`** stores one row per **commit SHA** (plus `github_committed_at`). Titles, bodies, labels, and the rest of the API response are **not** duplicated in these tables—they are kept as **raw JSON** under `WORKSPACE_DIR`, using the same `github_activity_tracker` workspace layout as shared tooling expects. **References:** [docs/Schema.md, section 2b — Clang GitHub Tracker](../docs/Schema.md#2b-clang-github-tracker-clang_github_tracker) · [`models.py`](models.py) · [docs/service_api/clang_github_tracker.md](../docs/service_api/clang_github_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Markdown is rendered to disk, then [`publisher.py`](publisher.py) can **clone/pu
 
 ### How vectors sync to Pinecone
 
-Unless `--skip-pinecone` is set, the collector shells out to **`run_cppa_pinecone_sync`** for issues/PRs using the shared GitHub preprocessor path, landing vectors in the configured namespace.
+Unless `--skip-pinecone` is set, the collector shells out to **`run_cppa_pinecone_sync`** for issues/PRs using the shared GitHub preprocessor path, landing vectors in the configured namespace. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

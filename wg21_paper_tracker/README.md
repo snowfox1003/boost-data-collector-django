@@ -6,15 +6,20 @@ Tracks **ISO C++ committee (WG21) mailing** paper metadata: fetch pipeline, DB u
 
 ## Data workflow
 
-`run_wg21_paper_tracker` scrapes or imports committee mailings into PostgreSQL, then can signal automation hosts via **GitHub’s repository_dispatch** API when configured—distinct from publishing Markdown repos.
+`run_wg21_paper_tracker` scrapes or imports committee mailings into PostgreSQL, then can signal automation hosts via **GitHub’s repository_dispatch** API when configured—distinct from publishing Markdown repos. Service details: [docs/service_api/wg21_paper_tracker.md](../docs/service_api/wg21_paper_tracker.md).
 
 ### Where we fetch data
 
-**WG21 mailing archives / metadata endpoints** (HTTP) for the configured month window (`--from-date` / `--to-date`). CSV imports via `import_wg21_metadata_from_csv` read **local files** instead of the network.
+HTTP scrapes of the **WG21 papers site** ([`wg21_paper_tracker/fetcher.py`](fetcher.py)):
+
+- **Mailing index:** `https://www.open-std.org/jtc1/sc22/wg21/docs/papers/` — lists mailings as links like `2025/#mailing2025-02`.
+- **Per-year mailing pages:** `https://www.open-std.org/jtc1/sc22/wg21/docs/papers/<year>/` (e.g. `.../papers/2025/`) — each page holds anchored sections `mailingYYYY-MM` and the paper tables; paper PDFs/HTML live on the same host (resolved relative to that page).
+
+`run_wg21_paper_tracker` limits which mailings are processed using **`--from-date` / `--to-date`** (`YYYY-MM`). **`import_wg21_metadata_from_csv`** reads **local CSV** files instead of the network (see command `--help`).
 
 ### How data is saved to the database
 
-Papers, revisions, authors, and mailing metadata are upserted into this app’s models. Intermediate HTML or parse artifacts may land under `WORKSPACE_DIR` depending on pipeline settings.
+Papers, revisions, authors, and mailing metadata are upserted into this app’s models. Intermediate HTML or parse artifacts may land under `WORKSPACE_DIR` depending on pipeline settings. **References:** [docs/Schema.md, section 7 — WG21 Papers Tracker](../docs/Schema.md#7-wg21-papers-tracker) · [`models.py`](models.py) · [docs/service_api/wg21_paper_tracker.md](../docs/service_api/wg21_paper_tracker.md).
 
 ### How content is published to GitHub
 

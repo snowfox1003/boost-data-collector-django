@@ -6,7 +6,7 @@ Tracks **Boost mailing list** activity (messages, threads, archives) into the da
 
 ## Data workflow
 
-The collector alternates between **workspace JSON** (staging) and **PostgreSQL** as it ingests new mail, then optionally pushes vectors for search. Scheduling: [docs/Workflow.md](../docs/Workflow.md), [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml).
+The collector alternates between **workspace JSON** (staging) and **PostgreSQL** as it ingests new mail, then optionally pushes vectors for search. Service details: [docs/service_api/boost_mailing_list_tracker.md](../docs/service_api/boost_mailing_list_tracker.md). Scheduling: [docs/Workflow.md](../docs/Workflow.md), [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ The collector alternates between **workspace JSON** (staging) and **PostgreSQL**
 
 ### How data is saved to the database
 
-Messages and thread metadata are upserted into this app’s models. Fresh payloads are written as **JSON under the workspace** and then ingested into the ORM in the same run when not in `--dry-run`.
+Messages and thread metadata are upserted into this app’s models. Fresh payloads are written as **JSON under the workspace** and then ingested into the ORM in the same run when not in `--dry-run`. **References:** [docs/Schema.md, section 5 — Boost Mailing List Tracker](../docs/Schema.md#5-boost-mailing-list-tracker) · [`models.py`](models.py) · [docs/service_api/boost_mailing_list_tracker.md](../docs/service_api/boost_mailing_list_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Messages and thread metadata are upserted into this app’s models. Fresh payloa
 
 ### How vectors sync to Pinecone
 
-By default the command invokes **`run_cppa_pinecone_sync`** with [`preprocess_mailing_list_for_pinecone`](preprocessor.py) (see `preprocessor.py`), using **`--pinecone-app-type`** / **`--pinecone-namespace`** or the `BOOST_MAILING_LIST_PINECONE_*` settings.
+By default the command invokes **`run_cppa_pinecone_sync`** with [`preprocess_mailing_list_for_pinecone`](preprocessor.py) (see `preprocessor.py`), using **`--pinecone-app-type`** / **`--pinecone-namespace`** or the `BOOST_MAILING_LIST_PINECONE_*` settings. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

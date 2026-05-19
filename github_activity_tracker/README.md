@@ -4,17 +4,19 @@
 
 Collects **GitHub activity** (commits, issues, PRs, files) for configured repositories into PostgreSQL and uses the shared **`workspace/`** tree for raw JSON before ingestion. Behavior is sensitive to **rate limits**, **multiple GitHub tokens**, and **workspace layout**—see [docs/Workspace.md](../docs/Workspace.md) and [docs/operations/github.md](../docs/operations/github.md).
 
+**There is no `run_github_activity_tracker` (or similar) in this app.** Scheduled GitHub ingest is started by **other apps’** management commands, which import this package’s sync code and models—for example **`run_boost_github_activity_tracker`** in [`boost_library_tracker`](../boost_library_tracker/README.md) and **`run_clang_github_tracker`** in [`clang_github_tracker`](../clang_github_tracker/README.md). This repo’s YAML schedule and docs refer to those commands, not a `github_activity_tracker`-prefixed runner.
+
 ## Data workflow
 
-This app owns the **GitHub activity models and sync helpers** other pipelines import. There is **no** standalone `run_github_activity_tracker` scheduled command; routine Boost ingest is driven from [`boost_library_tracker`](../boost_library_tracker/README.md). See also [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+This app owns the **GitHub activity models and sync helpers** (`sync_github` and related) that **parent collectors** invoke; it does **not** register its own primary collector command. Routine Boost ingest is driven from [`boost_library_tracker`](../boost_library_tracker/README.md); LLVM/Clang activity from [`clang_github_tracker`](../clang_github_tracker/README.md). Service details: [docs/service_api/github_activity_tracker.md](../docs/service_api/github_activity_tracker.md). See also [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
 
 ### Where we fetch data
 
-**GitHub** (REST/GraphQL via `core.operations.github_ops`) when `sync_github` and related code run for a configured owner/repo window. Tokens follow the project’s `GITHUB_TOKEN` / `GITHUB_TOKENS_SCRAPING` / `GITHUB_TOKEN_WRITE` conventions (root [README](../README.md)).
+**GitHub** (REST/GraphQL via `core.operations.github_ops`) when a **calling app’s** command runs `sync_github` (or equivalent) for a configured owner/repo window—**not** via a standalone `manage.py` entrypoint defined only in `github_activity_tracker`. Tokens follow the project’s `GITHUB_TOKEN` / `GITHUB_TOKENS_SCRAPING` / `GITHUB_TOKEN_WRITE` conventions (root [README](../README.md)).
 
 ### How data is saved to the database
 
-Normalized **commits, issues, PRs, and file-change rows** are upserted into this app’s PostgreSQL models. **Raw JSON** for replay, rate-limit recovery, and backfills is written under `WORKSPACE_DIR/github_activity_tracker/` (layout details in [docs/Workspace.md](../docs/Workspace.md)).
+Normalized **commits, issues, PRs, and file-change rows** are upserted into this app’s PostgreSQL models. **Raw JSON** for replay, rate-limit recovery, and backfills is written under `WORKSPACE_DIR/github_activity_tracker/` (layout details in [docs/Workspace.md](../docs/Workspace.md)). **References:** [docs/Schema.md, section 2 — GitHub Activity Tracker](../docs/Schema.md#2-github-activity-tracker) · [`models.py`](models.py) · [docs/service_api/github_activity_tracker.md](../docs/service_api/github_activity_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +24,7 @@ Normalized **commits, issues, PRs, and file-change rows** are upserted into this
 
 ### How vectors sync to Pinecone
 
-**Indirect.** [`preprocessors/github_preprocess.py`](preprocessors/github_preprocess.py) builds document dicts for `cppa_pinecone_sync.sync.sync_to_pinecone`. Upserts are invoked from those parent commands when Pinecone sync is enabled—not from the maintenance commands in this README.
+**Indirect.** [`preprocessors/github_preprocess.py`](preprocessors/github_preprocess.py) builds document dicts for `cppa_pinecone_sync.sync.sync_to_pinecone`. Upserts are invoked from those parent commands when Pinecone sync is enabled—not from the maintenance commands in this README. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 
@@ -31,7 +33,7 @@ Normalized **commits, issues, PRs, and file-change rows** are upserted into this
 
 ## Main commands in this app
 
-This package does **not** ship a `run_github_*` collector command—routine GitHub sync for Boost flows through **`run_boost_github_activity_tracker`** in [`boost_library_tracker`](../boost_library_tracker/README.md). The commands below are **maintenance** utilities shipped with `github_activity_tracker`.
+This package does **not** ship a primary `run_github_*` collector for the YAML schedule. Boost flows use **`run_boost_github_activity_tracker`** ([`boost_library_tracker`](../boost_library_tracker/README.md)); Clang flows use **`run_clang_github_tracker`** ([`clang_github_tracker`](../clang_github_tracker/README.md)). The commands documented below are **maintenance** utilities only (`migrate_workspace_layout`, `backfill_300_file_commits`).
 
 ### `migrate_workspace_layout`
 

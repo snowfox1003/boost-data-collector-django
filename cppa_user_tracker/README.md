@@ -2,48 +2,51 @@
 
 ## Overview
 
-Tracks **CPPA user and GitHub account** linkage: profiles, org membership, and related metadata used elsewhere in the project. Feeds dashboards and permission-style workflows.
+**Identity and profiles for CPPA workflows** — GitHub accounts, Slack/Discord profiles, mailing identities, staging rows, and helpers other apps call while they ingest. This app is **not** a standalone “hit an API and fill the DB” collector today.
 
-**Automatic user classification and identity linking are not implemented yet** — `run_cppa_user_tracker` is still a stub; profiles are created or updated by other collectors via [`services.py`](services.py).
+**`run_cppa_user_tracker`** is still a **stub** (it logs and exits successfully). **Real writes** happen when **other apps** import [`services.py`](services.py) during Slack, GitHub, Discord, mailing list, or similar runs.
 
-## Data workflow
+**Docs:** [docs/service_api/cppa_user_tracker.md](../docs/service_api/cppa_user_tracker.md) · [docs/Schema.md, section 1 — Base tables, Identity, and profiles](../docs/Schema.md#1-base-tables-identity-and-profiles) · [`models.py`](models.py)
 
-Today, **domain data is populated indirectly**: other apps call into [`services.py`](services.py) while ingesting Slack/GitHub identities. The management command remains a **stub** until merge/staging logic ships. Schema: [docs/Schema.md](../docs/Schema.md).
+## What lives in this app
 
-### Where we fetch data
+| Piece | Role |
+| --- | --- |
+| **ORM models** | `Identity`, profiles (`BaseProfile` subclasses), `GitHubAccount`, `Email`, staging (`TmpIdentity`, `TempProfileIdentityRelation`), and related linkage — see Schema §1. |
+| **`services.py`** | **Primary API** for get-or-create and updates; called from other collectors, not only from this app’s management command. |
+| **`run_cppa_user_tracker`** | Placeholder scheduled entrypoint until staging/merge logic is implemented. |
 
-**No standalone external fetch in `run_cppa_user_tracker` yet.** Identity-bearing collectors (Slack, GitHub, and so on) retrieve user records from their respective APIs and pass normalized fields into this app’s services/models.
+## How data gets into the database
 
-### How data is saved to the database
+1. **Upstream collectors** (e.g. [`cppa_slack_tracker`](../cppa_slack_tracker/README.md), [`github_activity_tracker`](../github_activity_tracker/README.md)) call the network and parse payloads.
+2. They invoke **`cppa_user_tracker.services`** helpers to **upsert** users, accounts, and profile rows this app owns.
+3. **`run_cppa_user_tracker`** does **not** perform that fetch path yet; keep it in the schedule only if you want a no-op heartbeat until real logic ships.
 
-When implemented, staging tables (**`TmpIdentity`**, **`TempProfileIdentityRelation`**, and related rows) will hold merge candidates; today most durable writes happen **from other apps** invoking `services.py` helpers during their own runs.
+## What this app does *not* do (today)
 
-### How content is published to GitHub
-
-**Not applicable** for the stub command. There is no Markdown or git push phase in `run_cppa_user_tracker`.
-
-### How vectors sync to Pinecone
-
-**Not applicable today.** The stub collector does not call `cppa_pinecone_sync`. If identity-aware search is added later, follow [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md) and wire a preprocessor plus `run_cppa_pinecone_sync`.
+- **No dedicated external fetch** in the management command — no Slack/GitHub client owned solely by this stub.
+- **No Markdown or git push** from `run_cppa_user_tracker`.
+- **No Pinecone** — no call to [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md); if you add identity-aware search later, add a preprocessor and call `run_cppa_pinecone_sync` per [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 
-- Run the tracker: `python manage.py run_cppa_user_tracker --help`.
-- If you see missing tables locally, run migrations (root [README](../README.md#initial-setup)).
+- Inspect or extend writes: read [`services.py`](services.py) and [docs/service_api/cppa_user_tracker.md](../docs/service_api/cppa_user_tracker.md).
+- Smoke the stub: `python manage.py run_cppa_user_tracker --help`.
+- Missing tables locally: run migrations (root [README](../README.md#initial-setup)).
 
 ## Main command: `run_cppa_user_tracker`
 
-Runs the identity/profile staging pipeline (**collector stub today**—see `management/commands/run_cppa_user_tracker.py`). No app-specific CLI flags beyond Django’s defaults (`--verbosity`, etc.); Pinecone and GitHub publish hooks are **not** active until real collect logic lands.
+Collector **stub** — validates the `BaseCollectorCommand` wiring and prints success; **no** custom CLI flags yet beyond Django defaults (`--verbosity`, etc.).
 
 | Option | Description |
 | --- | --- |
-| _(none)_ | No custom arguments; behavior is fixed in code until staging/merge logic grows flags. |
+| _(none)_ | No app-specific arguments until staging/merge work adds them. |
 
 ## Management commands
 
 | Command | Purpose |
 | --- | --- |
-| `run_cppa_user_tracker` | Primary scheduled collector for user/GitHub data. |
+| `run_cppa_user_tracker` | Scheduled placeholder for future identity/staging pipeline. |
 
 Run `python manage.py COMMAND --help` for options.
 

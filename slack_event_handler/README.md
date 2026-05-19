@@ -6,7 +6,7 @@ Django app that runs a **Slack Socket Mode** listener during **`runserver`** so 
 
 ## Data workflow
 
-This app is **event-driven**, not YAML-scheduled like the batch collectors. It reacts to Slack events (for example huddle canvases), writes lightweight **workspace JSON/HTML**, and can upload generated Markdown to GitHub. It **does not** define ORM models for long-term analytics—that work belongs to [`cppa_slack_tracker`](../cppa_slack_tracker/README.md).
+This app is **event-driven**, not YAML-scheduled like the batch collectors. It reacts to Slack events (for example huddle canvases), writes lightweight **workspace JSON/HTML**, and can upload generated Markdown to GitHub. Per-app service APIs: [docs/service_api/README.md](../docs/service_api/README.md). It **does not** define ORM models for long-term analytics—that work belongs to [`cppa_slack_tracker`](../cppa_slack_tracker/README.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ This app is **event-driven**, not YAML-scheduled like the batch collectors. It r
 
 ### How data is saved to the database
 
-**No Django ORM persistence here.** Working state, downloaded JSON, and HTML live under the app’s **workspace data directory** (`slack_event_handler` helpers in [`workspace.py`](workspace.py)).
+**No Django ORM persistence in this app.** Working state, downloaded JSON, and HTML live under the **workspace** (`slack_event_handler` helpers in [`workspace.py`](workspace.py)). For long-lived Slack rows, see [`cppa_slack_tracker`](../cppa_slack_tracker/README.md) and [docs/Schema.md, section 6 — Slack Activity Tracker](../docs/Schema.md#6-slack-activity-tracker).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ This app is **event-driven**, not YAML-scheduled like the batch collectors. It r
 
 ### How vectors sync to Pinecone
 
-**Not applicable.** Huddle transcripts are not upserted by this listener; use batch pipelines + [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) if Slack text should also live in the vector index.
+**Not applicable.** Huddle transcripts are not upserted by this listener; use batch pipelines + [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) if Slack text should also live in the vector index. See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

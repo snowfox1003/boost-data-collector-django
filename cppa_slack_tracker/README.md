@@ -6,7 +6,7 @@ Collects **Slack workspace data** for CPPA workflows: channels, messages, and re
 
 ## Data workflow
 
-`run_cppa_slack_tracker` is the batch entry point: it walks the Slack Web API for the configured **team** and persists normalized rows. Workspace JSON may retain exports for debugging or legacy imports. See [docs/Workspace.md](../docs/Workspace.md) and [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+`run_cppa_slack_tracker` is the batch entry point: it walks the Slack Web API for the configured **team** and persists normalized rows. Service details: [docs/service_api/cppa_slack_tracker.md](../docs/service_api/cppa_slack_tracker.md). Workspace JSON may retain exports for debugging or legacy imports. See [docs/Workspace.md](../docs/Workspace.md) and [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ Collects **Slack workspace data** for CPPA workflows: channels, messages, and re
 
 ### How data is saved to the database
 
-Slack **teams, users, channels, memberships, and messages** are upserted into this app’s ORM models. Raw or supplemental JSON may be written under `WORKSPACE_DIR` when the collector is configured to archive payloads.
+Slack **teams, users, channels, memberships, and messages** are upserted into this app’s ORM models. Raw or supplemental JSON may be written under `WORKSPACE_DIR` when the collector is configured to archive payloads. **References:** [docs/Schema.md, section 6 — Slack Activity Tracker](../docs/Schema.md#6-slack-activity-tracker) · [`models.py`](models.py) · [docs/service_api/cppa_slack_tracker.md](../docs/service_api/cppa_slack_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Slack **teams, users, channels, memberships, and messages** are upserted into th
 
 ### How vectors sync to Pinecone
 
-After message sync, the command can call **`sync_to_pinecone`** from [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) with [`preprocessor.py`](preprocessor.py) (`preprocess_slack_for_pinecone`), unless `--ignore-pinecone` is set. Namespace and app-type strings are derived from settings (for example `PINECONE_SLACK_NAMESPACE_PREFIX` plus team name).
+After message sync, the command can call **`sync_to_pinecone`** from [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) with [`preprocessor.py`](preprocessor.py) (`preprocess_slack_for_pinecone`), unless `--ignore-pinecone` is set. Namespace and app-type strings are derived from settings (for example `PINECONE_SLACK_NAMESPACE_PREFIX` plus team name). See [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
 
 ## Common tasks
 

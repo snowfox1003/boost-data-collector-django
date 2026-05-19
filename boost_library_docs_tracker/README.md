@@ -10,15 +10,28 @@ Fetches and converts **Boost library documentation** (HTML and related sources) 
 
 ### Where we fetch data
 
-**Boost doc sources**: HTTP crawl of published library docs and/or a **downloaded Boost source archive** (`--use-local`), optionally scoped by `--library` and `--versions`. Release discovery may call the **GitHub API** when versions are not passed explicitly.
+**Published docs (default, HTTP crawl)**
+Crawl starts from paths derived from each library’s metadata and stays under:
+
+- Base: `https://www.boost.org/doc/libs/<version_underscores>/`
+  Example: Boost `1.90.0` → `https://www.boost.org/doc/libs/1_90_0/` (see `boost_library_docs_tracker/fetcher.py`: `BOOST_ORG_BASE` + `/doc/libs/...`).
+
+**Downloaded source (`--use-local`)**
+Per version, the source zip is downloaded (then extracted under `WORKSPACE_DIR`) using, in order:
+
+1. `https://archives.boost.io/release/<version>/source/boost_<version_underscores>.zip`
+2. Fallback: `https://github.com/boostorg/boost/archive/refs/tags/boost-<version>.zip`
+
+**Which versions**
+Pass **`--versions`** explicitly, or omit it to use the **latest row in the `BoostVersion` table** (PostgreSQL). This command does **not** call the GitHub API itself for version discovery; populate versions/libraries via **`boost_library_tracker`** (and related flows) first. Scope libraries with **`--library`** when needed.
 
 ### How data is saved to the database
 
-**`BoostDocContent`**, **`BoostLibraryDocumentation`**, and related rows hold page text, URLs, and crawl metadata. Converted Markdown and intermediate files are also written under **`WORKSPACE_DIR`** for auditing and reprocessing.
+**`BoostDocContent`**, **`BoostLibraryDocumentation`**, and related rows store URLs, content hashes, version links, and sync metadata; **converted Markdown lives on disk under `WORKSPACE_DIR`**, not in these table payloads (see the model docstrings in [`models.py`](models.py)). **Canonical schema:** [docs/Schema.md, section 10 — Boost Library Docs Tracker](../docs/Schema.md#10-boost-library-docs-tracker) (ER diagram and field notes). **Related docs:** [docs/boost_library_docs_tracker.md](../docs/boost_library_docs_tracker.md) (commands and workspace layout) and [docs/service_api/boost_library_docs_tracker.md](../docs/service_api/boost_library_docs_tracker.md) (service API for writes to these models).
 
 ### How content is published to GitHub
 
-**Not part of this app’s default pipeline.** Documentation is retained in PostgreSQL, the workspace, and (when enabled) Pinecone—not pushed as a standalone Markdown repo by this collector.
+**Not part of this app’s pipeline.** There is no git commit or Markdown repo push from this collector.
 
 ### How vectors sync to Pinecone
 
@@ -36,7 +49,7 @@ Scrapes Boost library docs for one or more versions, writes workspace + `BoostDo
 
 | Option | Description |
 | --- | --- |
-| `--versions` | Zero or more Boost versions (e.g. `1.86.0 1.87.0`). **Omitted** → latest release from GitHub API. |
+| `--versions` | Zero or more Boost versions (e.g. `1.86.0 1.87.0`). **Omitted** → latest version from the **`BoostVersion`** table (run `boost_library_tracker` first if empty). |
 | `--library` | Limit scrape to one library key (e.g. `algorithm`). Default: all libraries for each version. |
 | `--dry-run` | Parse/fetch without writing DB, workspace, or Pinecone. |
 | `--skip-pinecone` | Write DB + workspace but skip Pinecone upsert. |

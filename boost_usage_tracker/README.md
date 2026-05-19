@@ -6,7 +6,7 @@ Collects **Boost library usage signals** (e.g. repository metadata tied to Boost
 
 ## Data workflow
 
-Commands here focus on **GitHub-derived usage signals** (repository content, stars) and periodic **DB maintenance** helpers. See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md) for how this fits the wider platform.
+Commands here focus on **GitHub-derived usage signals** (repository content, stars) and periodic **DB maintenance** helpers. Service details: [docs/service_api/boost_usage_tracker.md](../docs/service_api/boost_usage_tracker.md). See [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md) for how this fits the wider platform.
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ Commands here focus on **GitHub-derived usage signals** (repository content, sta
 
 ### How data is saved to the database
 
-Usage signals and discovered repositories are upserted into this app’s models (`run_boost_usage_tracker`, `run_update_created_repos_by_language`). **`run_update_db`** performs targeted refreshes or housekeeping defined in that command’s implementation. Optional CSV or staging paths may use `WORKSPACE_DIR` for exports.
+Usage signals and discovered repositories are upserted into this app’s models (`run_boost_usage_tracker`, `run_update_created_repos_by_language`). **`run_update_db`** performs targeted refreshes or housekeeping defined in that command’s implementation. Optional CSV or staging paths may use `WORKSPACE_DIR` for exports. **References:** [docs/Schema.md, section 4 — Boost Usage Tracker](../docs/Schema.md#4-boost-usage-tracker) · [`models.py`](models.py) · [docs/service_api/boost_usage_tracker.md](../docs/service_api/boost_usage_tracker.md).
 
 ### How content is published to GitHub
 
@@ -22,7 +22,7 @@ Usage signals and discovered repositories are upserted into this app’s models 
 
 ### How vectors sync to Pinecone
 
-**Not applicable.** There is no Pinecone sync phase in this app.
+**Not applicable.** There is no Pinecone sync phase in this app. Other collectors follow [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md) when they upsert usage-adjacent text.
 
 ## Common tasks
 

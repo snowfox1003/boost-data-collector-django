@@ -2,7 +2,7 @@
 
 ## Overview
 
-Shared infrastructure for collectors and cross-cutting utilities. Tracker apps import from here; this package is **not** where app-specific database writes live (use each app’s `services.py`).
+**`core`** is shared **library code** for this repo: collector base classes, GitHub/Slack/markdown/file helpers, error classification, and small Django management commands. Tracker apps **import** from here; they own schedules, external fetches, domain models, and persistence.
 
 | Area | Path | Documentation |
 | --- | --- | --- |
@@ -12,40 +12,29 @@ Shared infrastructure for collectors and cross-cutting utilities. Tracker apps i
 | Tests | [`tests/`](tests/) | _(no README — run pytest below)_ |
 | Management commands | [`management/commands/`](management/commands/) | [Management commands](#management-commands) (this file) |
 
-**Top-level modules** (no subfolder): [`errors.py`](errors.py) (`classify_failure`), [`protocols.py`](protocols.py) (portable DTO protocols), [`workspace_orphans.py`](workspace_orphans.py) (workspace cleanup helpers). [`models.py`](models.py) is intentionally empty.
+**Top-level modules** (no subfolder): [`errors.py`](errors.py) (`classify_failure`), [`protocols.py`](protocols.py) (portable DTO protocols), [`workspace_orphans.py`](workspace_orphans.py) (workspace cleanup helpers). [`models.py`](models.py) is intentionally empty — **no domain tables** live in `core`.
 
 Other folders: [`migrations/`](migrations/) (no models today), [`pyright_samples/`](pyright_samples/) (protocol typing samples for Pyright, not runtime tests).
 
-Long-form operations design: [docs/operations/](../docs/operations/README.md).
+Long-form design: [docs/operations/](../docs/operations/README.md), platform flow: [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
 
-## Data workflow
+## What `core` is not
 
-`core` is **shared library code** (collector bases, GitHub/Slack/markdown/file helpers). It is listed in `INSTALLED_APPS` but has **no domain ORM models** and no scheduled “collector” of its own. Cross-app flow is documented in [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md).
+- **Not a data source.** Nothing in `core` runs on a collector schedule or “fetches the internet” by itself. HTTP/API/git calls happen when **another app** invokes helpers under [`operations/`](operations/).
+- **Not a place for domain writes.** Business tables belong in tracker apps; use each app’s **`services.py`** (see [docs/Contributing.md](../docs/Contributing.md)).
+- **Not Pinecone or Markdown publishing.** Vector upserts live in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) with app-specific preprocessors ([docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md)). Git push / repo export is triggered from **those apps**, using `core.operations` primitives where needed.
 
-### Where we fetch data
+## How other apps use `core`
 
-**Not applicable as a single pipeline.** Subpackages under [`operations/`](operations/) wrap external systems when **another app** calls them—for example GitHub REST/GraphQL and git operations ([`github_ops`](operations/github_ops/README.md)), Slack web APIs ([`slack_ops`](operations/slack_ops/README.md)), and HTML or issue/PR → Markdown conversion ([`md_ops`](operations/md_ops/README.md)).
+1. **Collectors** — App commands subclass [`AbstractCollector`](collectors/) / [`BaseCollectorCommand`](collectors/) so runs share validation, logging, and optional hooks. See [docs/How_to_add_a_collector.md](../docs/How_to_add_a_collector.md).
+2. **Operations** — When a tracker decides to talk to GitHub, Slack, or the filesystem, it calls into [`operations/`](operations/) (REST clients, git, Markdown export, path helpers). `core` supplies the **tools**; the app supplies the **workflow** and **models**.
 
-### How data is saved to the database
-
-**Not here.** Database writes happen in tracker apps that import `core.collectors` or `core.operations` and persist via their own models.
-
-### How content is published to GitHub
-
-**Not here by default.** Helpers such as [`github_ops.git_ops`](operations/github_ops/README.md) and [`md_ops.github_export`](operations/md_ops/README.md) are used **by tracker apps** to upload files, open PRs, or push clones when those apps’ collectors are configured to publish.
-
-### How vectors sync to Pinecone
-
-**Not here.** Vector upserts are implemented in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md); preprocessors often live next to the domain app that owns the source rows.
+There is **no** `run_core_*` collector. Entry points remain each app’s `manage.py run_*` commands listed in their READMEs and in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml).
 
 ## Common tasks
 
 - Add or change a collector: [docs/How_to_add_a_collector.md](../docs/How_to_add_a_collector.md); subclass `AbstractCollector` / use `BaseCollectorCommand` from [`collectors/`](collectors/).
 - List cross-app imports (refactors): `python scripts/list_cross_app_imports.py`.
-
-## `run_*` commands
-
-**`core`** does not define a `run_core_*` collector. Shared collector helpers live under [`collectors/`](collectors/) and are used from each app’s `run_*` command (see app READMEs).
 
 ## Management commands
 

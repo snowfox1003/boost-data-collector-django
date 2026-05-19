@@ -6,7 +6,7 @@ Maintains **usage and dashboard-oriented** data for Boost libraries (aggregates 
 
 ## Data workflow
 
-`run_boost_library_usage_dashboard` **reads metrics already stored in PostgreSQL**, generates human-readable reports (Markdown/HTML), and can **publish** static assets to a GitHub repository used for dashboards. Schema: [docs/Schema.md](../docs/Schema.md).
+`run_boost_library_usage_dashboard` **reads metrics already stored in PostgreSQL**, generates human-readable reports (Markdown/HTML), and can **publish** static assets to a GitHub repository used for dashboards. Dashboard metrics align with **Boost usage** catalog data: [docs/Schema.md, section 4 — Boost Usage Tracker](../docs/Schema.md#4-boost-usage-tracker). Models are re-exported from **`boost_usage_tracker`** — see [`models.py`](models.py) and [docs/service_api/boost_usage_tracker.md](../docs/service_api/boost_usage_tracker.md).
 
 ### Where we fetch data
 
@@ -14,7 +14,7 @@ Maintains **usage and dashboard-oriented** data for Boost libraries (aggregates 
 
 ### How data is saved to the database
 
-The command **refreshes dashboard-oriented tables** and derived aggregates defined in this app’s models and services so downstream reporting stays current. Local **HTML/Markdown** outputs may be written under `WORKSPACE_DIR` before publish.
+The command **refreshes dashboard-oriented tables** and derived aggregates defined in this app’s models and services so downstream reporting stays current. Local **HTML/Markdown** outputs may be written under `WORKSPACE_DIR` before publish. **References:** [docs/Schema.md, section 4 — Boost Usage Tracker](../docs/Schema.md#4-boost-usage-tracker) · [`models.py`](models.py) (re-exports **`boost_usage_tracker`**) · [docs/service_api/boost_usage_tracker.md](../docs/service_api/boost_usage_tracker.md).
 
 ### How content is published to GitHub
 
@@ -27,7 +27,7 @@ When `--skip-publish` is **not** set, [`publisher.py`](publisher.py) prepares th
 ## Common tasks
 
 - Run the tracker: `python manage.py run_boost_library_usage_dashboard --help`.
-- Schema and relationships: [docs/Schema.md](../docs/Schema.md).
+- Schema: [docs/Schema.md, section 4 — Boost Usage Tracker](../docs/Schema.md#4-boost-usage-tracker).
 
 ## Main command: `run_boost_library_usage_dashboard`
 

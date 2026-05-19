@@ -2,43 +2,60 @@
 
 ## Overview
 
-Syncs preprocessed documents into **Pinecone** for search/RAG flows. The management command expects an **app type**, **namespace**, and **preprocessor dotted path**—see the command docstring for the exact contract and usage examples.
+**Vector sync only.** This Django app is the shared pipeline that **embeds and upserts** documents into **Pinecone** (hybrid dense + sparse, integrated cloud embeddings). It does **not** crawl GitHub, Slack, or the web; upstream collectors populate PostgreSQL and/or the workspace, then call **`sync_to_pinecone()`** or **`run_cppa_pinecone_sync`**.
 
-## Data workflow
+Each run targets exactly one logical source (**`--app-type`**), one **namespace**, one **preprocessor** import path, and one **Pinecone account** selected by **`--pinecone-instance`** (`public` or `private` — see [`ingestion.PineconeInstance`](ingestion.py)).
 
-This app is the **shared vector upsert pipeline**. Other collectors populate PostgreSQL (and sometimes the workspace); they call `sync_to_pinecone()` or schedule `run_cppa_pinecone_sync`. Background: [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md), preprocessor contract: [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md).
+**Docs:** [docs/service_api/cppa_pinecone_sync.md](../docs/service_api/cppa_pinecone_sync.md) · [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md) · [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md)
 
-### Where we fetch data
+## What runs in a sync
 
-**Upstream sources vary by caller.** This app does not scrape GitHub or Slack itself. It loads **sync state** from its own Django models (`PineconeSyncStatus`, `PineconeFailList`), then runs the registered **preprocessor** (Python import path you pass in), which reads the relevant rows and/or files for that `app_type` and builds document payloads for embedding and upsert.
+1. **Load sync bookkeeping** from this app’s models (`PineconeSyncStatus`, `PineconeFailList`) so runs can resume and retry safely.
+2. **Import and run the preprocessor** you pass in (`--preprocessor` dotted path). That callable reads **other apps’** rows and/or workspace files and returns document dicts for embedding.
+3. **Chunk, embed, and upsert** into Pinecone via [`ingestion.PineconeIngestion`](ingestion.py), using the API key for the chosen **`PineconeInstance`** (`PINECONE_API_KEY` vs `PINECONE_PRIVATE_API_KEY` and related settings).
+4. **Update** `PineconeSyncStatus` / `PineconeFailList` only — domain tables stay owned by the source app.
 
-### How data is saved to the database
+## Pinecone instance (`public` vs `private`)
 
-The sync run **updates** `cppa_pinecone_sync` tables: last-success timestamps, retry metadata, and failed vector IDs—so the next run can resume safely. It does **not** replace other apps’ domain tables; those remain the system of record for messages, issues, docs, and so on.
+| CLI | Meaning |
+| --- | --- |
+| `--pinecone-instance public` (default) | Use the **public** Pinecone project credentials from Django settings (`PINECONE_API_KEY`, index/host settings, embedding model names). |
+| `--pinecone-instance private` | Use the **private** Pinecone project (`PINECONE_PRIVATE_API_KEY` and its index configuration). |
 
-### How content is published to GitHub
+Pick the instance that matches where the **namespace** for this `app_type` was provisioned. Wrong instance → wrong index/credentials, not a second “mode” of ingest.
 
-**Not applicable.** This app only talks to the Pinecone API (and the embedding path configured for sync). Markdown or git pushes belong to other apps.
+## What this app stores in PostgreSQL
 
-### How vectors sync to Pinecone
+Only **sync metadata** lives here — not messages, issues, or docs.
 
-`run_cppa_pinecone_sync` (or a direct `sync_to_pinecone()` call) **embeds and upserts** vectors into the given **namespace**, using the **public** or **private** Pinecone credentials from Django settings (`--pinecone-instance`). Failed chunks are recorded for retry; successful runs advance sync status.
+| Model | Role |
+| --- | --- |
+| **`PineconeSyncStatus`** | One row per `app_type`; `final_sync_at` marks last successful sync for incrementality with preprocessors. |
+| **`PineconeFailList`** | Failed vector ids (and `app_type`) for retry or audit. |
+
+**References:** [docs/Schema.md, section 9 — CPPA Pinecone Sync](../docs/Schema.md#9-cppa-pinecone-sync) · [`models.py`](models.py) · [docs/service_api/cppa_pinecone_sync.md](../docs/service_api/cppa_pinecone_sync.md).
+
+## What this app does *not* do
+
+- **No external “fetch” phase** — no scheduled scrape of third-party APIs inside this package.
+- **No GitHub / Markdown publishing** — those belong to tracker apps and `core.operations`.
+- **No writes to other apps’ domain tables** — preprocessors read them; this app only updates **`cppa_pinecone_sync_*`** tables and calls the Pinecone API.
 
 ## Common tasks
 
-- Single sync invocation (three required args): `python manage.py run_cppa_pinecone_sync --help`
-- Wire new namespaces from other apps via their preprocessors (see [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md)).
+- One-off sync: `python manage.py run_cppa_pinecone_sync --help` (requires `--app-type`, `--namespace`, `--preprocessor` together).
+- Add a new namespace: implement a preprocessor per [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md), then invoke from the owning collector or Celery task.
 
 ## Main command: `run_cppa_pinecone_sync`
 
-Runs `sync_to_pinecone` for **one** preprocessor + namespace. **`--app-type`, `--namespace`, and `--preprocessor` are required together** (validated in the command).
+Wraps **`sync_to_pinecone()`** for a single **(app_type, namespace, preprocessor, instance)** tuple.
 
 | Option | Description |
 | --- | --- |
-| `--app-type` | Logical source id (e.g. mailing-list app type string). |
-| `--namespace` | Pinecone namespace to upsert into. |
+| `--app-type` | Logical source id (string your preprocessor understands; often matches the upstream collector’s app type). |
+| `--namespace` | Target Pinecone namespace for upserts. |
 | `--preprocessor` | Dotted import path to the preprocess callable (e.g. `myapp.preprocessors.foo`). |
-| `--pinecone-instance` | `public` (default) or `private` — selects which Pinecone API credentials to use. |
+| `--pinecone-instance` | `public` (default) or `private` — which Pinecone API credentials / project to use ([`PineconeInstance`](ingestion.py)). |
 
 ## Package
 
@@ -50,7 +67,7 @@ Runs `sync_to_pinecone` for **one** preprocessor + namespace. **`--app-type`, `-
 
 | Command | Description |
 | --- | --- |
-| `run_cppa_pinecone_sync` | Management command: run_cppa_pinecone_sync |
+| `run_cppa_pinecone_sync` | Run one preprocessor-driven upsert into Pinecone for the given app type, namespace, and instance. |
 
 Run `python manage.py <command> --help` for options.
 

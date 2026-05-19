@@ -2,63 +2,67 @@
 
 ## Overview
 
-YAML-driven **orchestration** for collector commands: loads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) and runs the right `manage.py` commands on a schedule (typically via **Celery Beat** + worker). This is the glue between “what runs daily/hourly” and individual tracker apps.
+This Django app **orchestrates** collector work: it reads a YAML schedule, decides which `manage.py` commands should run for a given trigger (daily, weekly, monthly, interval, or on Boost release), and runs them **in process** via Django’s `call_command`. It does **not** fetch remote data, write to your tracker models, or define collectors—that logic lives in the other apps whose management commands you list in the schedule.
 
-## Data workflow
+## How this app works
 
-For end-to-end ingest and vector search, see [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md). This app only **orchestrates** other commands; it does not call external APIs or own database tables.
+1. **Schedule file**
+   The canonical file is [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml). You can point elsewhere with the `BOOST_COLLECTOR_SCHEDULE_YAML` setting (see [`schedule_config.py`](schedule_config.py)).
 
-### Where we fetch data
+2. **Load and validate**
+   [`schedule_config.load_config`](schedule_config.py) reads the YAML and validates structure: each **group** has a `default_time` (UTC `HH:MM`) and a list of **tasks**. Each task has at least `command` (a Django management command name) and `schedule` (`daily`, `weekly`, `monthly`, `on_release`, or `interval`), plus optional `args`, `enabled`, and schedule-specific fields (`on` / `day_of_week`, `on` / `day_of_month`, `minutes` for interval).
 
-**Not applicable at this layer.** `run_scheduled_collectors` reads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) and invokes the listed `manage.py` commands. Each target app performs its own fetches (GitHub, Slack, Discord, mailing lists, YouTube, and so on).
+3. **Which tasks run**
+   [`get_tasks_for_schedule`](schedule_config.py) filters tasks to those matching the current invocation: schedule kind, optional **group** id, weekday for weekly, day for monthly, or interval length. The **`default`** schedule kind is special: it is used for the **group batch** (daily + weekly-for-today + monthly-for-today + optional `on_release` in one run); interval tasks are excluded from that batch and are triggered separately.
 
-### How data is saved to the database
+4. **`run_scheduled_collectors`**
+   The [management command](management/commands/run_scheduled_collectors.py) calls `get_tasks_for_schedule`, then runs each selected task **sequentially** with `call_command(command, *args)`. Exit status is **0** only if every command succeeds (unless `--stop-on-failure` stops early). For `on_release` (and for `default` when release tasks are included), it consults `boost_library_tracker.release_check.has_new_boost_release()`; if there is no new Boost release, `on_release` tasks are skipped.
 
-**Not applicable at this layer.** Persistence happens inside the collector commands this runner starts (PostgreSQL via each app’s models, plus workspace files under `WORKSPACE_DIR` where those collectors write raw or intermediate data).
+5. **Celery Beat**
+   [`get_beat_schedule`](schedule_config.py) builds `CELERY_BEAT_SCHEDULE` entries: one **crontab** per group at that group’s `default_time` (running the group batch via kwargs `schedule_kind=default` and `group_id=...`), and separate **interval** entries per distinct `minutes` value that invoke the same command with `schedule_kind=interval`. The Celery entry point is [`run_scheduled_collectors_task`](tasks.py), which forwards to `run_scheduled_collectors` with the right CLI flags.
 
-### How content is published to GitHub
+6. **No app-owned data**
+   This package has [no models](models.py); it only wires configuration to management commands.
 
-**Not applicable at this layer.** Git commits, uploads, or dashboard publishes are implemented inside the invoked collector apps (for example `run_boost_github_activity_tracker` or `run_boost_library_usage_dashboard`), not in `boost_collector_runner`.
-
-### How vectors sync to Pinecone
-
-**Not applicable at this layer.** When the schedule includes a task that runs Pinecone sync (directly or as a phase of another collector), that logic lives in `cppa_pinecone_sync` or in the specific tracker command.
+For broader platform context (databases, deployment, other services), see the repo root [README](../README.md) and [docs/Workflow.md](../docs/Workflow.md) where the schedule is documented.
 
 ## Common tasks
 
-- Run a schedule group once (smoke test): `python manage.py run_scheduled_collectors --schedule daily --group github` (see root [README](../README.md)).
-- Change what runs when: edit the YAML schedule and redeploy; keep command names in sync with each app’s `management/commands/`.
+- Run one schedule group once (smoke test):
+  `python manage.py run_scheduled_collectors --schedule daily --group github`
+  (more examples in the root [README](../README.md).)
+- Change what runs when: edit the YAML schedule and redeploy; keep `command` values aligned with real commands under each app’s `management/commands/`.
 
 ## Main command: `run_scheduled_collectors`
 
-Runs collector tasks from [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) for the selected schedule type. Exits with status **0** only when all invoked collectors succeed (see `--stop-on-failure`).
+Runs tasks from the schedule file for the selected schedule type. Exits with status **0** only when all invoked collectors succeed (see `--stop-on-failure`).
 
 | Option | Description |
 | --- | --- |
-| `--schedule` | **Required.** `daily` \| `weekly` \| `monthly` \| `on_release` \| `interval` \| `default`. `default` runs daily + weekly (today) + monthly (today) + on_release when applicable; **`default` requires `--group`**. |
+| `--schedule` | **Required.** `daily` \| `weekly` \| `monthly` \| `on_release` \| `interval` \| `default`. `default` runs the group batch (daily + weekly for today + monthly for today + on_release when applicable); **`default` requires `--group`**. |
 | `--day-of-week` | For `weekly`: weekday name (e.g. `monday`). **Required** when `--schedule weekly`. |
 | `--day-of-month` | For `monthly`: day 1–31. **Required** when `--schedule monthly`. |
 | `--interval-minutes` | For `interval`: repeat every *N* minutes (1–180). **Required** when `--schedule interval`. |
-| `--group` | Run only tasks in this YAML group. Applies to all schedule kinds; **required** with `--schedule default`. |
+| `--group` | Limit to one YAML group. **Required** with `--schedule default`. For other schedule kinds, omit to run every group. |
 | `--stop-on-failure` | Stop after the first failing collector instead of continuing. |
+
+Run `python manage.py run_scheduled_collectors --help` for the full CLI.
 
 ## Package
 
 - **Django app label:** `boost_collector_runner`
 - **Path (from repo root):** `boost_collector_runner/`
-- **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py) as `boost_collector_runner`.
+- **Registration:** Listed under `INSTALLED_APPS` in [`config/settings.py`](../config/settings.py).
 
 ## Management commands
 
 | Command | Description |
 | --- | --- |
-| `run_scheduled_collectors` | Run collectors from config/boost_collector_schedule.yaml for a given schedule (daily, weekly, monthly, interval, on_release). |
-
-Run `python manage.py <command> --help` for options.
+| `run_scheduled_collectors` | Run collectors from the YAML schedule for a given schedule type and optional group. |
 
 ## Tests
 
-Typical invocation (from repo root, after [README prerequisites](../README.md#running-tests)):
+From the repo root (after [README prerequisites](../README.md#running-tests)):
 
 ```bash
 python -m pytest boost_collector_runner/tests/ -v
