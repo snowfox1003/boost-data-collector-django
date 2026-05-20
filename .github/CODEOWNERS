@@ -1,0 +1,28 @@
+# CODEOWNERS — last matching pattern wins; keep broad paths first, then specifics.
+# GitHub: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Only these handles: @snowfox1003 @jonathanMLDev @wpak-ai
+# Per-app primary owners below are placeholders (round-robin); replace when the team agrees.
+
+* @snowfox1003 @wpak-ai
+
+boost_collector_runner/ @snowfox1003 @wpak-ai
+cppa_user_tracker/ @snowfox1003 @wpak-ai
+github_activity_tracker/ @snowfox1003 @wpak-ai
+boost_library_tracker/ @snowfox1003 @wpak-ai
+boost_library_docs_tracker/ @jonathanMLDev @wpak-ai
+boost_library_usage_dashboard/ @jonathanMLDev @wpak-ai
+boost_usage_tracker/ @jonathanMLDev @wpak-ai
+boost_mailing_list_tracker/ @jonathanMLDev @wpak-ai
+cppa_pinecone_sync/ @jonathanMLDev @wpak-ai
+clang_github_tracker/ @snowfox1003 @wpak-ai
+cppa_slack_tracker/ @snowfox1003 @wpak-ai
+discord_activity_tracker/ @snowfox1003 @wpak-ai
+wg21_paper_tracker/ @snowfox1003 @wpak-ai
+cppa_youtube_script_tracker/ @jonathanMLDev @wpak-ai
+slack_event_handler/ @snowfox1003 @wpak-ai
+
+core/ @snowfox1003 @jonathanMLDev @wpak-ai
+.github/workflows/ @snowfox1003 @wpak-ai
+
+docs/ @snowfox1003 @jonathanMLDev @wpak-ai
