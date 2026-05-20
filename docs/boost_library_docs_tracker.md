@@ -178,6 +178,6 @@ When adding this app to the project, do all of the following:
 - [Schema.md](Schema.md) — Database schema (section 10: Boost Library Docs Tracker).
 - [Service_API.md](Service_API.md) — Service layer index.
 - [service_api/boost_library_docs_tracker.md](service_api/boost_library_docs_tracker.md) — Full service API reference for this app.
-- [Workflow.md](Workflow.md) — Execution order (this command runs after `run_boost_library_tracker`).
+- [Workflow.md](Workflow.md) — Execution order (this command runs after `run_boost_github_activity_tracker` in the usual schedule).
 - [Workspace.md](Workspace.md) — Workspace layout (`workspace/boost_library_docs_tracker/`).
 - [Contributing.md](Contributing.md) — Service layer write rules.

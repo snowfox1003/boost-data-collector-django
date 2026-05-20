@@ -2,7 +2,19 @@
 
 ## Overview
 
-Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_boost_library_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
+Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `python manage.py run_boost_github_activity_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** (start from [`config/boost_collector_schedule.yaml.example`](config/boost_collector_schedule.yaml.example)) via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
+
+## Critical environment variables
+
+Authoritative names, examples, and comments live in **[`.env.example`](.env.example)**. Typical values you must set for a working local or deployed stack:
+
+| Variable | Role |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL for Django and for **pytest** (see [Running tests](#running-tests)). |
+| `SECRET_KEY` | Django cryptographic signing (required in production; tests often use a disposable value). |
+| `GITHUB_TOKEN` / `GITHUB_TOKENS_SCRAPING` / `GITHUB_TOKEN_WRITE` | GitHub API access patterns (details in [GitHub tokens](#github-tokens) and `docs/operations/github.md`). |
+| `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` | Redis endpoints for Celery worker and Beat (defaults in `.env.example`). |
+| `WORKSPACE_DIR` | Optional override for the on-disk **workspace** root used by collectors (see [Workspace](#workspace-rawprocessed-files)). |
 
 ## Quick start
 
@@ -146,40 +158,87 @@ See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workfl
 
 ## Project structure
 
+Typical top-level layout after clone (folder name is usually **`boost-data-collector-django`**; paths below are relative to that root):
+
 ```
-boost-data-collector/
+.
 ├── manage.py
-├── requirements.txt
-├── .env.example
+├── pyproject.toml
+├── pytest.ini
+├── Makefile
 ├── README.md
-├── config/ or <project_name>/   # Django project settings (settings.py)
-├── docs/                         # Documentation (per-topic)
-│   ├── README.md                 # Topic index
-│   ├── operations/               # Shared I/O (GitHub, Discord, etc.)
-│   │   ├── README.md
-│   │   └── github.md
-│   ├── service_api/              # Per-app service API
-│   ├── Workflow.md
-│   ├── Schema.md
-│   └── ...
-├── workspace/                    # Raw/processed files (see docs/Workspace.md)
+├── LICENSE
+├── CHANGELOG.md
+├── conftest.py
+├── requirements.txt
+├── requirements.lock
+├── requirements.in
+├── requirements-dev.txt
+├── requirements-dev.lock
+├── requirements-dev.in
+├── .env.example
+├── docker-compose.yml
+├── docker-compose.ci.yml
+├── docker-compose.test.yml
+├── Dockerfile
+├── docker-entrypoint.sh
+├── config/                      # Django project: settings, URLs, Celery, boost_collector_schedule.yaml
+├── docs/                        # Design docs, Schema, Workflow, service_api/, operations/, …
+├── workspace/                   # Per-app trees + shared areas (see docs/Workspace.md)
+│   ├── raw/
+│   ├── shared/
+│   ├── scripts/
 │   ├── github_activity_tracker/
-│   ├── boost_library_tracker/
-│   ├── ...
-│   └── shared/
-|   (Django Apps)
+│   └── …                        # e.g. boost_library_tracker/, discord_activity_tracker/, …
+├── scripts/                     # Repo maintenance and codegen helpers
+├── core/                        # Shared collectors + operations (GitHub, Slack, markdown, files)
+├── boost_collector_runner/      # YAML schedule → run_scheduled_collectors
+├── boost_library_docs_tracker/
+├── boost_library_tracker/
+├── boost_library_usage_dashboard/
+├── boost_mailing_list_tracker/
+├── boost_usage_tracker/
+├── clang_github_tracker/
+├── cppa_pinecone_sync/
+├── cppa_slack_tracker/
 ├── cppa_user_tracker/
+├── cppa_youtube_script_tracker/
+├── discord_activity_tracker/
 ├── github_activity_tracker/
-├── core/                         # Shared utilities (e.g. collector base types)
-└──     ...
+├── slack_event_handler/
+└── wg21_paper_tracker/
 ```
 
 Each Django app can expose management commands in `management/commands/`. All apps are in `INSTALLED_APPS` and use the shared database.
 
+## App-level READMEs
+
+Some Django apps include a **README.md** at the app package root when that helps readers: **non-obvious behavior**, **operations** (Celery, schedule YAML), **dense management commands**, or **shared infrastructure**. The **`config/`** package has no README here—use [`config/settings.py`](config/settings.py), [`config/celery.py`](config/celery.py), and the schedule example below. Nested folders (`migrations/`, `tests/`, `management/commands/`, …) usually **do not** carry their own README; browse the code or use the app README and **[docs/README.md](docs/README.md)** / **[docs/service_api/](docs/service_api/)**. When you add commands or tests, update the app README **by hand** so tables and links stay accurate.
+
+| Package | Notes |
+| --- | --- |
+| **`config/`** | Django project: [`settings.py`](config/settings.py), [`urls.py`](config/urls.py), [`celery.py`](config/celery.py), [`test_settings.py`](config/test_settings.py); collector schedule template [`boost_collector_schedule.yaml.example`](config/boost_collector_schedule.yaml.example) (copy to `config/boost_collector_schedule.yaml` for a working schedule). |
+| [`core/`](core/README.md) | Collector abstractions and `core.operations` (GitHub, Slack, files, markdown). |
+| [`boost_collector_runner/`](boost_collector_runner/README.md) | YAML-driven `run_scheduled_collectors` orchestration. |
+| [`github_activity_tracker/`](github_activity_tracker/README.md) | GitHub ingest, workspace files, token/rate-limit considerations. |
+| [`boost_library_tracker/`](boost_library_tracker/README.md) | Boost metadata + many maintenance commands. |
+| [`boost_usage_tracker/`](boost_usage_tracker/README.md) | Usage signals and DB update commands. |
+| [`cppa_youtube_script_tracker/`](cppa_youtube_script_tracker/README.md) | Large CLI surface; use `--help` and module docstrings. |
+| [`cppa_pinecone_sync/`](cppa_pinecone_sync/README.md) | Pinecone sync entrypoint (namespace + preprocessor contract). |
+| [`wg21_paper_tracker/`](wg21_paper_tracker/README.md) | WG21 mailing pipeline and optional GitHub dispatch. |
+| [`clang_github_tracker/`](clang_github_tracker/README.md) | Clang / LLVM GitHub activity collection. |
+| [`boost_library_docs_tracker/`](boost_library_docs_tracker/README.md) | Boost library docs ingest (requires `pandoc`). |
+| [`boost_mailing_list_tracker/`](boost_mailing_list_tracker/README.md) | Boost mailing list ingestion. |
+| [`boost_library_usage_dashboard/`](boost_library_usage_dashboard/README.md) | Library usage data for dashboards. |
+| [`cppa_slack_tracker/`](cppa_slack_tracker/README.md) | CPPA Slack workspace collection. |
+| [`cppa_user_tracker/`](cppa_user_tracker/README.md) | CPPA users and GitHub account linkage. |
+| [`discord_activity_tracker/`](discord_activity_tracker/README.md) | Discord activity ingestion (exporter + workspace). |
+| [`slack_event_handler/`](slack_event_handler/README.md) | Slack Socket Mode listener (dev `runserver` integration). |
+
 ## How it works
 
 - Django project: One Django project with multiple Django apps; all apps share the same settings and database.
-- **Architecture / data flow:** See **[docs/Architecture_data_flow.md](docs/Architecture_data_flow.md)** for Mermaid diagrams (sources → collectors → PostgreSQL / workspace → Pinecone) and a per-app component map. Scheduling diagram: [docs/Development_guideline.md](docs/Development_guideline.md#architecture-high-level).
+- **Architecture / data flow:** See **[docs/Architecture_data_flow.md](docs/Architecture_data_flow.md)** for Mermaid diagrams (sources → collectors → PostgreSQL / workspace → Pinecone) and a per-app component map. Scheduling diagram: [docs/Development_guideline.md](docs/Development_guideline.md#architecture-high-level). For a **curated list of packages with their own README**, see [App-level READMEs](#app-level-readmes) above.
 - Workflow: **`boost_collector_runner`** runs app commands from **`config/boost_collector_schedule.yaml`** (via **`run_scheduled_collectors`** and Celery). You can also run individual `manage.py` commands by hand.
 - Database: One PostgreSQL database (e.g. `boost_dashboard`); Django ORM and migrations for all apps.
 - Configuration: Django settings (`settings.py`) and environment variables (e.g. via `django-environ` or `python-decouple`).

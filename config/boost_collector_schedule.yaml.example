@@ -1,4 +1,5 @@
 # Boost collector schedule (see docs/Workflow.md)
+# Copy to config/boost_collector_schedule.yaml for a working local file (often gitignored).
 # default_time is in UTC (24h "HH:MM"). Beat runs at that UTC time. The default batch
 # uses the UTC date for weekly/monthly eligibility so it matches the run time.
 #
@@ -8,6 +9,8 @@
 #   monthly     - runs on the given day of month at default_time (use "on" or "day_of_month": 1-31).
 #   on_release  - runs at default_time only when a new Boost release is detected (part of group batch).
 #   interval    - runs every N minutes (use "minutes": 1-180); one Beat entry per group per interval.
+#
+# Every "command" must be a real manage.py command name from this repo.
 
 groups:
   github:
@@ -18,33 +21,33 @@ groups:
         args: ["--task", "monitor_content"]
       - command: run_update_created_repos_by_language
         schedule: daily
-      - command: run_boost_library_tracker
+      - command: run_boost_github_activity_tracker
         schedule: daily
       - command: run_boost_library_usage_dashboard
         schedule: daily
-      # Weekly: run every Monday at 16:10
-      - command: run_weekly_report
+      # Weekly: same group time, only on Mondays
+      - command: run_clang_github_tracker
         schedule: weekly
         "on": monday
-      # Monthly: run on the 1st at 16:10
-      - command: run_monthly_aggregate
+      # Monthly: star snapshot on the 1st
+      - command: run_boost_usage_tracker
         schedule: monthly
         "on": 1
-      # When a new Boost release is published
-      - command: run_boost_library_tracker
+        args: ["--task", "monitor_stars"]
+      # When a new Boost release is published (runner skips if none)
+      - command: collect_boost_libraries
         schedule: on_release
-        args: ["--task", "check_release"]
-      # Every 15 minutes (separate Beat entry for this group)
-      - command: run_github_activity_sync
+      # Short periodic run (separate Beat entry for this group)
+      - command: run_wg21_paper_tracker
         schedule: interval
-        minutes: 15
+        minutes: 60
 
   slack:
     default_time: "16:30"
     tasks:
       - command: run_cppa_slack_tracker
         schedule: daily
-      - command: run_slack_health_check
+      - command: run_discord_activity_tracker
         schedule: interval
         minutes: 60
 
@@ -53,11 +56,9 @@ groups:
     tasks:
       - command: run_boost_mailing_list_tracker
         schedule: daily
-      # Weekly digest every Friday
-      - command: run_mailing_list_digest
+      - command: run_boost_mailing_list_tracker
         schedule: weekly
-        day_of_week: friday
-      # Monthly on the 15th
-      - command: run_mailing_list_archive
+        "on": friday
+      - command: run_boost_mailing_list_tracker
         schedule: monthly
-        day_of_month: 15
+        "on": 15

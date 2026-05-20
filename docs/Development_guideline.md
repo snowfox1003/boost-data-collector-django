@@ -5,7 +5,7 @@ This document outlines the development requirements and guidelines for Django ap
 ## Overview
 
 - Django project: One Django project with multiple Django apps; all apps share the same virtual environment, settings, and database.
-- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_boost_library_tracker`). Scheduling uses **boost_collector_runner** with `config/boost_collector_schedule.yaml`. In production, Celery Beat invokes: `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch. Manual runs of a single command differ from Beat’s per-group schedule; use the Beat-style flags above when testing the YAML-driven path.
+- Workflow: The project runs app tasks sequentially via management commands (e.g. `python manage.py run_boost_github_activity_tracker`). Scheduling uses **boost_collector_runner** with `config/boost_collector_schedule.yaml` (copy from `config/boost_collector_schedule.yaml.example` when needed). In production, Celery Beat invokes: `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch. Manual runs of a single command differ from Beat’s per-group schedule; use the Beat-style flags above when testing the YAML-driven path.
 - Configuration: Django settings (e.g. `settings.py`), environment variables for database URL and API keys (e.g. via `django-environ` or `python-decouple`).
 
 ## Architecture (high level)
@@ -36,7 +36,7 @@ flowchart LR
   BC --> CB
 ```
 
-**GitHub activity vs Boost library tracker:** Scheduled GitHub sync for Boost repos runs through **`boost_library_tracker`** (`run_boost_github_activity_tracker`, `collect_boost_library`, etc.). The **`github_activity_tracker`** app holds shared fetch/sync utilities, models, and maintenance commands (e.g. workspace migration); it is not the primary entry point for the nightly Boost GitHub collector. Use `boost_library_tracker` as the reference when adding or debugging that pipeline.
+**GitHub activity vs Boost library tracker:** Scheduled GitHub sync for Boost repos runs through **`boost_library_tracker`** (`run_boost_github_activity_tracker`, `collect_boost_libraries`, etc.). The **`github_activity_tracker`** app holds shared fetch/sync utilities, models, and maintenance commands (e.g. workspace migration); it is not the primary entry point for the nightly Boost GitHub collector. Use `boost_library_tracker` as the reference when adding or debugging that pipeline.
 
 For supported imports from `core`, see [Core_public_API.md](Core_public_API.md).
 
@@ -49,7 +49,7 @@ For supported imports from `core`, see [Core_public_API.md](Core_public_API.md).
 
 ### 2. Entry point and dependencies
 
-- Must expose one or more Django management commands in the app's `management/commands/` folder (e.g. `run_boost_library_tracker.py`). Register commands in **boost_collector_runner**'s `config/boost_collector_schedule.yaml` for scheduled runs.
+- Must expose one or more Django management commands in the app's `management/commands/` folder (e.g. `run_boost_github_activity_tracker.py`). Register commands in **boost_collector_runner**'s `config/boost_collector_schedule.yaml` for scheduled runs.
 - Project dependencies (including app-specific ones) are listed in the project root `requirements.txt`; all apps use the same virtual environment.
 
 ### 3. Configuration and logging
@@ -93,7 +93,7 @@ Use these steps to get the Django project running on your machine.
 3. Install dependencies (e.g. `pip install -r requirements.txt`).
 4. Copy the sample env file (e.g. `.env.example`) to `.env` and fill in values for database URL, credentials, and any API keys (e.g. via `django-environ` or `python-decouple`).
 5. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
-6. Run a single app command (e.g. `python manage.py run_boost_library_tracker`) or a YAML batch (e.g. `python manage.py run_scheduled_collectors --schedule default --group <group_id>`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml`).
+6. Run a single app command (e.g. `python manage.py run_boost_github_activity_tracker`) or a YAML batch (e.g. `python manage.py run_scheduled_collectors --schedule default --group <group_id>`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml` or the checked-in `config/boost_collector_schedule.yaml.example`).
 
 ## Testing workflow
 
@@ -102,7 +102,7 @@ Run tests often so you catch problems early.
 - **PostgreSQL for pytest:** `config.test_settings` requires `DATABASE_URL` pointing at PostgreSQL (see [README.md](../README.md#running-tests): `docker compose -f docker-compose.test.yml up -d`, then export `DATABASE_URL` / `SECRET_KEY`). This matches CI and avoids SQLite-only passes that fail in production.
 - **Pyright:** Install dev dependencies (`requirements-dev.lock`), then from the project root run **`uv run pyright`**. Configuration lives in **`pyrightconfig.json`** at the repo root (typed paths: `core`, `github_activity_tracker`, `discord_activity_tracker`; `core/pyright_samples/**` is excluded from the default run—see **`core/tests/test_protocols.py`** for protocol assignment checks). The **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml) runs the same check in CI.
 - **Before each commit:** run the test suite for the code you changed (`python -m pytest` or a subset).
-- **For app commands:** ensure the command runs successfully (e.g. `python manage.py run_boost_library_tracker` exits with 0 and does the expected work).
+- **For app commands:** ensure the command runs successfully (e.g. `python manage.py run_boost_github_activity_tracker` exits with 0 and does the expected work).
 - **Full workflow:** run `python manage.py run_scheduled_collectors --schedule default --group <group_id>` / `--schedule interval --interval-minutes <n>` when testing the YAML-driven path (matches how Celery Beat invokes it).
   Add tests for new behavior and keep them passing.
 
