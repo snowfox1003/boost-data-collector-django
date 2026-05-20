@@ -4,6 +4,10 @@
 
 Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `python manage.py run_boost_github_activity_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** (start from [`config/boost_collector_schedule.yaml.example`](config/boost_collector_schedule.yaml.example)) via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
 
+## Security
+
+**Responsible disclosure:** do not open a public GitHub Issue for undisclosed security problems. Read **[`SECURITY.md`](SECURITY.md)** for supported versions, in-scope components, how to report privately (**GitHub Security**; email only when an address is published there), response timelines, and **credential rotation** guidance (GitHub tokens, Slack, Discord, Pinecone, YouTube, browser session material, Django `SECRET_KEY`, database URLs).
+
 ## Critical environment variables
 
 Authoritative names, examples, and comments live in **[`.env.example`](.env.example)**. Typical values you must set for a working local or deployed stack:
@@ -290,6 +294,8 @@ See **[docs/Deployment.md](docs/Deployment.md)** for:
 - Deploy script behavior and override options
 
 ## Branching strategy
+
+**GitHub’s configured default branch for this repository is `develop`.**
 
 - **main** – Default/production branch (stable, release-ready code).
 - **develop** – Development branch (active integration and feature work).
