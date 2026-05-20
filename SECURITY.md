@@ -4,7 +4,7 @@ Thank you for helping keep Boost Data Collector and its users safe. This documen
 
 ## Supported versions
 
-- **Source of security fixes:** the latest commit on the default branch **`develop`**. We do not commit to backporting fixes to older tags unless maintainers explicitly agree for a specific case.
+- **Source of security fixes:** fixes are integrated on **`develop`** (where pull requests land) and promoted to **`main`**, this repository’s **GitHub default** and production branch. Track the latest commit on **`main`** for release-aligned deployments unless maintainers say otherwise for a specific case. We do not commit to backporting fixes to older tags unless maintainers explicitly agree for a specific case.
 - **Python:** this project targets **[Python 3.11+](https://github.com/python/cpython)** (see `requires-python` in `pyproject.toml`). Reports that only reproduce on **end-of-life** Python runtimes are **out of scope** for this policy.
 - **Dependencies:** we address vulnerabilities in **this repository’s code and shipped configuration** as described below. Third-party package or platform bugs are handled upstream unless this project must apply a mitigation.
 
@@ -27,9 +27,7 @@ If you already have a direct link to this repo’s security page, it follows the
 
 ### 2. Email (alternative)
 
-If you cannot use GitHub’s private reporting (for example it is not yet enabled, or you have no GitHub account), send an encrypted or plain email to a **security contact published by the repository or organization owners** (for example on the GitHub org or user profile). **Do not** send exploit details to a public mailing list or issue tracker.
-
-If no dedicated security email is published yet, use **GitHub private reporting** once enabled, or ask maintainers for a private contact through an existing **non-public** relationship.
+**Email is not an offered reporting channel until a dedicated address is listed in this section.** Until then, use [**GitHub private vulnerability reporting**](#1-github-private-vulnerability-reporting-preferred) when it is enabled, or reach out through an existing **non-public** relationship with maintainers. **Do not** send exploit details to a public mailing list or issue tracker.
 
 ### What to include in your report
 
@@ -38,8 +36,6 @@ If no dedicated security email is published yet, use **GitHub private reporting*
 - Affected area (e.g. Django view, management command, Celery task, integration) and file paths if known
 - Whether you believe **credentials, session data, or personal data** may be exposed
 - Your preferred secure follow-up channel (if different from the one you used)
-
-**Spam** or **non-security** messages may not receive a detailed reply.
 
 ## Expected response timeline
 
@@ -51,7 +47,9 @@ These timelines are **goals**, not guarantees. Severity, complexity, and maintai
 | **Status updates** | At least every **14 business days** while the issue remains open, or sooner for **critical** issues |
 | **Fix and disclosure** | **Best effort**; we avoid promising a specific patch date |
 
-We will coordinate **public disclosure** (release notes, advisory, or CVE as appropriate) with you when possible after a fix is available or a risk accepted.
+If a fix cannot be delivered within **90 days** of initial acknowledgement, we will work with you on a **mutually agreed disclosure date** rather than asking for an indefinite embargo. This remains subject to the “goals, not guarantees” framing above.
+
+We will coordinate **public disclosure** (release notes, advisory, or CVE as appropriate) with you when possible after a fix is available or a risk accepted. When a CVE is warranted, **maintainers** coordinate assignment (often via a **GitHub Security Advisory** where applicable); you may **note CVE preference** in your initial report.
 
 ## Scope of covered components
 
@@ -77,6 +75,8 @@ We support **good-faith** security research that:
 - Avoids **destructive** actions (data loss, sustained DoS, spam) on production systems without prior agreement
 - Keeps details **private** until we agree on a disclosure timeline
 
+If you conduct research in **good faith** and in accordance with these guidelines, we will **not initiate or recommend legal action** against you in connection with that research.
+
 ## Credential rotation after a suspected compromise
 
 If you operate a deployment and suspect a leak or breach, **rotate** at least the following (names align with [`.env.example`](.env.example) and the project README):
@@ -85,7 +85,7 @@ If you operate a deployment and suspect a leak or breach, **rotate** at least th
 | --- | --- |
 | **GitHub** | `GITHUB_TOKEN`, `GITHUB_TOKENS_SCRAPING` (multi-token pool), `GITHUB_TOKEN_WRITE`; PAT-style tokens used by integrations (for example `SLACK_PR_BOT_GITHUB_TOKEN` if it is a PAT) |
 | **Slack** | `SLACK_BOT_TOKEN_<team_id>`, `SLACK_APP_TOKEN_<team_id>`; if enabled in your deployment: internal/session-related variables such as `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN` (see `ALLOW_INTERNAL_SLACK_TOKENS` in `.env.example`) |
-| **Discord** | `DISCORD_TOKEN` (preferred bot path); avoid long-lived `DISCORD_USER_TOKEN` where possible (see project docs and Discord’s terms) |
+| **Discord** | `DISCORD_TOKEN` (bot token — supported path); **`DISCORD_USER_TOKEN`** for automation **conflicts with Discord’s Terms of Service** and may result in **account termination** — **rotate and discontinue** use; migrate to bot-based flows where applicable (see [`.env.example`](.env.example) and project docs) |
 | **Pinecone** | `PINECONE_API_KEY`, `PINECONE_PRIVATE_API_KEY`, and any host/index settings that grant write access |
 | **YouTube** | `YOUTUBE_API_KEY` |
 | **Browser session material** | Data derived from **Chrome profiles or cookies** used with Selenium helpers (`SELENIUM_HUB_URL`, `CHROME_PROFILE_PATH`, and related flows) — treat as secrets; clear or rotate sessions and profiles as appropriate |
@@ -94,12 +94,12 @@ Also rotate **Django** `SECRET_KEY` and **database** credentials (`DATABASE_URL`
 
 ## Maintainer checklist (repository settings)
 
-After `SECURITY.md` is on the **default branch** (`develop`), GitHub surfaces this file as the **[Security policy](https://docs.github.com/en/code-security/getting-started/github-security-features)** (for example at `https://github.com/<owner>/<repo>/security/policy`).
+GitHub reads `SECURITY.md` from the repository **default branch** (**`main`** for this project) and surfaces it as the **[Security policy](https://docs.github.com/en/code-security/getting-started/github-security-features)** (for example at `https://github.com/<owner>/<repo>/security/policy`).
 
-1. Merge `SECURITY.md` to **`develop`**.
+1. Land `SECURITY.md` on **`develop`** via pull request, then merge **`develop`** to **`main`** for releases so the published policy stays current on the default branch.
 2. Enable **[Private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/configuring-private-vulnerability-reporting-for-a-repository)** if you want reporters to use the GitHub **Security** tab flow.
 3. Confirm the policy page loads and links work.
-4. Optionally publish a dedicated **security email** and add it under [Email (alternative)](#2-email-alternative) in this file.
+4. When you have an org-approved **security email**, add it under [Email (alternative)](#2-email-alternative) and state clearly that email reporting is available (until then, reporters should use private reporting or an existing private maintainer contact).
 
 ---
 

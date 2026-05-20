@@ -6,7 +6,7 @@ Boost Data Collector is a Django project that collects and manages data from var
 
 ## Security
 
-**Responsible disclosure:** do not open a public GitHub Issue for undisclosed security problems. Read **[`SECURITY.md`](SECURITY.md)** for supported versions, in-scope components, how to report privately (GitHub Security / coordinated email), response timelines, and **credential rotation** guidance (GitHub tokens, Slack, Discord, Pinecone, YouTube, browser session material, Django `SECRET_KEY`, database URLs).
+**Responsible disclosure:** do not open a public GitHub Issue for undisclosed security problems. Read **[`SECURITY.md`](SECURITY.md)** for supported versions, in-scope components, how to report privately (**GitHub Security**; email only when an address is published there), response timelines, and **credential rotation** guidance (GitHub tokens, Slack, Discord, Pinecone, YouTube, browser session material, Django `SECRET_KEY`, database URLs).
 
 ## Critical environment variables
 
@@ -294,6 +294,8 @@ See **[docs/Deployment.md](docs/Deployment.md)** for:
 - Deploy script behavior and override options
 
 ## Branching strategy
+
+**GitHub’s configured default branch for this repository is `main`.**
 
 - **main** – Default/production branch (stable, release-ready code).
 - **develop** – Development branch (active integration and feature work).
