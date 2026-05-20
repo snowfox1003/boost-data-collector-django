@@ -7,7 +7,7 @@ for all boostorg repos (owner configured via BOOST_GITHUB_OWNER setting, default
 Issues and PRs share the namespace "github-boostorg"; they are distinguished in Pinecone
 by metadata["type"] = "issue" or "pr".
 
-Usage (via run_cppa_pinecone_sync or run_boost_library_tracker):
+Usage (via run_cppa_pinecone_sync or run_boost_github_activity_tracker):
     app_type = APP_TYPE  (default: "github-boostorg", override with BOOST_GITHUB_PINECONE_APP_TYPE env)
     namespace = NAMESPACE  ("github-boostorg")
     preprocessor = boost_library_tracker.preprocessors.pr_preprocessor.preprocess_for_pinecone

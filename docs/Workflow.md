@@ -2,11 +2,11 @@
 
 ## Overview
 
-The **Boost Data Collector** is a Django project with multiple Django apps. The main workflow is driven by Django's `manage.py` and management commands (or by Celery tasks that run the same commands). Each data-collection or processing step is a Django management command (e.g. `python manage.py run_boost_library_tracker`). The project uses one virtual environment and one database; all apps share the same Django settings and `INSTALLED_APPS`. Within a single **`run_scheduled_collectors`** batch, collectors run one after another with no parallel execution; different Celery Beat entries (YAML-driven groups in `config/boost_collector_schedule.yaml`) can run in parallel across workers.
+The **Boost Data Collector** is a Django project with multiple Django apps. The main workflow is driven by Django's `manage.py` and management commands (or by Celery tasks that run the same commands). Each data-collection or processing step is a Django management command (e.g. `python manage.py run_boost_github_activity_tracker`). The project uses one virtual environment and one database; all apps share the same Django settings and `INSTALLED_APPS`. Within a single **`run_scheduled_collectors`** batch, collectors run one after another with no parallel execution; different Celery Beat entries (YAML-driven groups in `config/boost_collector_schedule.yaml`) can run in parallel across workers.
 
 You run collectors in these ways:
 
-- **boost_collector_runner app** – YAML-driven schedule: `config/boost_collector_schedule.yaml` defines groups, schedule types (daily, weekly, monthly, interval, on_release), and optional args. Use `python manage.py run_scheduled_collectors --schedule daily` (or weekly/monthly/interval/on_release). Celery Beat is built from the YAML so adding or reordering collectors requires no code changes—only editing the YAML.
+- **boost_collector_runner app** – YAML-driven schedule: `config/boost_collector_schedule.yaml` defines groups, schedule types (daily, weekly, monthly, interval, on_release), and optional args (copy from [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) when you do not have a local file). Use `python manage.py run_scheduled_collectors --schedule daily` (or weekly/monthly/interval/on_release). Celery Beat is built from the YAML so adding or reordering collectors requires no code changes—only editing the YAML.
 - **Per-command** – Run a single collector by hand, e.g. `python manage.py run_boost_github_activity_tracker`, for debugging.
 
 This document covers: main application workflow, Boost Collector Runner and YAML schedule, project details, execution order, error handling, and branching. For a **data-flow diagram** (sources → DB → Pinecone), see [Architecture_data_flow.md](Architecture_data_flow.md).
@@ -15,7 +15,7 @@ This document covers: main application workflow, Boost Collector Runner and YAML
 
 ### How the workflow runs
 
-The main task runs at a set time (e.g. Celery Beat) or on demand. Each Django app exposes one or more management commands (e.g. `run_boost_library_tracker`). The runner runs them in order, one at a time, to avoid write conflicts and keep data dependencies in order.
+The main task runs at a set time (e.g. Celery Beat) or on demand. Each Django app exposes one or more management commands (e.g. `run_boost_mailing_list_tracker`). The runner runs them in order, one at a time, to avoid write conflicts and keep data dependencies in order.
 
 1. **Start** – Trigger the run (Beat, cron, or `python manage.py run_scheduled_collectors` with the right flags).
 2. **Run commands in order** – For each command: run it, wait for completion, check exit code (0 = success, non-zero = failure), then run the next. Optionally stop on first failure.
@@ -27,7 +27,7 @@ The **boost_collector_runner** app runs collectors from a single config file so 
 
 ### Config file
 
-- **Path:** `config/boost_collector_schedule.yaml`
+- **Path:** `config/boost_collector_schedule.yaml` (copy from [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) when you do not have a local file yet).
 - **Setting:** `BOOST_COLLECTOR_SCHEDULE_YAML` in `config/settings.py` (defaults to that path).
 
 ### Schedule types
@@ -44,7 +44,7 @@ The **boost_collector_runner** app runs collectors from a single config file so 
 
 - **groups:** Each group has **default_time** (required; 24h `"HH:MM"`, UTC) and a **tasks** list.
 - **Each task:**
-  - **command** (required) – Management command name (e.g. `run_boost_library_tracker`).
+  - **command** (required) – Management command name (e.g. `run_boost_github_activity_tracker`); must exist under some app’s `management/commands/`.
   - **schedule** (required) – `daily` | `weekly` | `monthly` | `interval` | `on_release`.
   - **on** – For **weekly**: weekday name (`monday` or `mon`, etc.). For **monthly**: day of month (1–31). Omit for daily, interval, and on_release.
   - **minutes** – For **interval** only: run every N minutes (1–180; at most 3 hours). Use interval only for minute-based runs.
@@ -60,7 +60,7 @@ groups:
   github:
     default_time: "04:10"
     tasks:
-      - command: run_boost_library_tracker
+      - command: run_boost_github_activity_tracker
         schedule: daily
       - command: run_boost_usage_tracker
         schedule: weekly
@@ -68,14 +68,13 @@ groups:
   reporting:
     default_time: "06:00"
     tasks:
-      - command: run_monthly_report
+      - command: run_boost_library_usage_dashboard
         schedule: monthly
         on: 3
-      - command: run_on_release_sync
+      - command: collect_boost_libraries
         schedule: on_release
-      - command: run_export
+      - command: run_boost_mailing_list_tracker
         schedule: daily
-        args: ["--format", "json"]
 ```
 
 ### Running from the command line

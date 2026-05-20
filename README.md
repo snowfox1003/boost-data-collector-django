@@ -2,7 +2,7 @@
 
 ## Overview
 
-Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `run_boost_library_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
+Boost Data Collector is a Django project that collects and manages data from various Boost-related sources. The project has multiple Django apps in one repository. All apps share one virtual environment, one database (PostgreSQL), and the same Django settings. Each app exposes one or more management commands (e.g. `python manage.py run_boost_github_activity_tracker`). Production scheduling uses **Celery Beat** and **`config/boost_collector_schedule.yaml`** (start from [`config/boost_collector_schedule.yaml.example`](config/boost_collector_schedule.yaml.example)) via **`run_scheduled_collectors`** (see [docs/Workflow.md](docs/Workflow.md)).
 
 ## Critical environment variables
 
@@ -213,11 +213,11 @@ Each Django app can expose management commands in `management/commands/`. All ap
 
 ## App-level READMEs
 
-Some packages include a **README.md** at the app (or `config/`) root when that helps readers: **non-obvious behavior**, **operations** (Celery, schedule YAML), **dense management commands**, or **shared infrastructure**. Nested folders (`migrations/`, `tests/`, `management/commands/`, …) usually **do not** carry their own README; browse the code or use the app README and **[docs/README.md](docs/README.md)** / **[docs/service_api/](docs/service_api/)**. When you add commands or tests, update the app README **by hand** so tables and links stay accurate.
+Some Django apps include a **README.md** at the app package root when that helps readers: **non-obvious behavior**, **operations** (Celery, schedule YAML), **dense management commands**, or **shared infrastructure**. The **`config/`** package has no README here—use [`config/settings.py`](config/settings.py), [`config/celery.py`](config/celery.py), and the schedule example below. Nested folders (`migrations/`, `tests/`, `management/commands/`, …) usually **do not** carry their own README; browse the code or use the app README and **[docs/README.md](docs/README.md)** / **[docs/service_api/](docs/service_api/)**. When you add commands or tests, update the app README **by hand** so tables and links stay accurate.
 
 | Package | Notes |
 | --- | --- |
-| [`config/`](config/README.md) | Django project package: settings, URLs, Celery, `boost_collector_schedule.yaml`. |
+| **`config/`** | Django project: [`settings.py`](config/settings.py), [`urls.py`](config/urls.py), [`celery.py`](config/celery.py), [`test_settings.py`](config/test_settings.py); collector schedule template [`boost_collector_schedule.yaml.example`](config/boost_collector_schedule.yaml.example) (copy to `config/boost_collector_schedule.yaml` for a working schedule). |
 | [`core/`](core/README.md) | Collector abstractions and `core.operations` (GitHub, Slack, files, markdown). |
 | [`boost_collector_runner/`](boost_collector_runner/README.md) | YAML-driven `run_scheduled_collectors` orchestration. |
 | [`github_activity_tracker/`](github_activity_tracker/README.md) | GitHub ingest, workspace files, token/rate-limit considerations. |

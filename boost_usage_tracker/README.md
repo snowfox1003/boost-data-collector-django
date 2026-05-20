@@ -51,9 +51,9 @@ Runs **monitor_content** (repo/content signals) and/or **monitor_stars** (monthl
 
 | Command | Description |
 | --- | --- |
-| `run_boost_usage_tracker` | Management command: run_boost_usage_tracker |
-| `run_update_created_repos_by_language` | Management command: run_update_created_repos_by_language |
-| `run_update_db` | Management command: run_update_db |
+| `run_boost_usage_tracker` | Primary collector: **`monitor_content`** searches GitHub for C++ repos pushed in a date range and records Boost `#include` usage; **`monitor_stars`** scans highly starred C++ repos for new candidates. Updates **`BoostExternalRepository`**, **`BoostUsage`**, and related rows (see command `help`). |
+| `run_update_created_repos_by_language` | Calls the GitHub API to count **new repositories per language per year** (star threshold configurable) and upserts **`github_activity_tracker.CreatedReposByLanguage`**. |
+| `run_update_db` | **Bulk import / repair** from JSON or CSV under `WORKSPACE_DIR` (or `--source`): **`--target`** chooses the pipeline (`github_account`, `repository`, `githubfile`, `boostusage`) to refresh GitHub accounts, repos, files, or usage rows. |
 
 Run `python manage.py <command> --help` for options.
 
