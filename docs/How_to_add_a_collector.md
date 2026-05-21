@@ -1,6 +1,8 @@
 # How to add a collector
 
-This checklist assumes you already have a Django app (or are creating one) with a `management/commands/run_<your_app>.py` entry point. For a high-level diagram and GitHub pipeline notes, see the **Architecture** section in [Development_guideline.md](Development_guideline.md).
+**Preferred:** scaffold a new app from the repo root with **`python manage.py startcollector <app_label>`** (see [CONTRIBUTING.md — Creating a new collector](../CONTRIBUTING.md#creating-a-new-collector)), then follow the manual steps there (`INSTALLED_APPS`, YAML schedule, migrations, **cross-app-dependencies.md**).
+
+If you used **`startcollector`**, section 1 below is mostly satisfied (you still add the app to **`INSTALLED_APPS`**). Otherwise, this checklist assumes you already have a Django app (or are creating one) with a `management/commands/run_<your_app>.py` entry point. For a high-level diagram and GitHub pipeline notes, see the **Architecture** section in [Development_guideline.md](Development_guideline.md).
 
 ## 1. App and command
 

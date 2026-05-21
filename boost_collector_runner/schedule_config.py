@@ -59,6 +59,11 @@ DAY_ABBREV_TO_FULL = {
 }
 DEFAULT_TIME = "04:10"
 
+# Default when django.conf.settings is not ready (e.g. during config.settings import).
+_DEFAULT_SCHEDULE_YAML = (
+    Path(__file__).resolve().parent.parent / "config" / "boost_collector_schedule.yaml"
+)
+
 
 def _normalize_day_of_week(val):
     """Return full day name (e.g. 'monday') from 'monday', 'mon', etc."""
@@ -77,9 +82,9 @@ def _get_yaml_path():
     from django.conf import settings
 
     path = getattr(settings, "BOOST_COLLECTOR_SCHEDULE_YAML", None)
-    if path is None:
-        path = Path(settings.BASE_DIR) / "config" / "boost_collector_schedule.yaml"
-    return Path(path)
+    if path is not None:
+        return Path(path)
+    return _DEFAULT_SCHEDULE_YAML
 
 
 def _parse_time(s):
@@ -378,18 +383,21 @@ def _collect_distinct_schedules(data=None):
                     yield key
 
 
-def get_beat_schedule():
+def get_beat_schedule(yaml_path: Path | str | None = None):
     """
     Build CELERY_BEAT_SCHEDULE from the YAML: one entry per group (group batch at default_time)
     and one per interval_minutes. Group batch runs daily + weekly(today) + monthly(today) + on_release(if new) together.
     Returns a dict suitable for settings.CELERY_BEAT_SCHEDULE.
     If the YAML file does not exist or is invalid, returns {} (no beat schedule).
+
+    Pass ``yaml_path`` when calling from ``config.settings`` during import (``django.conf.settings``
+    may not expose ``BASE_DIR`` / ``BOOST_COLLECTOR_SCHEDULE_YAML`` yet).
     """
     from datetime import timedelta
 
     from celery.schedules import crontab, schedule as celery_schedule
 
-    path = _get_yaml_path()
+    path = Path(yaml_path) if yaml_path is not None else _get_yaml_path()
     if not path.exists():
         logger.warning(
             "Schedule YAML not found at %s; no beat schedule loaded.",

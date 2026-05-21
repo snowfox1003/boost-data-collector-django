@@ -331,7 +331,7 @@ def _discover_apps_with_services() -> list[tuple[str, Path]]:
 def _splice_generated(existing: str, generated: str) -> str:
     if MARKER_START not in existing:
         raise ValueError(
-            f"missing {MARKER_START!r}; add markers or see docs/Contributing.md"
+            f"missing {MARKER_START!r}; add markers or see CONTRIBUTING.md"
         )
     head, mid_and_tail = existing.split(MARKER_START, 1)
 

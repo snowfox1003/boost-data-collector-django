@@ -21,7 +21,7 @@ Long-form design: [docs/operations/](../docs/operations/README.md), platform flo
 ## What `core` is not
 
 - **Not a data source.** Nothing in `core` runs on a collector schedule or “fetches the internet” by itself. HTTP/API/git calls happen when **another app** invokes helpers under [`operations/`](operations/).
-- **Not a place for domain writes.** Business tables belong in tracker apps; use each app’s **`services.py`** (see [docs/Contributing.md](../docs/Contributing.md)).
+- **Not a place for domain writes.** Business tables belong in tracker apps; use each app’s **`services.py`** (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 - **Not Pinecone or Markdown publishing.** Vector upserts live in [`cppa_pinecone_sync`](../cppa_pinecone_sync/README.md) with app-specific preprocessors ([docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md)). Git push / repo export is triggered from **those apps**, using `core.operations` primitives where needed.
 
 ## How other apps use `core`

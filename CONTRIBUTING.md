@@ -2,6 +2,38 @@
 
 This document describes how to contribute to the project, with emphasis on the **service layer** and data-write rules.
 
+## Creating a new collector
+
+Use the **`startcollector`** management command to generate a new Django app with the usual collector layout (stub `models.py`, `services.py`, `AbstractCollector` + `BaseCollectorCommand`, `tests/` package, `migrations/0001_initial.py`, and `schedule_snippet.yaml`). Run it from the **repository root** so the new package sits next to the other apps.
+
+```bash
+# Preview only (no files written)
+python manage.py startcollector my_platform --dry-run
+
+# Create ./my_platform/ (pick a unique snake_case name)
+python manage.py startcollector my_platform
+```
+
+**What you get**
+
+- App package `my_platform/` with `apps.py` (`BigAutoField`, correct `name`), `models.py` (stub run-state model), `services.py` (stub `record_run` — all writes for this app should stay in this module per [Service layer](#service-layer-single-place-for-writes) below).
+- `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`** (not the deprecated `CollectorBase`); command subclasses **`BaseCollectorCommand`**.
+- `tests/test_run_my_platform_command.py` — smoke test; it runs only after you register the app (next step).
+- `schedule_snippet.yaml` — commented template to paste into **`config/boost_collector_schedule.yaml`** (see [Workflow.md](docs/Workflow.md)).
+
+**What you must do manually**
+
+1. Add **`"my_platform"`** to **`INSTALLED_APPS`** in `config/settings.py` (keep alphabetical order with the other project apps).
+2. Merge the task from `schedule_snippet.yaml` into **`config/boost_collector_schedule.yaml`** under the right `groups.<name>.tasks` entry (see [Workflow.md](docs/Workflow.md)).
+3. Run **`python manage.py migrate`** so the new tables exist.
+4. When the app imports other apps or defines cross-app foreign keys, update **[cross-app-dependencies.md](docs/cross-app-dependencies.md)** (add or adjust the row for your app).
+5. As `services.py` grows, run **`python scripts/generate_service_docs.py`** and commit the generated `docs/service_api/` updates when you add public service functions.
+
+**Docs and contracts**
+
+- Collector lifecycle, errors, and optional `sync_pinecone`: [How_to_add_a_collector.md](docs/How_to_add_a_collector.md) and [Core_public_API.md](docs/Core_public_API.md).
+- **CI:** The **pyright** workflow runs **`python scripts/validate_collector_scaffold.py`**, which recreates a throwaway app under `.test_artifacts/`, then runs **ruff** and a **scoped pyright** check on that tree.
+
 ## Service layer: single place for writes
 
 Each Django app that has **models** provides a **`services.py`** module. This is the **only** place where code should create, update, or delete rows for that app’s models.
@@ -34,7 +66,7 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `cppa_slack_tracker` | `cppa_slack_tracker/services.py` | Slack teams, channels, messages, membership. |
 | `wg21_paper_tracker` | `wg21_paper_tracker/services.py` | WG21 papers, authors, mailings. |
 
-For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[docs/Service_API.md](docs/Service_API.md)** and the per-app docs in **[docs/service_api/](docs/service_api/)** (index: [docs/service_api/README.md](docs/service_api/README.md)).
+For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[docs/Service_API.md](docs/Service_API.md)** and the per-app docs in **[docs/service_api/](docs/service_api/)** (index: [docs/service_api/README.md](docs/service_api/README.md)). DTO protocols shared across trackers are documented in **[docs/service_api/core_protocols.md](docs/service_api/core_protocols.md)** (generated from `core/protocols.py`).
 
 ### Regenerating service API docs
 

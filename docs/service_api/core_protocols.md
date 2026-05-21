@@ -54,4 +54,4 @@ Outcome of one logical collection or sync cycle.
 
 - [Core public API](../Core_public_API.md) — orchestration vs data protocols
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)

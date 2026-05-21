@@ -631,7 +631,7 @@ BOOST_COLLECTOR_SCHEDULE_YAML = BASE_DIR / "config" / "boost_collector_schedule.
 try:
     from boost_collector_runner.schedule_config import get_beat_schedule
 
-    CELERY_BEAT_SCHEDULE = get_beat_schedule()
+    CELERY_BEAT_SCHEDULE = get_beat_schedule(BOOST_COLLECTOR_SCHEDULE_YAML)
 except ImportError:
     import logging
 

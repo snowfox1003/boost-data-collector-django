@@ -20,4 +20,4 @@
 ## Related
 
 - [Service API index](README.md)
-- [Contributing](../Contributing.md)
+- [CONTRIBUTING.md](../../CONTRIBUTING.md)

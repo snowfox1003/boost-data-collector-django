@@ -40,7 +40,7 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/wg21_paper_tracker.md](service_api/wg21_paper_tracker.md)** – API for `wg21_paper_tracker.services`.
 - **[service_api/core_protocols.md](service_api/core_protocols.md)** – `core.protocols` DTO protocols (`TrackerResult`, `ActivityRecord`, `IncrementalState`).
 
-Tables in each file are **generated** from source; see [Contributing.md](Contributing.md#regenerating-service-api-docs).
+Tables in each file are **generated** from source; see [CONTRIBUTING.md](../CONTRIBUTING.md#regenerating-service-api-docs).
 
 ---
 

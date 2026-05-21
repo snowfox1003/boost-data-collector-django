@@ -19,6 +19,7 @@ db.sqlite3
 staticfiles/
 media/
 .test_artifacts/
+# Ephemeral probe app + pyrightconfig for scripts/validate_collector_scaffold.py (entire tree ignored above).
 
 # Testing / coverage
 # pytest-benchmark JSON (machine_info / commit_info; use CI artifact, do not commit)
