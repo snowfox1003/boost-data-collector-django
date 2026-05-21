@@ -1,7 +1,9 @@
 """Tests for boost_collector_runner.schedule_config: load_config, validation, get_tasks_for_schedule, get_beat_schedule."""
 
 import calendar
+import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -10,6 +12,7 @@ from django.core.management import get_commands
 from boost_collector_runner.schedule_config import (
     DEFAULT_GROUP_BATCH_SCHEDULE_KIND,
     INTERVAL_MINUTES_MAX,
+    ScheduleConfigurationError,
     get_beat_schedule,
     get_tasks_for_schedule,
     load_config,
@@ -532,6 +535,70 @@ def test_get_tasks_for_schedule_monthly_last_day_fallback(tmp_path):
     )
     assert len(tasks_leap) == 1
     assert tasks_leap[0][1]["command"] == "month_end"
+
+
+@pytest.mark.django_db
+def test_get_beat_schedule_missing_yaml_non_strict_returns_empty(
+    tmp_path, caplog, settings
+):
+    """With DEBUG True and no strict env, missing YAML yields empty beat schedule and a warning."""
+    settings.DEBUG = True
+    settings.BOOST_COLLECTOR_SCHEDULE_STRICT = False
+    missing = tmp_path / "missing.yaml"
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(missing)
+    caplog.set_level(logging.WARNING)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path", return_value=missing
+    ):
+        assert get_beat_schedule() == {}
+    assert any("not found" in r.getMessage().lower() for r in caplog.records)
+
+
+@pytest.mark.django_db
+def test_get_beat_schedule_missing_yaml_strict_raises(tmp_path, caplog, settings):
+    """With DEBUG False, missing YAML raises ScheduleConfigurationError and logs ERROR."""
+    settings.DEBUG = False
+    settings.BOOST_COLLECTOR_SCHEDULE_STRICT = False
+    missing = tmp_path / "missing.yaml"
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(missing)
+    caplog.set_level(logging.ERROR)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path", return_value=missing
+    ):
+        with pytest.raises(ScheduleConfigurationError, match="not found"):
+            get_beat_schedule()
+    assert any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+@pytest.mark.django_db
+def test_get_beat_schedule_missing_yaml_strict_with_debug_true_via_env(
+    tmp_path, caplog, settings
+):
+    """BOOST_COLLECTOR_SCHEDULE_STRICT forces strict behavior when DEBUG is True."""
+    settings.DEBUG = True
+    settings.BOOST_COLLECTOR_SCHEDULE_STRICT = True
+    missing = tmp_path / "missing.yaml"
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(missing)
+    caplog.set_level(logging.ERROR)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path", return_value=missing
+    ):
+        with pytest.raises(ScheduleConfigurationError):
+            get_beat_schedule()
+
+
+@pytest.mark.django_db
+def test_get_beat_schedule_invalid_yaml_strict_raises(tmp_path, caplog, settings):
+    settings.DEBUG = False
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(yaml.dump({"groups": []}), encoding="utf-8")
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(bad)
+    caplog.set_level(logging.ERROR)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path", return_value=bad
+    ):
+        with pytest.raises(ScheduleConfigurationError, match="Invalid schedule YAML"):
+            get_beat_schedule()
 
 
 def test_get_beat_schedule_generates_expected_entries(tmp_path, settings):

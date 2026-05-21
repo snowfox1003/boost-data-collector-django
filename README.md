@@ -99,6 +99,8 @@ celery -A config beat -l info
 
 On Windows, the project configures the worker to use the `solo` pool automatically; if you see `PermissionError [WinError 5]`, run: `celery -A config worker -l info --pool=solo`.
 
+**Schedule YAML in production:** with `DEBUG=False` (or `BOOST_COLLECTOR_SCHEDULE_STRICT=True`), Django fails to start if `config/boost_collector_schedule.yaml` is missing or invalid, so Celery Beat cannot run with an empty schedule. Use `python manage.py run_scheduled_collectors ... --strict` for a one-off check even when `DEBUG` is True. Startup logs include a short summary of the loaded schedule (see [docs/Workflow.md](docs/Workflow.md)).
+
 ## Running tests
 
 The project uses **pytest** with **pytest-django**. Tests run against **`config.test_settings`**, which **always uses PostgreSQL** (same engine as CI and production). **`DATABASE_URL` must be set** when you run pytest; if it is missing, Django raises a clear error (see [`config/test_settings.py`](config/test_settings.py)).

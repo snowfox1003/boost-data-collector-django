@@ -24,6 +24,10 @@ if env_file.exists():
 # Security
 SECRET_KEY = env("SECRET_KEY") or "django-insecure-dev-only-change-in-production"
 DEBUG = env("DEBUG")
+# When True, collector schedule YAML must load (same as production) even if DEBUG is True (e.g. CI).
+BOOST_COLLECTOR_SCHEDULE_STRICT = env.bool(
+    "BOOST_COLLECTOR_SCHEDULE_STRICT", default=False
+)
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -626,25 +630,41 @@ CELERY_RESULT_SERIALIZER = "json"
 # CELERY_TIMEZONE = "America/Los_Angeles"
 CELERY_ENABLE_UTC = True  # Beat schedule times (default_time from YAML) are UTC
 
-# Schedule from YAML (boost_collector_runner); on load error fall back to empty beat schedule ({})
+# Schedule from YAML (boost_collector_runner). Strict mode (DEBUG=False or BOOST_COLLECTOR_SCHEDULE_STRICT):
+# missing/invalid YAML raises ScheduleConfigurationError at import time. In strict mode, any other
+# load failure is also re-raised after logging. Non-strict: unexpected errors fall back to {}.
 BOOST_COLLECTOR_SCHEDULE_YAML = BASE_DIR / "config" / "boost_collector_schedule.yaml"
+_schedule_strict = BOOST_COLLECTOR_SCHEDULE_STRICT or not DEBUG
 try:
-    from boost_collector_runner.schedule_config import get_beat_schedule
+    from boost_collector_runner.schedule_config import (
+        ScheduleConfigurationError,
+        get_beat_schedule,
+    )
 
-    CELERY_BEAT_SCHEDULE = get_beat_schedule(BOOST_COLLECTOR_SCHEDULE_YAML)
+    # Pass strict and yaml_path explicitly; settings proxy is not ready during this import.
+    CELERY_BEAT_SCHEDULE = get_beat_schedule(
+        strict=_schedule_strict,
+        yaml_path=BOOST_COLLECTOR_SCHEDULE_YAML,
+    )
 except ImportError:
     import logging
 
     logging.getLogger(__name__).exception(
         "Could not import boost_collector_runner schedule (missing dependency?).",
     )
+    if _schedule_strict:
+        raise
     CELERY_BEAT_SCHEDULE = {}
+except ScheduleConfigurationError:
+    raise
 except Exception:
     import logging
 
     logging.getLogger(__name__).exception(
         "Could not load boost collector schedule from YAML.",
     )
+    if _schedule_strict:
+        raise
     CELERY_BEAT_SCHEDULE = {}
 
 # GitHub activity tracker: Redis for ETag cache (conditional GET). Use separate DB index.

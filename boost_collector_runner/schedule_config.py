@@ -12,6 +12,11 @@ weekly (if today matches), monthly (if today matches), and on_release (if a new 
 exists). So no two distinct tasks in the same group run in separate batches (except interval
 tasks, which run in separate Beat entries and are independent). Interval tasks are not part of
 a group run; they get separate Beat entries and run independently.
+
+Strict mode (``DEBUG=False`` or ``settings.BOOST_COLLECTOR_SCHEDULE_STRICT``): missing or invalid
+YAML makes ``get_beat_schedule()`` raise ``ScheduleConfigurationError`` so Celery Beat cannot
+start with an empty schedule. Non-strict (typical local dev): missing/invalid YAML logs a
+warning and returns an empty Beat schedule.
 """
 
 import logging
@@ -19,8 +24,12 @@ import calendar
 from pathlib import Path
 
 import yaml
+from django.core.exceptions import ImproperlyConfigured
 
 logger = logging.getLogger(__name__)
+
+# Set from startup validation in boost_collector_runner.apps.BoostCollectorRunnerConfig.ready()
+SCHEDULE_STARTUP_OK: bool | None = None
 
 # Group batch (daily + weekly for today + monthly for today + on_release) uses this to separate from "daily" only.
 DEFAULT_GROUP_BATCH_SCHEDULE_KIND = "default"
@@ -63,6 +72,79 @@ DEFAULT_TIME = "04:10"
 _DEFAULT_SCHEDULE_YAML = (
     Path(__file__).resolve().parent.parent / "config" / "boost_collector_schedule.yaml"
 )
+
+
+class ScheduleConfigurationError(ImproperlyConfigured):
+    """Raised when the collector schedule YAML is missing or invalid in strict mode."""
+
+
+def is_schedule_strict(strict: bool | None = None) -> bool:
+    """
+    Whether schedule YAML must exist and parse (production-like).
+
+    ``strict`` if not None overrides settings. Otherwise: true when
+    ``BOOST_COLLECTOR_SCHEDULE_STRICT`` is set, or when ``DEBUG`` is False.
+    """
+    if strict is not None:
+        return strict
+    from django.conf import settings
+
+    if getattr(settings, "BOOST_COLLECTOR_SCHEDULE_STRICT", False):
+        return True
+    return not getattr(settings, "DEBUG", True)
+
+
+def ensure_schedule_yaml_loaded():
+    """
+    Load and validate the schedule YAML from the configured path.
+
+    Raises ``ScheduleConfigurationError`` if the file is missing or invalid (for
+    ``run_scheduled_collectors --strict`` and similar).
+    """
+    return _load_schedule_yaml_data(strict=True)
+
+
+def _load_schedule_yaml_data(*, strict: bool, yaml_path=None):
+    """
+    Return validated schedule dict, or None if missing/invalid and not strict
+    (warnings are logged).
+
+    ``yaml_path`` if set is used instead of ``_get_yaml_path()`` (avoids Django
+    settings access during ``settings.py`` import).
+    """
+    path = Path(yaml_path) if yaml_path is not None else _get_yaml_path()
+    if not path.exists():
+        msg = "Schedule YAML not found at %s; no beat schedule loaded."
+        if strict:
+            logger.error(msg, path)
+            raise ScheduleConfigurationError(
+                f"Schedule YAML not found at {path} (strict mode)."
+            )
+        logger.warning(msg, path)
+        return None
+    try:
+        return load_config(path)
+    except (ValueError, yaml.YAMLError, OSError) as e:
+        if strict:
+            logger.error("Invalid schedule YAML at %s: %s", path, e)
+            raise ScheduleConfigurationError(
+                f"Invalid schedule YAML at {path}: {e}"
+            ) from e
+        logger.warning("Invalid schedule YAML: %s; no beat schedule loaded.", e)
+        return None
+
+
+def iter_beat_schedule_entry_keys(data):
+    """
+    Yield Beat schedule entry keys (same strings as ``get_beat_schedule`` dict keys)
+    for logging and diagnostics. ``data`` must be a validated config dict from ``load_config``.
+    """
+    for row in _collect_distinct_schedules(data=data):
+        schedule_kind, time_str, interval_minutes, group_id = row
+        if schedule_kind == "interval":
+            yield f"boost-collector-interval-{interval_minutes}min"
+        elif schedule_kind == DEFAULT_GROUP_BATCH_SCHEDULE_KIND:
+            yield f"boost-collector-group-{group_id}-{time_str.replace(':', '-')}"
 
 
 def _normalize_day_of_week(val):
@@ -383,32 +465,29 @@ def _collect_distinct_schedules(data=None):
                     yield key
 
 
-def get_beat_schedule(yaml_path: Path | str | None = None):
+def get_beat_schedule(
+    strict: bool | None = None,
+    yaml_path: Path | str | None = None,
+):
     """
     Build CELERY_BEAT_SCHEDULE from the YAML: one entry per group (group batch at default_time)
     and one per interval_minutes. Group batch runs daily + weekly(today) + monthly(today) + on_release(if new) together.
     Returns a dict suitable for settings.CELERY_BEAT_SCHEDULE.
-    If the YAML file does not exist or is invalid, returns {} (no beat schedule).
 
-    Pass ``yaml_path`` when calling from ``config.settings`` during import (``django.conf.settings``
-    may not expose ``BASE_DIR`` / ``BOOST_COLLECTOR_SCHEDULE_YAML`` yet).
+    If the YAML file does not exist or is invalid: in strict mode (see ``is_schedule_strict``),
+    logs an error and raises ``ScheduleConfigurationError``. In non-strict mode, logs a warning
+    and returns ``{}`` (no beat schedule).
+
+    Pass ``strict`` and ``yaml_path`` when calling from ``config.settings`` during import
+    (``django.conf.settings`` may not expose ``BASE_DIR`` / ``BOOST_COLLECTOR_SCHEDULE_YAML`` yet).
     """
     from datetime import timedelta
 
     from celery.schedules import crontab, schedule as celery_schedule
 
-    path = Path(yaml_path) if yaml_path is not None else _get_yaml_path()
-    if not path.exists():
-        logger.warning(
-            "Schedule YAML not found at %s; no beat schedule loaded.",
-            path,
-        )
-        return {}
-
-    try:
-        data = load_config(path)
-    except (ValueError, yaml.YAMLError, OSError) as e:
-        logger.warning("Invalid schedule YAML: %s; no beat schedule loaded.", e)
+    st = is_schedule_strict(strict)
+    data = _load_schedule_yaml_data(strict=st, yaml_path=yaml_path)
+    if data is None:
         return {}
 
     schedule = {}

@@ -14,6 +14,17 @@ def test_run_scheduled_collectors_task_invokes_management_command(mock_call):
 
 
 @patch("boost_collector_runner.tasks.call_command")
+def test_run_scheduled_collectors_task_passes_strict(mock_call):
+    run_scheduled_collectors_task.run("daily", strict=True)
+    mock_call.assert_called_once_with(
+        "run_scheduled_collectors",
+        "--schedule",
+        "daily",
+        "--strict",
+    )
+
+
+@patch("boost_collector_runner.tasks.call_command")
 def test_run_scheduled_collectors_task_passes_all_cli_flags(mock_call):
     run_scheduled_collectors_task.run(
         "weekly",

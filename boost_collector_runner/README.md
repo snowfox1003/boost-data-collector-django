@@ -16,10 +16,10 @@ This Django app **orchestrates** collector work: it reads a YAML schedule, decid
    [`get_tasks_for_schedule`](schedule_config.py) filters tasks to those matching the current invocation: schedule kind, optional **group** id, weekday for weekly, day for monthly, or interval length. The **`default`** schedule kind is special: it is used for the **group batch** (daily + weekly-for-today + monthly-for-today + optional `on_release` in one run); interval tasks are excluded from that batch and are triggered separately.
 
 4. **`run_scheduled_collectors`**
-   The [management command](management/commands/run_scheduled_collectors.py) calls `get_tasks_for_schedule`, then runs each selected task **sequentially** with `call_command(command, *args)`. Exit status is **0** only if every command succeeds (unless `--stop-on-failure` stops early). For `on_release` (and for `default` when release tasks are included), it consults `boost_library_tracker.release_check.has_new_boost_release()`; if there is no new Boost release, `on_release` tasks are skipped.
+   The [management command](management/commands/run_scheduled_collectors.py) calls `get_tasks_for_schedule`, then runs each selected task **sequentially** with `call_command(command, *args)`. Exit status is **0** only if every command succeeds (unless `--stop-on-failure` stops early; in that case, each collector that was not run is logged at WARNING with the failed predecessor and reason). For `on_release` (and for `default` when release tasks are included), it consults `boost_library_tracker.release_check.has_new_boost_release()`; if there is no new Boost release, `on_release` tasks are skipped.
 
 5. **Celery Beat**
-   [`get_beat_schedule`](schedule_config.py) builds `CELERY_BEAT_SCHEDULE` entries: one **crontab** per group at that group’s `default_time` (running the group batch via kwargs `schedule_kind=default` and `group_id=...`), and separate **interval** entries per distinct `minutes` value that invoke the same command with `schedule_kind=interval`. The Celery entry point is [`run_scheduled_collectors_task`](tasks.py), which forwards to `run_scheduled_collectors` with the right CLI flags.
+   [`get_beat_schedule`](schedule_config.py) builds `CELERY_BEAT_SCHEDULE` entries: one **crontab** per group at that group’s `default_time` (running the group batch via kwargs `schedule_kind=default` and `group_id=...`), and separate **interval** entries per distinct `minutes` value that invoke the same command with `schedule_kind=interval`. With **`DEBUG=False`** or **`BOOST_COLLECTOR_SCHEDULE_STRICT=True`**, missing or invalid YAML raises `ScheduleConfigurationError` at Django import time so Beat cannot start with an empty schedule. The Celery entry point is [`run_scheduled_collectors_task`](tasks.py), which forwards to `run_scheduled_collectors` with the right CLI flags. At app startup, `BoostCollectorRunnerConfig.ready()` logs a short schedule summary (path, counts, Beat entry keys) or an error, and may set `BOOST_COLLECTOR_SCHEDULE_STARTUP_OK` on `settings` for diagnostics.
 
 6. **No app-owned data**
    This package has [no models](models.py); it only wires configuration to management commands.
@@ -44,7 +44,8 @@ Runs tasks from the schedule file for the selected schedule type. Exits with sta
 | `--day-of-month` | For `monthly`: day 1–31. **Required** when `--schedule monthly`. |
 | `--interval-minutes` | For `interval`: repeat every *N* minutes (1–180). **Required** when `--schedule interval`. |
 | `--group` | Limit to one YAML group. **Required** with `--schedule default`. For other schedule kinds, omit to run every group. |
-| `--stop-on-failure` | Stop after the first failing collector instead of continuing. |
+| `--stop-on-failure` | Stop after the first failing collector instead of continuing; log WARNING for each skipped collector with the failed predecessor and reason. |
+| `--strict` | Require the schedule YAML to exist and parse before resolving tasks (fails even when `DEBUG` is True). |
 
 Run `python manage.py run_scheduled_collectors --help` for the full CLI.
 

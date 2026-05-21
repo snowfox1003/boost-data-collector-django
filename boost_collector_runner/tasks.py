@@ -21,6 +21,7 @@ def run_scheduled_collectors_task(
     interval_minutes=None,
     group_id=None,
     stop_on_failure=False,
+    strict=False,
 ):
     """
     Run collectors that match the given schedule (from YAML).
@@ -47,6 +48,8 @@ def run_scheduled_collectors_task(
             args.extend(["--interval-minutes", str(interval_minutes)])
         if stop_on_failure:
             args.append("--stop-on-failure")
+        if strict:
+            args.append("--strict")
         call_command("run_scheduled_collectors", *args)
         logger.info("run_scheduled_collectors_task: finished successfully")
     except SystemExit as e:

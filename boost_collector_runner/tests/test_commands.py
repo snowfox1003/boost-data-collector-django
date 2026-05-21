@@ -311,7 +311,9 @@ def test_run_scheduled_collectors_child_system_exit_nonzero(tmp_path, settings):
 
 
 @pytest.mark.django_db
-def test_run_scheduled_collectors_stop_on_failure_short_circuits(tmp_path, settings):
+def test_run_scheduled_collectors_stop_on_failure_short_circuits(
+    tmp_path, settings, caplog
+):
     yaml_path = tmp_path / "boost_collector_schedule.yaml"
     yaml_path.write_text("groups: {}\n", encoding="utf-8")
     settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
@@ -325,6 +327,7 @@ def test_run_scheduled_collectors_stop_on_failure_short_circuits(tmp_path, setti
             raise SystemExit(1)
         return None
 
+    caplog.set_level(logging.WARNING)
     with (
         patch(
             "boost_collector_runner.schedule_config._get_yaml_path",
@@ -350,3 +353,25 @@ def test_run_scheduled_collectors_stop_on_failure_short_circuits(tmp_path, setti
             )
         assert ei.value.code == 1
     assert mock_inner.call_count == 1
+    skip_msgs = [r for r in caplog.records if "Skipping collector" in r.getMessage()]
+    assert (
+        skip_msgs
+    ), "expected skip warning for collectors not run after stop-on-failure"
+    assert any("run_b" in r.getMessage() for r in skip_msgs)
+    assert any("run_a" in r.getMessage() for r in skip_msgs)
+
+
+@pytest.mark.django_db
+def test_run_scheduled_collectors_strict_missing_yaml_raises(tmp_path, settings):
+    missing = tmp_path / "missing.yaml"
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(missing)
+    with patch(
+        "boost_collector_runner.schedule_config._get_yaml_path", return_value=missing
+    ):
+        with pytest.raises(CommandError, match="Schedule YAML"):
+            call_command(
+                "run_scheduled_collectors",
+                "--schedule",
+                "daily",
+                "--strict",
+            )

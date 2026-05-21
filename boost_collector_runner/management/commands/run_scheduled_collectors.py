@@ -3,6 +3,8 @@ Management command: run_scheduled_collectors
 Runs collector commands from config/boost_collector_schedule.yaml for a given schedule.
 Use --schedule daily | weekly | monthly | on_release | interval; for weekly pass --day-of-week; for monthly --day-of-month; for interval --interval-minutes (1-180).
 Exits with 0 only when all succeed; non-zero on any failure.
+With ``--stop-on-failure``, remaining collectors in the run list are not executed; each skipped
+collector is logged at WARNING with the failed predecessor and reason.
 """
 
 import logging
@@ -16,11 +18,35 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from boost_collector_runner.schedule_config import (
+    ScheduleConfigurationError,
+    ensure_schedule_yaml_loaded,
     get_tasks_for_schedule,
 )
 from core import __version__
 
 logger = logging.getLogger(__name__)
+
+
+def _task_would_run(task, run_on_release_tasks):
+    if not run_on_release_tasks and task.get("schedule") == "on_release":
+        return False
+    return True
+
+
+def _log_skipped_after_stop_on_failure(
+    tasks, failed_index, run_on_release_tasks, reason
+):
+    for j in range(failed_index + 1, len(tasks)):
+        gid, t = tasks[j]
+        if not _task_would_run(t, run_on_release_tasks):
+            continue
+        cmd = t.get("command")
+        logger.warning(
+            "Skipping collector %r (group=%r): %s",
+            cmd,
+            gid,
+            reason,
+        )
 
 
 class Command(BaseCommand):
@@ -74,6 +100,14 @@ class Command(BaseCommand):
             action="store_true",
             help="Stop running remaining collectors after the first failure.",
         )
+        parser.add_argument(
+            "--strict",
+            action="store_true",
+            help=(
+                "Require schedule YAML to exist and be valid before resolving tasks "
+                "(fails even when DEBUG is True)."
+            ),
+        )
 
     def handle(self, *args, **options):
         """Resolve tasks from YAML (group batch or single schedule), run them sequentially, exit non-zero on failure."""
@@ -88,6 +122,7 @@ class Command(BaseCommand):
         interval_minutes = options.get("interval_minutes")
         stop_on_failure = options["stop_on_failure"]
         group_id = options.get("group")
+        strict = options["strict"]
 
         if schedule_kind == "default" and group_id is None:
             raise CommandError("--schedule default requires --group")
@@ -119,6 +154,11 @@ class Command(BaseCommand):
             today = datetime.now(ZoneInfo(tz_name)).date()
             kwargs["month"] = today.month
             kwargs["year"] = today.year
+        if strict:
+            try:
+                ensure_schedule_yaml_loaded()
+            except ScheduleConfigurationError as e:
+                raise CommandError(str(e)) from e
         try:
             tasks = get_tasks_for_schedule(**kwargs)
         except (FileNotFoundError, ValueError, yaml.YAMLError) as e:
@@ -165,8 +205,8 @@ class Command(BaseCommand):
             run_on_release_tasks,
         )
 
-        for _task_group_id, task in tasks:
-            if not run_on_release_tasks and task.get("schedule") == "on_release":
+        for idx, (_task_group_id, task) in enumerate(tasks):
+            if not _task_would_run(task, run_on_release_tasks):
                 continue
             name = task.get("command")
             args = task.get("args") or []
@@ -189,6 +229,10 @@ class Command(BaseCommand):
                     logger.error("%s exited with code %s", name, code)
                     exit_code = code
                     if stop_on_failure:
+                        reason = f"stopped after {name!r} exited with code {code}"
+                        _log_skipped_after_stop_on_failure(
+                            tasks, idx, run_on_release_tasks, reason
+                        )
                         break
             except CommandError as e:
                 code = getattr(e, "returncode", 1) or 1
@@ -196,12 +240,20 @@ class Command(BaseCommand):
                 logger.error("%s failed", name)
                 exit_code = code
                 if stop_on_failure:
+                    reason = f"stopped after {name!r} failed (CommandError)"
+                    _log_skipped_after_stop_on_failure(
+                        tasks, idx, run_on_release_tasks, reason
+                    )
                     break
             except Exception:
                 logger.exception("%s failed", name)
                 results.append((name, -1))
                 exit_code = 1
                 if stop_on_failure:
+                    reason = f"stopped after {name!r} raised an exception"
+                    _log_skipped_after_stop_on_failure(
+                        tasks, idx, run_on_release_tasks, reason
+                    )
                     break
 
         succeeded = sum(1 for _, code in results if code == 0)
