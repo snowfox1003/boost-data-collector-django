@@ -1,7 +1,7 @@
 # Direct dependency inputs (one line per distribution). Version policy: >=X.Y,<next-major
 # unless pinning is required for a known breakage. Regenerate locks after edits:
-#   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.11
-#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.11
+#   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.13
+#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13
 
 # --- Core web / config ---
 Django>=4.2,<5
@@ -24,7 +24,8 @@ lxml>=6.1.0,<7
 pypandoc>=1.11,<2
 
 # --- cppa_pinecone_sync (vector index; chunking is in-tree) ---
-pinecone>=5.0,<6
+pinecone>=6.0,<7
+python-json-logger>=2.0,<4
 
 # --- cppa_slack_tracker (Slack Bolt) ---
 slack-bolt>=1.18,<2

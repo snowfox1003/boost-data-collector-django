@@ -1,45 +1,50 @@
 # Boost Data Collector - Docker image
 # Same image runs: web (gunicorn), celery worker, celery beat
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
-# Prevent Python from writing .pyc and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=config.settings
 
 WORKDIR /app
 
-# Install system deps (PostgreSQL client libs for psycopg, git for github_ops, gosu for entrypoint)
+# System deps: PostgreSQL client, git, curl (HEALTHCHECK), gosu (dev entrypoint only).
+# Pinned to Debian 13 (trixie) versions from python:3.13-slim at pin time; refresh with:
+#   docker run --rm python:3.13-slim bash -c 'apt-get update -qq && for p in libpq5 git curl gosu; do echo -n "$p="; apt-cache policy "$p" | awk "/Candidate:/{print \$2; exit}"; done'
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    git \
-    gosu \
+    libpq5=17.10-0+deb13u1 \
+    git=1:2.47.3-0+deb13u1 \
+    curl=8.14.1-2+deb13u3 \
+    gosu=1.17-3+b4 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (fully pinned lockfile; gunicorn included in lock)
 COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 
-# Copy project code
 COPY . .
 
-# Create dirs that Django/settings expect (logs, staticfiles, workspace, celerybeat)
 RUN mkdir -p logs staticfiles workspace celerybeat
 
-# Entrypoint fixes volume permissions then runs CMD as appuser
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Entrypoint runs as root, chowns mounted dirs, then exec's CMD as appuser via gosu
-RUN useradd --create-home appuser && chown -R appuser /app
-# Git 2.35+ blocks repos when directory owner != current user; bind mounts often
-# disagree (e.g. Docker Desktop on Windows). System config applies to root and appuser
-# (e.g. docker exec as root vs gosu appuser in entrypoint).
+RUN groupadd --gid 10001 appuser \
+    && useradd --uid 10001 --gid 10001 --create-home appuser \
+    && chown -R appuser:appuser /app
 RUN git config --system --add safe.directory '/app/workspace/*'
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
-# Container starts as root so entrypoint can chown; CMD runs as appuser via gosu
 
-# Default: run gunicorn (overridden in docker-compose for worker/beat)
+USER appuser
+
 EXPOSE 8000
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "config.wsgi:application"]
+
+# When HEALTH_CHECK_TOKEN is set (runtime env from compose/.env), send Bearer auth.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD sh -c 'if [ -n "${HEALTH_CHECK_TOKEN:-}" ]; then \
+    curl -fsS -H "Authorization: Bearer ${HEALTH_CHECK_TOKEN}" http://127.0.0.1:8000/health/; \
+  else \
+    curl -fsS http://127.0.0.1:8000/health/; \
+  fi'
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["gunicorn", "-c", "docker/gunicorn.conf.py", "config.wsgi:application"]

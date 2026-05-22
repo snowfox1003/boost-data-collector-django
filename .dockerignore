@@ -35,12 +35,26 @@ staticfiles
 
 # Tests and dev tools (not needed at runtime; run tests locally with: make test)
 tests
+benchmarks
 *_test.py
 test_*.py
 conftest.py
 pytest.ini
 setup.cfg
 .pre-commit-config.yaml
+requirements-dev.in
+requirements-dev.lock
+.github
+.test_artifacts
+bench.json
+coverage.xml
+coverage.json
+htmlcov
+docker-compose.yml
+docker-compose.ci.yml
+docker-compose.test.yml
+docker-compose.prod.yml
+Makefile
 
 # OS
 .DS_Store

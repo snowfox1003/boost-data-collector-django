@@ -575,23 +575,42 @@ ENABLE_ERROR_NOTIFICATIONS = env.bool(
 # Post to webhooks after deploy (see make notify / send_startup_notification)
 ENABLE_STARTUP_NOTIFICATIONS = env.bool("ENABLE_STARTUP_NOTIFICATIONS", default=True)
 
+# Logging format: text (default) or json (GCP Cloud Logging on stdout)
+LOG_FORMAT = (env("LOG_FORMAT", default="text") or "text").strip().lower()
+
+# Readiness /health/ (optional bearer token for external probes)
+HEALTH_CHECK_TOKEN = (env("HEALTH_CHECK_TOKEN", default="") or "").strip()
+HEALTH_CELERY_MIN_WORKERS = env.int("HEALTH_CELERY_MIN_WORKERS", default=1)
+HEALTH_CELERY_INSPECT_TIMEOUT = env.float("HEALTH_CELERY_INSPECT_TIMEOUT", default=3.0)
+HEALTH_COLLECTOR_STALE_HOURS = env.float("HEALTH_COLLECTOR_STALE_HOURS", default=26.0)
+HEALTH_ENFORCE_COLLECTOR_FRESHNESS = env.bool(
+    "HEALTH_ENFORCE_COLLECTOR_FRESHNESS", default=True
+)
+
+_LOG_FORMATTERS: dict = {
+    "verbose": {
+        "format": "{levelname} {asctime} {name} {module} {message}",
+        "style": "{",
+    },
+    "simple": {
+        "format": "{levelname} {message}",
+        "style": "{",
+    },
+}
+if LOG_FORMAT == "json":
+    _LOG_FORMATTERS["cloud_json"] = {
+        "()": "config.logging_formatters.CloudLoggingJsonFormatter",
+    }
+_CONSOLE_FORMATTER = "cloud_json" if LOG_FORMAT == "json" else "verbose"
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {name} {module} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
-    },
+    "formatters": _LOG_FORMATTERS,
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": _CONSOLE_FORMATTER,
         },
         "file": {
             "class": "config.logging_handlers.SafeRotatingFileHandler",

@@ -53,6 +53,7 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 
 | App                       | File                                  | Notes                                         |
 | ------------------------- | ------------------------------------- | --------------------------------------------- |
+| `boost_collector_runner`  | `boost_collector_runner/services.py`  | Collector group run status (YAML schedule groups). |
 | `cppa_user_tracker`       | `cppa_user_tracker/services.py`       | Identity, profiles, emails, staging.     |
 | `github_activity_tracker` | `github_activity_tracker/services.py` | Repos, languages, licenses, issues, PRs. |
 | `boost_library_tracker`   | `boost_library_tracker/services.py`   | Boost libraries, versions, dependencies, categories, roles. |

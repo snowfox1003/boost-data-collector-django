@@ -1,5 +1,5 @@
 # Dev and CI tooling. Regenerate after edits:
-#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.11
+#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13
 
 -r requirements.in
 

@@ -203,6 +203,7 @@ jobs:
           echo "DATABASE_URL=postgres://boost:boost@db:5432/boost_dashboard" >> .env
           echo "SECRET_KEY=ci-only-secret-key" >> .env
           echo "DEBUG=True" >> .env
+          echo "HEALTH_ENFORCE_COLLECTOR_FRESHNESS=false" >> .env
 
       - name: Build images
         run: make build

@@ -45,6 +45,10 @@ _default_db["OPTIONS"] = _opts
 _default_db["CONN_MAX_AGE"] = 0
 DATABASES["default"] = _default_db
 
+# Tests assert production freshness rules; ignore .env HEALTH_ENFORCE_COLLECTOR_FRESHNESS=false
+# used for local Docker / compose-smoke before collectors have run.
+HEALTH_ENFORCE_COLLECTOR_FRESHNESS = True
+
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]

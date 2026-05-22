@@ -362,6 +362,53 @@ def test_run_scheduled_collectors_stop_on_failure_short_circuits(
 
 
 @pytest.mark.django_db
+def test_run_scheduled_collectors_skipped_on_release_does_not_record_success(
+    tmp_path, settings
+):
+    """When all tasks are skipped (e.g. on_release with no new release), do not record group success."""
+
+    yaml_path = tmp_path / "boost_collector_schedule.yaml"
+    yaml_path.write_text("groups: {}\n", encoding="utf-8")
+    settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(yaml_path)
+    fake_tasks = [
+        ("boost", {"command": "run_boost_release", "schedule": "on_release"}),
+    ]
+    with (
+        patch(
+            "boost_collector_runner.schedule_config._get_yaml_path",
+            return_value=yaml_path,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.get_tasks_for_schedule",
+            return_value=fake_tasks,
+        ),
+        patch(
+            "boost_library_tracker.release_check.has_new_boost_release",
+            return_value=False,
+        ),
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.call_command",
+        ) as mock_call,
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.collector_services.record_group_success",
+        ) as mock_success,
+        patch(
+            "boost_collector_runner.management.commands.run_scheduled_collectors.collector_services.record_group_failure",
+        ) as mock_failure,
+    ):
+        call_command(
+            "run_scheduled_collectors",
+            "--schedule",
+            "on_release",
+            "--group",
+            "boost",
+        )
+    mock_call.assert_not_called()
+    mock_success.assert_not_called()
+    mock_failure.assert_not_called()
+
+
+@pytest.mark.django_db
 def test_run_scheduled_collectors_strict_missing_yaml_raises(tmp_path, settings):
     missing = tmp_path / "missing.yaml"
     settings.BOOST_COLLECTOR_SCHEDULE_YAML = str(missing)

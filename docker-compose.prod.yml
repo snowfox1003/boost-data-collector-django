@@ -1,0 +1,62 @@
+# Production overlay for VM deployment (use with base docker-compose.yml).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Requires DATABASE_URL in .env (e.g. Cloud SQL via host/proxy). No bundled Postgres.
+
+services:
+  web:
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      LOG_FORMAT: json
+      DEBUG: "False"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$${HEALTH_CHECK_TOKEN:-}" ]; then curl -fsS -H "Authorization: Bearer $${HEALTH_CHECK_TOKEN}" http://127.0.0.1:8000/health/; else curl -fsS http://127.0.0.1:8000/health/; fi',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  celery_worker:
+    restart: always
+    command: >
+      celery -A config worker -l info
+      --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-50}
+    environment:
+      LOG_FORMAT: json
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  celery_beat:
+    restart: always
+    environment:
+      LOG_FORMAT: json
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  selenium:
+    profiles: ["selenium"]

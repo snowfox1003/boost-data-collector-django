@@ -96,11 +96,15 @@ ps:
 	$(COMPOSE) ps
 
 .PHONY: health
+# HEALTH_CHECK_TOKEN comes from the web container env (env_file: .env). When set, /health/ requires Bearer auth.
 health:
-	$(COMPOSE) exec -T $(APP) python manage.py check --database default
-	$(COMPOSE) exec -T $(APP) python manage.py shell -c "from django.conf import settings; import sys; n = len(settings.CELERY_BEAT_SCHEDULE); print('Beat schedule entries:', n); sys.exit(1 if n <= 0 else 0)"
+	$(COMPOSE) exec -T $(APP) sh -c '\
+	  if [ -n "$${HEALTH_CHECK_TOKEN:-}" ]; then \
+	    curl -fsS -H "Authorization: Bearer $${HEALTH_CHECK_TOKEN}" http://127.0.0.1:8000/health/; \
+	  else \
+	    curl -fsS http://127.0.0.1:8000/health/; \
+	  fi | python -c "import sys,json; d=json.load(sys.stdin); print(d.get(\"status\")); sys.exit(0 if d.get(\"status\")==\"healthy\" else 1)"'
 	$(COMPOSE) exec -T redis redis-cli ping | grep -q PONG
-	$(COMPOSE) exec -T selenium curl -sf http://localhost:4444/status | grep -qE '"ready"[[:space:]]*:[[:space:]]*true'
 	$(COMPOSE) ps --status running celery_worker | grep -q celery_worker
 	$(COMPOSE) ps --status running celery_beat | grep -q celery_beat
 

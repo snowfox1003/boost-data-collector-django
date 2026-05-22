@@ -49,12 +49,14 @@ services:
   web:
     build: .
     restart: unless-stopped
+    user: "0:0"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -71,10 +73,23 @@ services:
   celery_worker:
     build: .
     restart: unless-stopped
+    user: "0:0"
+    # Override image HTTP HEALTHCHECK (no gunicorn on :8000 in this service).
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import glob,sys; sys.exit(0 if any(b\"celery\" in (d:=open(p,\"rb\").read()) and b\"worker\" in d for p in glob.glob(\"/proc/[0-9]*/cmdline\")) else 1)"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -90,10 +105,22 @@ services:
   celery_beat:
     build: .
     restart: unless-stopped
+    user: "0:0"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import glob,sys; sys.exit(0 if any(b\"celery\" in (d:=open(p,\"rb\").read()) and b\"beat\" in d for p in glob.glob(\"/proc/[0-9]*/cmdline\")) else 1)"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
+      ALLOW_ROOT_ENTRYPOINT: "1"
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0

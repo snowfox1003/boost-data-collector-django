@@ -457,8 +457,22 @@ cd /opt/boost-data-collector && make down && make up
 
 ---
 
+## Production Compose overlay
+
+For VM production, use the prod overlay (resource limits, `LOG_FORMAT=json`, Selenium off by default):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+See [GCP_Production_Checklist.md](./GCP_Production_Checklist.md) for Cloud SQL, secrets, and handoff notes.
+
 ## Health checks (`make health`)
 
-`make health` runs a small set of checks from the `Makefile` (Django `check --database default` inside **`web`**, `redis-cli PING`, Selenium `/status` from inside the selenium container, and `docker compose ps` for Celery services). It does **not** fully prove Celery broker connectivity or every cross-service path. Treat it as a quick smoke test after deploy.
+`make health` calls **`GET /health/`** inside the `web` container (database, Celery workers, collector group freshness), then checks Redis and that Celery containers are running.
 
-For more detail see [Docker.md](./Docker.md) and the `health` target in the `Makefile`.
+- **Readiness JSON:** `curl http://127.0.0.1:8000/health/` (or via nginx). If `HEALTH_CHECK_TOKEN` is set in `.env`, `make health` sends `Authorization: Bearer …` using the value from the `web` container environment.
+- **Production:** keep `HEALTH_ENFORCE_COLLECTOR_FRESHNESS=true` so stale daily groups return HTTP 503.
+- **CI / first boot:** can set `HEALTH_ENFORCE_COLLECTOR_FRESHNESS=false` until collectors have run once.
+
+For more detail see [Docker.md](./Docker.md), [GCP_Production_Checklist.md](./GCP_Production_Checklist.md), and the `health` target in the `Makefile`.
