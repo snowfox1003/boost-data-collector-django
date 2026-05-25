@@ -20,7 +20,7 @@ class PineconeInstance(str, Enum):
             return instance
         if isinstance(instance, str):
             try:
-                return cls(instance.lower())
+                return cls(instance.strip().lower())
             except ValueError as exc:
                 raise ValueError("instance must be 'public' or 'private'.") from exc
         raise TypeError("instance must be PineconeInstance, str, or None.")

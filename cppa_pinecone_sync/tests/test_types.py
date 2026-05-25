@@ -17,6 +17,15 @@ def test_coerce_normalizes_string():
     assert PineconeInstance.coerce("PRIVATE") == PineconeInstance.PRIVATE
 
 
+def test_coerce_strips_surrounding_whitespace():
+    assert PineconeInstance.coerce(" PRIVATE ") == PineconeInstance.PRIVATE
+
+
+def test_coerce_rejects_whitespace_only_string():
+    with pytest.raises(ValueError, match="instance must be 'public' or 'private'"):
+        PineconeInstance.coerce("   ")
+
+
 def test_coerce_rejects_invalid_string():
     with pytest.raises(ValueError, match="instance must be 'public' or 'private'"):
         PineconeInstance.coerce("staging")
