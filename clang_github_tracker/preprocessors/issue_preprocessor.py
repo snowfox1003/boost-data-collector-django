@@ -18,8 +18,10 @@ from django.conf import settings
 from django.utils import timezone
 
 from clang_github_tracker.models import ClangGithubIssueItem
-from github_activity_tracker.preprocessors.github_preprocess import build_issue_document
-from github_activity_tracker.workspace import get_raw_source_issue_path
+from github_activity_tracker.sync_api import (
+    build_issue_document,
+    get_raw_source_issue_path,
+)
 
 logger = logging.getLogger(__name__)
 

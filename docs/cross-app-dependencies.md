@@ -130,8 +130,7 @@ The **Kind** column classifies the imported symbol:
 | `boost_library_tracker` | `…/preprocessors/pr_preprocessor.py` | `github_activity_tracker` | `preprocess_all_prs` | utility | Intentional — Boost PR preprocessing reuses the shared GitHub preprocessor |
 | `boost_library_tracker` | `…/preprocessors/issue_preprocessor.py` | `github_activity_tracker` | `preprocess_all_issues` | utility | Intentional — same as above for issues |
 | `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `boost_library_tracker` | `BoostLibraryVersion`, `BoostVersion` | model | Intentional — docs scrape is keyed against library versions |
-| `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `cppa_pinecone_sync` | `sync_to_pinecone` | service / lazy | Tech debt — Pinecone sync is called directly from the management command instead of going through a declared collector interface in `core` |
-| `boost_library_usage_dashboard` | `…/models.py` | `boost_usage_tracker` | `BoostExternalRepository`, `BoostUsage` | model | Tech debt — `models.py` is a re-export shim; the dashboard has no models of its own and should not have a `models.py` that re-exports another app's models |
+| `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `cppa_pinecone_sync` | `sync_source_to_pinecone` | service / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.services` from collector `sync_pinecone()` |
 | `boost_library_usage_dashboard` | `…/analyzer.py` | `boost_library_tracker` | `BoostLibrary`, `BoostLibraryVersion`, `BoostVersion` | model | Intentional — dashboard aggregates from all tracker apps |
 | `boost_library_usage_dashboard` | `…/analyzer.py` | `boost_usage_tracker` | `BoostExternalRepository`, `BoostUsage` | model | Intentional — same |
 | `boost_library_usage_dashboard` | `…/analyzer_libraries.py` | `github_activity_tracker` | `GitCommitFileChange` | model | Intentional — contribution analytics |
@@ -144,7 +143,7 @@ The **Kind** column classifies the imported symbol:
 | `boost_usage_tracker` | `…/post_process.py` | `github_activity_tracker` | `create_or_update_github_file`, `GitHubRepository` | service + model | Intentional — correctly delegates file creation to github_activity_tracker service |
 | `boost_usage_tracker` | `…/management/commands/run_boost_usage_tracker.py` | `github_activity_tracker` | `GitHubRepository`, `get_or_create_repository` | model + service | Intentional — correctly delegates repo upsert |
 | `boost_usage_tracker` | `…/management/commands/run_boost_usage_tracker.py` | `cppa_user_tracker` | `get_or_create_owner_account` | service | Intentional — correctly delegates owner-account upsert |
-| `boost_usage_tracker` | `…/update_repository_from_csv.py` | `cppa_user_tracker` | `GitHubAccount` | model | Tech debt — directly queries model instead of using a `cppa_user_tracker` service function |
+| `boost_usage_tracker` | `…/update_repository_from_csv.py` | `cppa_user_tracker` | `get_github_account_by_username` | service | Intentional — read-only owner lookup via identity hub service |
 | `boost_usage_tracker` | `…/update_repository_from_csv.py` | `github_activity_tracker` | `get_or_create_repository` | service | Intentional — correctly delegates |
 | `boost_usage_tracker` | `…/update_boostusage_from_csv.py` | `boost_library_tracker` | `BoostFile` | model | Intentional — CSV import resolves FK |
 | `boost_usage_tracker` | `…/update_boostusage_from_csv.py` | `github_activity_tracker` | `GitHubFile` | model | Intentional — CSV import resolves FK |
@@ -153,14 +152,14 @@ The **Kind** column classifies the imported symbol:
 | `boost_usage_tracker` | `…/update_created_repos_by_language.py` | `github_activity_tracker` | `Language`, `create_or_update_created_repos_by_language` | model + service | Intentional — correctly delegates |
 | `boost_mailing_list_tracker` | `…/services.py` | `cppa_user_tracker` | `MailingListProfile` | model | Intentional — service references FK target |
 | `boost_mailing_list_tracker` | `…/run_boost_mailing_list_tracker.py` | `cppa_user_tracker` | `get_or_create_mailing_list_profile` | service | Intentional — correctly delegates |
-| `clang_github_tracker` | `…/sync_raw.py` | `github_activity_tracker` | `fetcher`, `save_*_raw_source`, `normalize_*_json`, path helpers | utility | Intentional — clang tracker reuses the GitHub sync/preprocessor machinery; **structural tech debt** — these utilities should move to `core` |
-| `clang_github_tracker` | `…/preprocessors/pr_preprocessor.py` | `github_activity_tracker` | `build_pr_document`, `get_raw_source_pr_path` | utility | Same as above |
-| `clang_github_tracker` | `…/preprocessors/issue_preprocessor.py` | `github_activity_tracker` | `build_issue_document`, `get_raw_source_issue_path` | utility | Same as above |
-| `clang_github_tracker` | `…/backfill_clang_github_tracker.py` | `github_activity_tracker` | `normalize_issue_json`, `normalize_pr_json` | utility | Same as above |
+| `clang_github_tracker` | `…/sync_raw.py` | `github_activity_tracker` | `fetcher`, `save_*_raw_source`, `normalize_*_json`, path helpers (via `sync_api`) | utility | Intentional — cross-app orchestration via `github_activity_tracker.sync_api` |
+| `clang_github_tracker` | `…/preprocessors/pr_preprocessor.py` | `github_activity_tracker` | `build_pr_document`, `get_raw_source_pr_path` (via `sync_api`) | utility | Intentional — same |
+| `clang_github_tracker` | `…/preprocessors/issue_preprocessor.py` | `github_activity_tracker` | `build_issue_document`, `get_raw_source_issue_path` (via `sync_api`) | utility | Intentional — same |
+| `clang_github_tracker` | `…/backfill_clang_github_tracker.py` | `github_activity_tracker` | `normalize_issue_json`, `normalize_pr_json` (via `sync_api`) | utility | Intentional — same |
 | `cppa_slack_tracker` | `…/models.py` | `cppa_user_tracker` | `SlackUser` | model | Intentional — FK base class (see schema coupling §1) |
 | `cppa_slack_tracker` | `…/services.py` | `cppa_user_tracker` | `SlackUser`, `get_or_create_slack_user` | model + service | Intentional — correctly delegates user upsert |
 | `cppa_slack_tracker` | `…/sync/sync_user.py` | `cppa_user_tracker` | `get_or_create_slack_user` | service | Intentional — correctly delegates |
-| `cppa_slack_tracker` | `…/run_cppa_slack_tracker.py` | `cppa_pinecone_sync` | `sync_to_pinecone`, `PineconeInstance` | service / lazy | Tech debt — same pattern as `boost_library_docs_tracker`; Pinecone sync should go through a collector interface |
+| `cppa_slack_tracker` | `…/run_cppa_slack_tracker.py` | `cppa_pinecone_sync` | `sync_source_to_pinecone` | service / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.services` from collector `sync_pinecone()` |
 | `discord_activity_tracker` | `…/models.py` | `cppa_user_tracker` | `DiscordProfile` | model | Intentional — FK base class (see schema coupling §1) |
 | `discord_activity_tracker` | `…/services.py` | `cppa_user_tracker` | `DiscordProfile`, `get_or_create_discord_profile` | model + service | Intentional — services reference FK target and delegate upsert |
 | `discord_activity_tracker` | `…/sync/messages.py` | `cppa_user_tracker` | `get_or_create_discord_profile` | service | Intentional — correctly delegates |
@@ -168,15 +167,19 @@ The **Kind** column classifies the imported symbol:
 | `wg21_paper_tracker` | `…/import_wg21_metadata_from_csv.py` | `cppa_user_tracker` | `get_or_create_wg21_paper_author_profile` | service / lazy | Intentional — CSV import delegates author upsert |
 | `cppa_youtube_script_tracker` | `…/run_cppa_youtube_script_tracker.py` | `cppa_user_tracker` | `get_or_create_youtube_speaker` | service | Intentional — correctly delegates speaker upsert |
 
-### Summary of tech-debt import edges
+### Summary of tech-debt import edges (resolved)
 
-| Source app | Issue | Recommended fix |
+The five edges from Eval Test 20 / B4 / Compound C2 are **resolved**:
+
+| Source app | Was | Now |
 | --- | --- | --- |
-| `boost_library_docs_tracker` | Calls `cppa_pinecone_sync.sync_to_pinecone` directly from management command | Move Pinecone trigger into the `CollectorBase` / `sync_pinecone()` hook in `core` |
-| `cppa_slack_tracker` | Same Pinecone pattern | Same fix |
-| `boost_library_usage_dashboard` | `models.py` re-exports `boost_usage_tracker` models | Remove the shim; callers should import from `boost_usage_tracker` directly |
-| `boost_usage_tracker` | `update_repository_from_csv.py` uses `GitHubAccount.objects` directly | Add a lookup helper (`get_github_account_by_username`) to `cppa_user_tracker.services` |
-| `clang_github_tracker` | Heavy import dependency on `github_activity_tracker` sync/preprocess utilities | Extract shared utilities (`fetcher`, `normalize_*_json`, `save_*_raw_source`, path helpers) into `core.operations` |
+| `boost_library_docs_tracker` | Direct `cppa_pinecone_sync.sync` import | `cppa_pinecone_sync.services.sync_source_to_pinecone` in `sync_pinecone()` |
+| `cppa_slack_tracker` | Direct `sync` / `ingestion` imports | Same service API |
+| `boost_library_usage_dashboard` | `models.py` re-export shim | Shim removed; tests import `boost_usage_tracker.models` directly |
+| `boost_usage_tracker` | `GitHubAccount.objects` in CSV import | `cppa_user_tracker.services.get_github_account_by_username` |
+| `clang_github_tracker` | Imports from `fetcher`, `sync.*`, `workspace`, `preprocessors` | Imports from `github_activity_tracker.sync_api` only |
+
+CI enforces regressions via **import-linter** (see §5).
 
 ---
 
@@ -203,7 +206,7 @@ flowchart LR
     boost_lib -->|"ORM MTI + import"| github_act
     boost_lib -->|"ORM + import"| cppa_user
     boost_lib_docs -->|"ORM + import"| boost_lib
-    boost_lib_docs -.->|"import (lazy)"| cppa_pinecone
+    boost_lib_docs -.->|"services (lazy)"| cppa_pinecone
     boost_usage -->|"ORM MTI + import"| github_act
     boost_usage -->|"ORM + import"| boost_lib
     boost_usage -.->|"import (model)"| cppa_user
@@ -214,9 +217,9 @@ flowchart LR
     wg21_paper -->|"ORM + import"| cppa_user
     cppa_youtube -->|"ORM + import"| cppa_user
     cppa_slack -->|"ORM + import"| cppa_user
-    cppa_slack -.->|"import (lazy)"| cppa_pinecone
+    cppa_slack -.->|"services (lazy)"| cppa_pinecone
     discord_act -->|"ORM + import"| cppa_user
-    clang_github -->|"import (utilities)"| github_act
+    clang_github -->|"sync_api"| github_act
     boost_runner -.->|"import (lazy)"| boost_lib
 ```
 
@@ -226,112 +229,33 @@ or an `if` block).
 
 ---
 
-## 5. Linting Recommendation — `import-linter`
+## 5. Import linting — `import-linter` (enabled)
 
-[`import-linter`](https://import-linter.readthedocs.io/) can enforce import contracts at
-CI time.  The recommended path is **staged**:
+[`import-linter`](https://import-linter.readthedocs.io/) is in **`requirements-dev.in`**
+and runs in CI via the **`import-linter`** pre-commit hook (`lint-imports`).
 
-### Stage 1 — Add `import-linter` to dev dependencies
+Configuration: [`.importlinter`](../.importlinter) at the repo root.
 
-```bash
-pip install import-linter
-# or add to requirements-dev.txt:
-# import-linter>=2.1
-```
+**Active contracts** (forbid *direct* imports; `allow_indirect_imports = true` where
+callers use a service facade):
 
-Then create `.importlinter` at the repo root.
-
-### Stage 2 — Short-term contract: forbid NEW lateral edges between leaf trackers
-
-Start with a low-risk contract that forbids only lateral imports between apps that should
-never depend on each other.  This does not disturb existing approved edges.
-
-```ini
-[importlinter]
-root_packages =
-    cppa_pinecone_sync
-    clang_github_tracker
-    cppa_slack_tracker
-    discord_activity_tracker
-    wg21_paper_tracker
-    cppa_youtube_script_tracker
-    slack_event_handler
-    boost_mailing_list_tracker
-    boost_collector_runner
-
-[importlinter:contract:no-lateral-leaf-imports]
-name = No lateral imports between leaf tracker apps
-type = forbidden
-source_modules =
-    cppa_pinecone_sync
-    clang_github_tracker
-    cppa_slack_tracker
-    discord_activity_tracker
-    wg21_paper_tracker
-    cppa_youtube_script_tracker
-    slack_event_handler
-    boost_mailing_list_tracker
-    boost_collector_runner
-forbidden_modules =
-    cppa_pinecone_sync
-    clang_github_tracker
-    cppa_slack_tracker
-    discord_activity_tracker
-    wg21_paper_tracker
-    cppa_youtube_script_tracker
-    slack_event_handler
-    boost_mailing_list_tracker
-    boost_collector_runner
-# Existing approved exceptions:
-ignore_imports =
-    boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker -> cppa_pinecone_sync.sync
-    boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker -> cppa_pinecone_sync.ingestion
-    cppa_slack_tracker.management.commands.run_cppa_slack_tracker -> cppa_pinecone_sync.sync
-    cppa_slack_tracker.management.commands.run_cppa_slack_tracker -> cppa_pinecone_sync.ingestion
-    boost_collector_runner.management.commands.run_scheduled_collectors -> boost_library_tracker.release_check
-```
-
-### Stage 3 — Long-term contract: enforce the layered architecture
-
-The eventual goal, expressed as a `layers` contract, is that tracker apps may only import
-from `core` and their own package:
-
-```ini
-[importlinter:contract:tracker-independence]
-name = Tracker apps are independent modules (long-term goal)
-type = layers
-layers =
-    cppa_user_tracker
-    github_activity_tracker
-    boost_library_tracker
-    boost_library_docs_tracker : boost_usage_tracker
-    boost_library_usage_dashboard
-containers =
-    (root)
-```
-
-This contract will **not** pass until the tech-debt edges listed in §3 are resolved.
-Use it as a migration target, not an immediate CI gate.
+| Contract | Purpose |
+| --- | --- |
+| `forbid-tech-debt-pinecone` | `boost_library_docs_tracker` / `cppa_slack_tracker` must not import `cppa_pinecone_sync.sync` or `.ingestion` directly |
+| `forbid-tech-debt-usage-csv-user-model` | `boost_usage_tracker.update_repository_from_csv` must not import `cppa_user_tracker.models` directly |
+| `forbid-tech-debt-clang-github-internals` | `clang_github_tracker` must not import `github_activity_tracker` `fetcher`, `sync`, `workspace`, or `preprocessors` directly (use `sync_api`) |
 
 ### Running the linter
 
 ```bash
-lint-imports          # check all contracts
-lint-imports --debug  # verbose output
+uv run lint-imports          # check all contracts
+uv run lint-imports --debug  # verbose output
 ```
 
-To add it to pre-commit:
+### Long-term goal (not yet a CI gate)
 
-```yaml
-# .pre-commit-config.yaml
-- repo: local
-  hooks:
-    - id: import-linter
-      name: import-linter
-      language: python
-      entry: lint-imports
-      pass_filenames: false
-```
+A `layers` contract so tracker apps may only import from `core` and their own package
+remains a migration target; see historical note in git history for §5 Stage 3.
 
 ---
 

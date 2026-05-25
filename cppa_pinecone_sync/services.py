@@ -10,12 +10,41 @@ See CONTRIBUTING.md for the project-wide rule.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from django.utils import timezone
 
 from .models import PineconeFailList, PineconeSyncStatus
+
+
+def sync_source_to_pinecone(
+    app_type: str,
+    namespace: str,
+    preprocess_fn: Callable[..., Any],
+    *,
+    instance: Any = None,
+) -> dict[str, Any]:
+    """Public cross-app entry for vector upsert.
+
+    Returns the ``sync_to_pinecone`` result dict with keys including ``upserted``,
+    ``total``, ``failed_count``, ``successful_source_ids``, ``failed_ids``, and
+    ``errors``.
+
+    *instance* defaults to ``PineconeInstance.PUBLIC`` when omitted (lazy import
+    avoids loading Pinecone at ``services`` import time).
+    """
+    from .ingestion import PineconeInstance
+    from .sync import sync_to_pinecone
+
+    pinecone_instance = instance if instance is not None else PineconeInstance.PUBLIC
+    return sync_to_pinecone(
+        app_type,
+        namespace,
+        preprocess_fn,
+        instance=pinecone_instance,
+    )
 
 
 # --- PineconeFailList ---

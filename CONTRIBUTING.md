@@ -132,7 +132,7 @@ uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.
 ## Other guidelines
 
 - **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [docs/Development_guideline.md](docs/Development_guideline.md).
-- **Code style:** Use Python 3.11+ and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
+- **Code style:** Use Python 3.13 and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
 - **Docs:** Update this file (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
 

@@ -54,7 +54,7 @@ def main() -> int:
             "**/._*",
             "**/.___*",
         ],
-        "pythonVersion": "3.11",
+        "pythonVersion": "3.13",
         "typeCheckingMode": "basic",
         "reportMissingImports": True,
         "extraPaths": ["../.."],

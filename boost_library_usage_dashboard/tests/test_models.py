@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 from django.core.exceptions import ValidationError
 
-from boost_library_usage_dashboard.models import BoostExternalRepository, BoostUsage
+from boost_usage_tracker.models import BoostExternalRepository, BoostUsage
 from boost_usage_tracker import models as usage_models
 
 

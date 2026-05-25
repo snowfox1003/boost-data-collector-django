@@ -45,7 +45,7 @@ For supported imports from `core`, see [Core_public_API.md](Core_public_API.md).
 ### 1. Programming language
 
 - Must be developed using Python.
-- Must use Python 3.11+.
+- Must use Python 3.13 (`requires-python` in `pyproject.toml`).
 
 ### 2. Entry point and dependencies
 

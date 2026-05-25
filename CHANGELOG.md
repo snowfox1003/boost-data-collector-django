@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.services`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
+- Added **import-linter** contracts and pre-commit hook to prevent regressions.
+
 ## [0.1.0] - 2026-05-22
 
 ### Added

@@ -45,3 +45,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: import-linter
+        name: import-linter
+        entry: lint-imports
+        language: python
+        additional_dependencies: ["import-linter>=2.1,<3"]
+        pass_filenames: false
+        always_run: true

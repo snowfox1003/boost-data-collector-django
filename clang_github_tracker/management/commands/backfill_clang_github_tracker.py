@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from clang_github_tracker import services as clang_services
 from clang_github_tracker.workspace import OWNER, REPO, get_raw_repo_dir
-from github_activity_tracker.sync.utils import (
+from github_activity_tracker.sync_api import (
     normalize_issue_json,
     normalize_pr_json,
 )

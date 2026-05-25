@@ -1,0 +1,49 @@
+[importlinter]
+root_packages =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    discord_activity_tracker
+    github_activity_tracker
+    slack_event_handler
+    wg21_paper_tracker
+
+[importlinter:contract:forbid-tech-debt-pinecone]
+name = Tracker apps must not import cppa_pinecone_sync internals
+type = forbidden
+source_modules =
+    boost_library_docs_tracker
+    cppa_slack_tracker
+forbidden_modules =
+    cppa_pinecone_sync.sync
+    cppa_pinecone_sync.ingestion
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-tech-debt-usage-csv-user-model]
+name = update_repository_from_csv must not import cppa_user_tracker models
+type = forbidden
+source_modules =
+    boost_usage_tracker.update_repository_from_csv
+forbidden_modules =
+    cppa_user_tracker.models
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-tech-debt-clang-github-internals]
+name = clang_github_tracker must use github_activity_tracker.sync_api only
+type = forbidden
+source_modules =
+    clang_github_tracker
+forbidden_modules =
+    github_activity_tracker.fetcher
+    github_activity_tracker.sync
+    github_activity_tracker.workspace
+    github_activity_tracker.preprocessors
+allow_indirect_imports = true

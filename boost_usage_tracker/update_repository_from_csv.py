@@ -19,7 +19,7 @@ from typing import Any
 from django.utils.dateparse import parse_datetime
 
 from config.workspace import get_workspace_path
-from cppa_user_tracker.models import GitHubAccount
+from cppa_user_tracker.services import get_github_account_by_username
 from github_activity_tracker.services import get_or_create_repository
 from boost_usage_tracker.services import get_or_create_boost_external_repo
 
@@ -97,7 +97,7 @@ def update_repository_table_from_csv(
                 repo_name = (row.get("repo_name") or "").strip()
                 if not owner or not repo_name:
                     continue
-                account = GitHubAccount.objects.filter(username=owner).first()
+                account = get_github_account_by_username(owner)
                 if account is None:
                     result["skipped_no_owner"] += 1
                     logger.debug("Skipping row: no GitHubAccount for owner=%r", owner)
