@@ -1,10 +1,49 @@
 """Tests for cppa_pinecone_sync.services."""
 
+from unittest.mock import patch
+
 import pytest
 from django.utils import timezone
 
 from cppa_pinecone_sync import services
+from cppa_pinecone_sync.ingestion import PineconeInstance
 from cppa_pinecone_sync.models import PineconeFailList, PineconeSyncStatus
+
+
+# --- sync_source_to_pinecone ---
+
+
+@patch("cppa_pinecone_sync.sync.sync_to_pinecone", return_value={"upserted": 0})
+def test_sync_source_to_pinecone_defaults_instance_to_public(mock_sync):
+    services.sync_source_to_pinecone("app", "ns", lambda: None)
+    mock_sync.assert_called_once()
+    assert mock_sync.call_args.kwargs["instance"] == PineconeInstance.PUBLIC
+
+
+@patch("cppa_pinecone_sync.sync.sync_to_pinecone", return_value={"upserted": 0})
+def test_sync_source_to_pinecone_accepts_enum_instance(mock_sync):
+    services.sync_source_to_pinecone(
+        "app", "ns", lambda: None, instance=PineconeInstance.PRIVATE
+    )
+    assert mock_sync.call_args.kwargs["instance"] == PineconeInstance.PRIVATE
+
+
+@patch("cppa_pinecone_sync.sync.sync_to_pinecone", return_value={"upserted": 0})
+def test_sync_source_to_pinecone_normalizes_string_instance(mock_sync):
+    services.sync_source_to_pinecone("app", "ns", lambda: None, instance="PRIVATE")
+    assert mock_sync.call_args.kwargs["instance"] == PineconeInstance.PRIVATE
+
+
+def test_sync_source_to_pinecone_rejects_invalid_string_instance():
+    with pytest.raises(ValueError, match="instance must be 'public' or 'private'"):
+        services.sync_source_to_pinecone("app", "ns", lambda: None, instance="staging")
+
+
+def test_sync_source_to_pinecone_rejects_invalid_type_instance():
+    with pytest.raises(
+        TypeError, match="instance must be PineconeInstance, str, or None"
+    ):
+        services.sync_source_to_pinecone("app", "ns", lambda: None, instance=42)
 
 
 # --- get_failed_ids ---

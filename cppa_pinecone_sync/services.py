@@ -38,7 +38,18 @@ def sync_source_to_pinecone(
     from .ingestion import PineconeInstance
     from .sync import sync_to_pinecone
 
-    pinecone_instance = instance if instance is not None else PineconeInstance.PUBLIC
+    if instance is None:
+        pinecone_instance = PineconeInstance.PUBLIC
+    elif isinstance(instance, PineconeInstance):
+        pinecone_instance = instance
+    elif isinstance(instance, str):
+        try:
+            pinecone_instance = PineconeInstance(instance.lower())
+        except ValueError as exc:
+            raise ValueError("instance must be 'public' or 'private'.") from exc
+    else:
+        raise TypeError("instance must be PineconeInstance, str, or None.")
+
     return sync_to_pinecone(
         app_type,
         namespace,

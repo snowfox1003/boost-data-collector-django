@@ -27,7 +27,7 @@ document.  `core` is excluded because it is shared infrastructure, not a peer tr
 | `github_activity_tracker` | GitHub repos, files, commits, issues, pull requests | Yes |
 | `boost_library_tracker` | Boost libraries, versions, files, dependencies, maintainer roles | Yes |
 | `boost_library_docs_tracker` | Boost documentation content and sync status | Yes |
-| `boost_library_usage_dashboard` | Aggregation/reporting dashboard (queries multiple trackers) | Shim only — re-exports from `boost_usage_tracker` |
+| `boost_library_usage_dashboard` | Aggregation/reporting dashboard (queries multiple trackers) | No (no local `models.py`; reads `boost_usage_tracker` and peers) |
 | `boost_usage_tracker` | External repo Boost header usage tracking | Yes |
 | `boost_mailing_list_tracker` | Boost mailing list messages | Yes |
 | `cppa_pinecone_sync` | Pinecone vector sync status | Yes |
@@ -87,7 +87,6 @@ queries a foreign app's model via `.objects`:
 | --- | --- | --- | --- |
 | `discord_activity_tracker/services.py` | `cppa_user_tracker.DiscordProfile` | `.objects.filter(discord_user_id__in=...)` | Intentional — bulk prefetch before delegating to `cppa_user_tracker.services`; avoids N+1 |
 | `boost_usage_tracker/post_process.py` | `boost_library_tracker.BoostFile` | `.objects.filter(github_file__filename__endswith=...)` | Intentional — resolves Boost header path to BoostFile; no service wrapper exists yet |
-| `boost_usage_tracker/update_repository_from_csv.py` | `cppa_user_tracker.GitHubAccount` | `.objects.filter(username=owner).first()` | Tech debt — a `cppa_user_tracker.services.get_github_account_by_username()` would be cleaner |
 | `boost_usage_tracker/update_boostusage_from_csv.py` | `github_activity_tracker.GitHubFile` | `.objects.filter(repo_id=..., filename=...)` | Intentional — CSV import resolves FK targets by field values |
 | `boost_usage_tracker/update_boostusage_from_csv.py` | `boost_library_tracker.BoostFile` | `.objects.filter(github_file__filename=...)` | Intentional — CSV import resolves Boost header FK |
 | `boost_library_tracker/services.py` | `github_activity_tracker.GitHubFile`, `GitHubRepository` | Various `.objects` calls | Intentional — `boost_library_tracker` services manage BoostFile records that extend GitHubFile |
@@ -98,10 +97,10 @@ queries a foreign app's model via `.objects`:
 | `boost_library_usage_dashboard/analyzer_libraries.py` | `github_activity_tracker.GitCommitFileChange` | `.objects.select_related(...).filter(...).iterator()` | Intentional — contribution analytics require commit-file data |
 | `boost_library_usage_dashboard/analyzer_metrics.py` | `boost_usage_tracker.BoostUsage` | `.objects` aggregate queries | Intentional — usage metrics |
 
-**Summary:** Most cross-app reads are intentional and arise from the FK-linked data
-model (the dashboard must query what it displays).  The one clear tech-debt candidate is
-`update_repository_from_csv.py` directly using `GitHubAccount.objects`, which should
-delegate to a `cppa_user_tracker` service function.
+**Summary:** Cross-app reads are intentional and arise from the FK-linked data model
+(the dashboard aggregates peer trackers at query time).  CSV owner resolution in
+`update_repository_from_csv.py` delegates to `cppa_user_tracker.services.get_github_account_by_username`
+(resolved; see §3).
 
 ---
 
@@ -236,8 +235,8 @@ and runs in CI via the **`import-linter`** pre-commit hook (`lint-imports`).
 
 Configuration: [`.importlinter`](../.importlinter) at the repo root.
 
-**Active contracts** (forbid *direct* imports; `allow_indirect_imports = true` where
-callers use a service facade):
+**Active contracts** guard the five resolved import edges in §3 (forbid *direct*
+imports; `allow_indirect_imports = true` where callers use a service facade):
 
 | Contract | Purpose |
 | --- | --- |
