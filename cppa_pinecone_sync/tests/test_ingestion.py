@@ -6,10 +6,8 @@ import pytest
 from django.test.utils import override_settings
 
 
-from cppa_pinecone_sync.ingestion import (
-    PineconeIngestion,
-    PineconeInstance,
-)
+from cppa_pinecone_sync.ingestion import PineconeIngestion
+from cppa_pinecone_sync.types import PineconeInstance
 from cppa_pinecone_sync.text_chunking import Document
 
 

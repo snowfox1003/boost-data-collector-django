@@ -559,11 +559,9 @@ def test_sync_to_pinecone_logs_errors_list(caplog, sample_slack_team, settings):
         "failed_count": 1,
         "errors": ["e1", "e2", "e3", "e4"],
     }
-    fake_services = MagicMock(
-        sync_source_to_pinecone=MagicMock(return_value=fake_result)
-    )
+    fake_services = MagicMock(sync_to_pinecone=MagicMock(return_value=fake_result))
     with (
-        patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}),
+        patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}),
         patch("cppa_slack_tracker.preprocessor.preprocess_slack_for_pinecone"),
     ):
         collector._sync_to_pinecone(sample_slack_team)
@@ -580,12 +578,10 @@ def test_sync_to_pinecone_generic_exception_logged(caplog, sample_slack_team, se
         options={},
     )
     fake_services = MagicMock(
-        sync_source_to_pinecone=MagicMock(
-            side_effect=RuntimeError("unexpected pinecone")
-        )
+        sync_to_pinecone=MagicMock(side_effect=RuntimeError("unexpected pinecone"))
     )
     with (
-        patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}),
+        patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}),
         patch("cppa_slack_tracker.preprocessor.preprocess_slack_for_pinecone"),
     ):
         collector._sync_to_pinecone(sample_slack_team)
@@ -793,7 +789,7 @@ def test_sync_to_pinecone_import_error_direct(caplog, sample_slack_team):
     real_import = builtins.__import__
 
     def boom_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "cppa_pinecone_sync.services":
+        if name == "cppa_pinecone_sync.sync_api":
             raise ImportError("missing pinecone")
         return real_import(name, globals, locals, fromlist, level)
 
@@ -815,11 +811,9 @@ def test_sync_to_pinecone_success(sample_slack_team, settings):
         options={},
     )
     fake_result = {"upserted": 1, "total": 1, "failed_count": 0, "errors": []}
-    fake_services = MagicMock(
-        sync_source_to_pinecone=MagicMock(return_value=fake_result)
-    )
+    fake_services = MagicMock(sync_to_pinecone=MagicMock(return_value=fake_result))
     with (
-        patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}),
+        patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}),
         patch(
             "cppa_slack_tracker.preprocessor.preprocess_slack_for_pinecone",
             create=True,
@@ -838,10 +832,10 @@ def test_sync_to_pinecone_value_error_warning(caplog, sample_slack_team, setting
         options={},
     )
     fake_services = MagicMock(
-        sync_source_to_pinecone=MagicMock(side_effect=ValueError("bad config"))
+        sync_to_pinecone=MagicMock(side_effect=ValueError("bad config"))
     )
     with (
-        patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}),
+        patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}),
         patch("cppa_slack_tracker.preprocessor.preprocess_slack_for_pinecone"),
     ):
         collector._sync_to_pinecone(sample_slack_team)

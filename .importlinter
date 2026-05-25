@@ -25,6 +25,7 @@ source_modules =
 forbidden_modules =
     cppa_pinecone_sync.sync
     cppa_pinecone_sync.ingestion
+    cppa_pinecone_sync.services
 allow_indirect_imports = true
 
 [importlinter:contract:forbid-tech-debt-usage-csv-user-model]

@@ -4,7 +4,9 @@
 
 **Vector sync only.** This Django app is the shared pipeline that **embeds and upserts** documents into **Pinecone** (hybrid dense + sparse, integrated cloud embeddings). It does **not** crawl GitHub, Slack, or the web; upstream collectors populate PostgreSQL and/or the workspace, then call **`sync_to_pinecone()`** or **`run_cppa_pinecone_sync`**.
 
-Each run targets exactly one logical source (**`--app-type`**), one **namespace**, one **preprocessor** import path, and one **Pinecone account** selected by **`--pinecone-instance`** (`public` or `private` — see [`ingestion.PineconeInstance`](ingestion.py)).
+Each run targets exactly one logical source (**`--app-type`**), one **namespace**, one **preprocessor** import path, and one **Pinecone account** selected by **`--pinecone-instance`** (`public` or `private` — see [`types.PineconeInstance`](types.py)).
+
+**Cross-app entry:** Other tracker apps import [`sync_api`](sync_api.py) only (`sync_to_pinecone`, `PineconeInstance`) — not `sync`, `ingestion`, or `services` directly.
 
 **Docs:** [docs/service_api/cppa_pinecone_sync.md](../docs/service_api/cppa_pinecone_sync.md) · [docs/Pinecone_preprocess_guideline.md](../docs/Pinecone_preprocess_guideline.md) · [docs/Architecture_data_flow.md](../docs/Architecture_data_flow.md)
 
@@ -55,7 +57,7 @@ Wraps **`sync_to_pinecone()`** for a single **(app_type, namespace, preprocessor
 | `--app-type` | Logical source id (string your preprocessor understands; often matches the upstream collector’s app type). |
 | `--namespace` | Target Pinecone namespace for upserts. |
 | `--preprocessor` | Dotted import path to the preprocess callable (e.g. `myapp.preprocessors.foo`). |
-| `--pinecone-instance` | `public` (default) or `private` — which Pinecone API credentials / project to use ([`PineconeInstance`](ingestion.py)). |
+| `--pinecone-instance` | `public` (default) or `private` — which Pinecone API credentials / project to use ([`PineconeInstance`](types.py)). |
 
 ## Package
 

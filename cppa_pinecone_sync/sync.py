@@ -1,7 +1,7 @@
 """
 Main entry point for Pinecone sync.
 
-Other apps call ``sync_to_pinecone()`` to push their data into Pinecone.
+Other apps call ``sync_api.sync_to_pinecone()`` to push their data into Pinecone.
 This module orchestrates the full flow:
 
 1. Collect failed IDs and last sync timestamp from the database.
@@ -24,7 +24,8 @@ from typing import Any, Callable, Optional
 from django.db import transaction
 
 from . import services
-from .ingestion import PineconeIngestion, PineconeInstance
+from .ingestion import PineconeIngestion
+from .types import PineconeInstance
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,8 @@ def sync_to_pinecone(
     app_type: str,
     namespace: str,
     preprocess_fn: PreprocessFn,
-    instance: PineconeInstance = PineconeInstance.PUBLIC,
+    *,
+    instance: PineconeInstance | str | None = None,
 ) -> dict[str, Any]:
     """Run a full Pinecone sync cycle for *app_type*.
 
@@ -147,18 +149,19 @@ def sync_to_pinecone(
             ``(list[dict], is_chunked, metas_to_update)``. Each dict must have
             ``content`` and ``metadata``; ``metadata`` must contain ``doc_id``
             or ``url``. See docs/Pinecone_preprocess_guideline.md.
-        instance: Which Pinecone API key to use (public or private).
-            Default is public.
+        instance: Which Pinecone API key to use (``PineconeInstance``, ``str``,
+            or ``None`` for public). Strings are normalized case-insensitively.
 
     Returns:
         dict with keys: upserted, updated, total, failed_count, failed_ids,
         errors, update_errors.
     """
+    pinecone_instance = PineconeInstance.coerce(instance)
     logger.info(
         "sync_to_pinecone: starting app_type=%s namespace=%s instance=%s",
         app_type,
         namespace,
-        instance.value,
+        pinecone_instance.value,
     )
 
     failed_ids = services.get_failed_ids(app_type)
@@ -204,7 +207,7 @@ def sync_to_pinecone(
         )
         return _empty_sync_result()
 
-    ingestion = _get_ingestion(instance)
+    ingestion = _get_ingestion(pinecone_instance)
     attempted_source_ids = _extract_source_ids_from_documents(upsert_documents)
 
     if upsert_documents:

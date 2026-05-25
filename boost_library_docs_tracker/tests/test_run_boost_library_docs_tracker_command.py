@@ -312,7 +312,7 @@ def test_sync_pinecone_import_skips():
     orig = builtins.__import__
 
     def fake_import(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
-        if name == "cppa_pinecone_sync.services":
+        if name == "cppa_pinecone_sync.sync_api":
             raise ImportError("no pinecone")
         return orig(name, globals_dict, locals_dict, fromlist, level)
 
@@ -324,8 +324,8 @@ def test_sync_pinecone_import_skips():
 def test_sync_pinecone_runtime_error():
     cmd = Command()
     mock_sync = MagicMock(side_effect=RuntimeError("api down"))
-    fake_services = MagicMock(sync_source_to_pinecone=mock_sync)
-    with patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}):
+    fake_services = MagicMock(sync_to_pinecone=mock_sync)
+    with patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}):
         cmd._sync_pinecone()
 
 
@@ -340,9 +340,9 @@ def test_sync_pinecone_marks_success_and_failed_ids():
         "failed_count": 1,
     }
     mock_sync = MagicMock(return_value=result)
-    fake_services = MagicMock(sync_source_to_pinecone=mock_sync)
+    fake_services = MagicMock(sync_to_pinecone=mock_sync)
     with (
-        patch.dict("sys.modules", {"cppa_pinecone_sync.services": fake_services}),
+        patch.dict("sys.modules", {"cppa_pinecone_sync.sync_api": fake_services}),
         patch(
             "boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker.services.set_doc_content_upserted_by_ids",
         ) as mark,

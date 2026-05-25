@@ -129,7 +129,7 @@ The **Kind** column classifies the imported symbol:
 | `boost_library_tracker` | `…/preprocessors/pr_preprocessor.py` | `github_activity_tracker` | `preprocess_all_prs` | utility | Intentional — Boost PR preprocessing reuses the shared GitHub preprocessor |
 | `boost_library_tracker` | `…/preprocessors/issue_preprocessor.py` | `github_activity_tracker` | `preprocess_all_issues` | utility | Intentional — same as above for issues |
 | `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `boost_library_tracker` | `BoostLibraryVersion`, `BoostVersion` | model | Intentional — docs scrape is keyed against library versions |
-| `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `cppa_pinecone_sync` | `sync_source_to_pinecone` | service / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.services` from collector `sync_pinecone()` |
+| `boost_library_docs_tracker` | `…/run_boost_library_docs_tracker.py` | `cppa_pinecone_sync` | `sync_to_pinecone` | sync_api / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.sync_api` from collector `sync_pinecone()` |
 | `boost_library_usage_dashboard` | `…/analyzer.py` | `boost_library_tracker` | `BoostLibrary`, `BoostLibraryVersion`, `BoostVersion` | model | Intentional — dashboard aggregates from all tracker apps |
 | `boost_library_usage_dashboard` | `…/analyzer.py` | `boost_usage_tracker` | `BoostExternalRepository`, `BoostUsage` | model | Intentional — same |
 | `boost_library_usage_dashboard` | `…/analyzer_libraries.py` | `github_activity_tracker` | `GitCommitFileChange` | model | Intentional — contribution analytics |
@@ -158,7 +158,7 @@ The **Kind** column classifies the imported symbol:
 | `cppa_slack_tracker` | `…/models.py` | `cppa_user_tracker` | `SlackUser` | model | Intentional — FK base class (see schema coupling §1) |
 | `cppa_slack_tracker` | `…/services.py` | `cppa_user_tracker` | `SlackUser`, `get_or_create_slack_user` | model + service | Intentional — correctly delegates user upsert |
 | `cppa_slack_tracker` | `…/sync/sync_user.py` | `cppa_user_tracker` | `get_or_create_slack_user` | service | Intentional — correctly delegates |
-| `cppa_slack_tracker` | `…/run_cppa_slack_tracker.py` | `cppa_pinecone_sync` | `sync_source_to_pinecone` | service / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.services` from collector `sync_pinecone()` |
+| `cppa_slack_tracker` | `…/run_cppa_slack_tracker.py` | `cppa_pinecone_sync` | `sync_to_pinecone` | sync_api / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.sync_api` from collector `sync_pinecone()` |
 | `discord_activity_tracker` | `…/models.py` | `cppa_user_tracker` | `DiscordProfile` | model | Intentional — FK base class (see schema coupling §1) |
 | `discord_activity_tracker` | `…/services.py` | `cppa_user_tracker` | `DiscordProfile`, `get_or_create_discord_profile` | model + service | Intentional — services reference FK target and delegate upsert |
 | `discord_activity_tracker` | `…/sync/messages.py` | `cppa_user_tracker` | `get_or_create_discord_profile` | service | Intentional — correctly delegates |
@@ -172,7 +172,7 @@ The five edges from Eval Test 20 / B4 / Compound C2 are **resolved**:
 
 | Source app | Was | Now |
 | --- | --- | --- |
-| `boost_library_docs_tracker` | Direct `cppa_pinecone_sync.sync` import | `cppa_pinecone_sync.services.sync_source_to_pinecone` in `sync_pinecone()` |
+| `boost_library_docs_tracker` | Direct `cppa_pinecone_sync.sync` or `.services` import | `cppa_pinecone_sync.sync_api.sync_to_pinecone` in `sync_pinecone()` |
 | `cppa_slack_tracker` | Direct `sync` / `ingestion` imports | Same service API |
 | `boost_library_usage_dashboard` | `models.py` re-export shim | Shim removed; tests import `boost_usage_tracker.models` directly |
 | `boost_usage_tracker` | `GitHubAccount.objects` in CSV import | `cppa_user_tracker.services.get_github_account_by_username` |
@@ -240,7 +240,7 @@ imports; `allow_indirect_imports = true` where callers use a service facade):
 
 | Contract | Purpose |
 | --- | --- |
-| `forbid-tech-debt-pinecone` | `boost_library_docs_tracker` / `cppa_slack_tracker` must not import `cppa_pinecone_sync.sync` or `.ingestion` directly |
+| `forbid-tech-debt-pinecone` | `boost_library_docs_tracker` / `cppa_slack_tracker` must not import `cppa_pinecone_sync.sync`, `.ingestion`, or `.services` directly (use `sync_api`) |
 | `forbid-tech-debt-usage-csv-user-model` | `boost_usage_tracker.update_repository_from_csv` must not import `cppa_user_tracker.models` directly |
 | `forbid-tech-debt-clang-github-internals` | `clang_github_tracker` must not import `github_activity_tracker` `fetcher`, `sync`, `workspace`, or `preprocessors` directly (use `sync_api`) |
 

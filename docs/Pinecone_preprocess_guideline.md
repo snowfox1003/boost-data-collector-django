@@ -1,28 +1,27 @@
 # Guideline: Building a preprocess function for Pinecone sync
 
-This document describes how to implement the **preprocess function** that callers pass to `cppa_pinecone_sync.sync.sync_to_pinecone()`. The preprocess function is responsible for turning your app’s data (and sync state) into a list of document dicts that the sync pipeline will upsert to Pinecone.
+This document describes how to implement the **preprocess function** that callers pass to `cppa_pinecone_sync.sync_api.sync_to_pinecone()`. The preprocess function is responsible for turning your app’s data (and sync state) into a list of document dicts that the sync pipeline will upsert to Pinecone.
 
 ## When is the preprocess function used?
 
 Other apps call:
 
 ```python
-from cppa_pinecone_sync.sync import sync_to_pinecone
+from cppa_pinecone_sync.sync_api import sync_to_pinecone
 
 result = sync_to_pinecone(
     app_type="slack",          # e.g. "slack", "mailing"
     namespace="your_namespace",
     preprocess_fn=your_preprocess_fn,
-    # instance defaults to PineconeInstance.PUBLIC; pass PRIVATE to use
-    # the private API key (PINECONE_PRIVATE_API_KEY in Django settings).
+    # instance defaults to public; pass instance="private" or
+    # PineconeInstance.PRIVATE to use PINECONE_PRIVATE_API_KEY.
 )
 ```
 
 To use the **private** API key instead:
 
 ```python
-from cppa_pinecone_sync.ingestion import PineconeInstance
-from cppa_pinecone_sync.sync import sync_to_pinecone
+from cppa_pinecone_sync.sync_api import PineconeInstance, sync_to_pinecone
 
 result = sync_to_pinecone(
     app_type="slack",
