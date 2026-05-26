@@ -19,8 +19,8 @@ from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
 
-from cppa_pinecone_sync.ingestion import PineconeInstance
 from cppa_pinecone_sync.sync import sync_to_pinecone
+from cppa_pinecone_sync.types import PineconeInstance
 
 logger = logging.getLogger(__name__)
 

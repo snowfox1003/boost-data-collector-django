@@ -59,6 +59,19 @@ To sync a repo from GitHub (read last updated from DB, fetch from GitHub, save v
 **Module:** `github_activity_tracker.sync`
 **Usage:** `from github_activity_tracker.sync import sync_github` then `sync_github(repo)`.
 
+## Cross-app orchestration API
+
+Other tracker apps that reuse GitHub fetch, raw JSON staging, normalization, or Pinecone
+document builders must import from **`github_activity_tracker.sync_api`** only — not
+`fetcher`, `sync.*`, `workspace`, or `preprocessors` directly.
+
+**Module:** `github_activity_tracker.sync_api`
+
+Exports include: `fetcher`, `normalize_issue_json`, `normalize_pr_json`,
+`save_commit_raw_source`, `save_issue_raw_source`, `save_pr_raw_source`,
+workspace path helpers (`get_commit_json_path`, `get_raw_source_issue_path`, …),
+`iter_existing_*_jsons`, `build_issue_document`, `build_pr_document`.
+
 ---
 
 ## Related

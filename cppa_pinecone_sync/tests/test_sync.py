@@ -10,6 +10,7 @@ from cppa_pinecone_sync.sync import (
     _extract_new_failed_ids,
     sync_to_pinecone,
 )
+from cppa_pinecone_sync.types import PineconeInstance
 
 
 # --- _empty_sync_result ---
@@ -181,6 +182,72 @@ def test_extract_new_failed_ids_skips_empty():
         }
     )
     assert result == ["only"]
+
+
+# --- sync_to_pinecone instance coercion ---
+
+
+@pytest.mark.django_db
+@patch("cppa_pinecone_sync.sync._get_ingestion")
+def test_sync_to_pinecone_defaults_instance_to_public(mock_get_ingestion):
+    mock_get_ingestion.return_value.upsert_documents.return_value = {
+        "upserted": 0,
+        "total": 0,
+        "errors": [],
+        "failed_documents": [],
+    }
+
+    def preprocess(_failed_ids, _final_sync_at):
+        return [{"content": "x", "metadata": {"doc_id": "1"}}], False
+
+    sync_to_pinecone("app", "ns", preprocess)
+    mock_get_ingestion.assert_called_once_with(PineconeInstance.PUBLIC)
+
+
+@pytest.mark.django_db
+@patch("cppa_pinecone_sync.sync._get_ingestion")
+def test_sync_to_pinecone_accepts_enum_instance(mock_get_ingestion):
+    mock_get_ingestion.return_value.upsert_documents.return_value = {
+        "upserted": 0,
+        "total": 0,
+        "errors": [],
+        "failed_documents": [],
+    }
+
+    def preprocess(_failed_ids, _final_sync_at):
+        return [{"content": "x", "metadata": {"doc_id": "1"}}], False
+
+    sync_to_pinecone("app", "ns", preprocess, instance=PineconeInstance.PRIVATE)
+    mock_get_ingestion.assert_called_once_with(PineconeInstance.PRIVATE)
+
+
+@pytest.mark.django_db
+@patch("cppa_pinecone_sync.sync._get_ingestion")
+def test_sync_to_pinecone_normalizes_string_instance(mock_get_ingestion):
+    mock_get_ingestion.return_value.upsert_documents.return_value = {
+        "upserted": 0,
+        "total": 0,
+        "errors": [],
+        "failed_documents": [],
+    }
+
+    def preprocess(_failed_ids, _final_sync_at):
+        return [{"content": "x", "metadata": {"doc_id": "1"}}], False
+
+    sync_to_pinecone("app", "ns", preprocess, instance="PRIVATE")
+    mock_get_ingestion.assert_called_once_with(PineconeInstance.PRIVATE)
+
+
+def test_sync_to_pinecone_rejects_invalid_string_instance():
+    with pytest.raises(ValueError, match="instance must be 'public' or 'private'"):
+        sync_to_pinecone("app", "ns", lambda: None, instance="staging")
+
+
+def test_sync_to_pinecone_rejects_invalid_type_instance():
+    with pytest.raises(
+        TypeError, match="instance must be PineconeInstance, str, or None"
+    ):
+        sync_to_pinecone("app", "ns", lambda: None, instance=42)
 
 
 # --- sync_to_pinecone (with mocked ingestion) ---

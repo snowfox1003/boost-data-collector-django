@@ -325,8 +325,7 @@ class CppaSlackTrackerCollector(AbstractCollector):
     def _sync_to_pinecone(self, team: SlackTeam) -> None:
         """Sync Slack messages to Pinecone after message sync."""
         try:
-            from cppa_pinecone_sync.sync import sync_to_pinecone
-            from cppa_pinecone_sync.ingestion import PineconeInstance
+            from cppa_pinecone_sync.sync_api import sync_to_pinecone
             from cppa_slack_tracker.preprocessor import (
                 preprocess_slack_for_pinecone,
             )
@@ -343,7 +342,6 @@ class CppaSlackTrackerCollector(AbstractCollector):
                 app_type=app_type,
                 namespace=namespace,
                 preprocess_fn=preprocess_slack_for_pinecone,
-                instance=PineconeInstance.PUBLIC,
             )
 
             logger.info(

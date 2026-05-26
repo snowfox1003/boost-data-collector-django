@@ -15,23 +15,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from github_activity_tracker import fetcher
-from github_activity_tracker.sync.raw_source import (
-    save_commit_raw_source,
-    save_issue_raw_source,
-    save_pr_raw_source,
-)
-from github_activity_tracker.sync.utils import (
-    normalize_issue_json,
-    normalize_pr_json,
-)
-from github_activity_tracker.workspace import (
+from github_activity_tracker.sync_api import (
+    fetcher,
     get_commit_json_path,
     get_issue_json_path,
     get_pr_json_path,
     iter_existing_commit_jsons,
     iter_existing_issue_jsons,
     iter_existing_pr_jsons,
+    normalize_issue_json,
+    normalize_pr_json,
+    save_commit_raw_source,
+    save_issue_raw_source,
+    save_pr_raw_source,
 )
 
 from core.utils.datetime_parsing import parse_iso_datetime as parse_datetime

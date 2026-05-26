@@ -24,7 +24,7 @@ Authoritative names, examples, and comments live in **[`.env.example`](.env.exam
 
 ### Prerequisites
 
-- Python 3.13 (Docker image and CI; minimum declared in `pyproject.toml` is 3.11+)
+- Python 3.13.x (`requires-python` in `pyproject.toml`; CI and Docker use 3.13)
 - Django (version in `requirements.txt`)
 - PostgreSQL database access
 - **pandoc** — required by `boost_library_docs_tracker` for HTML→Markdown conversion (`pypandoc` calls the `pandoc` binary at runtime):

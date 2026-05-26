@@ -201,6 +201,14 @@ def get_or_create_github_account(
     return account, created
 
 
+def get_github_account_by_username(username: str) -> GitHubAccount | None:
+    """Return GitHubAccount for username, or None if not found (read-only lookup)."""
+    name = (username or "").strip()
+    if not name:
+        return None
+    return GitHubAccount.objects.filter(username=name).first()
+
+
 class GitHubClientProtocol(Protocol):
     """Protocol for a GitHub API client used by get_or_create_owner_account."""
 
@@ -215,7 +223,7 @@ def get_or_create_owner_account(
     Checks DB first by username to avoid unnecessary API calls. Uses GET /users/{owner}
     (GitHub returns both users and orgs with a \"type\" field). Returns the GitHubAccount.
     """
-    existing = GitHubAccount.objects.filter(username=owner).first()
+    existing = get_github_account_by_username(owner)
     if existing is not None:
         return existing
     data = client.rest_request(f"/users/{owner}")

@@ -366,6 +366,30 @@ def test_get_or_create_github_account_with_account_type(identity):
     assert account.account_type == GitHubAccountType.ORGANIZATION
 
 
+# --- get_github_account_by_username ---
+
+
+@pytest.mark.django_db
+def test_get_github_account_by_username_returns_account(github_account):
+    """get_github_account_by_username returns the account when username exists."""
+    result = services.get_github_account_by_username(github_account.username)
+    assert result is not None
+    assert result.id == github_account.id
+
+
+@pytest.mark.django_db
+def test_get_github_account_by_username_returns_none_when_missing():
+    """get_github_account_by_username returns None when username is unknown."""
+    assert services.get_github_account_by_username("no-such-user") is None
+
+
+@pytest.mark.django_db
+def test_get_github_account_by_username_empty_returns_none():
+    """get_github_account_by_username returns None for blank username."""
+    assert services.get_github_account_by_username("") is None
+    assert services.get_github_account_by_username("   ") is None
+
+
 # --- get_or_create_owner_account ---
 
 

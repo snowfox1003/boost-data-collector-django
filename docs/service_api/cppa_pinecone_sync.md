@@ -19,6 +19,14 @@ All creates/updates/deletes for `PineconeFailList` and `PineconeSyncStatus` must
 
 <!-- SERVICE_API:GENERATED:END -->
 
+## Cross-app orchestration API
+
+Other tracker apps that upsert vectors into Pinecone must import from **`cppa_pinecone_sync.sync_api`** only — not `sync`, `ingestion`, or `services` directly.
+
+**Module:** `cppa_pinecone_sync.sync_api`
+
+Exports: `sync_to_pinecone`, `PineconeInstance`, `PreprocessFn`.
+
 ## Related
 
 - [Service API index](README.md)

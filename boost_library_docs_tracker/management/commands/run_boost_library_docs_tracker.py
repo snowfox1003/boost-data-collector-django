@@ -398,9 +398,9 @@ class Command(BaseCollectorCommand):
         """Sync to Pinecone"""
 
         try:
-            from cppa_pinecone_sync.sync import sync_to_pinecone
+            from cppa_pinecone_sync.sync_api import sync_to_pinecone
         except Exception as exc:
-            logger.warning("Cannot import cppa_pinecone_sync.sync: %s", exc)
+            logger.warning("Cannot import cppa_pinecone_sync.sync_api: %s", exc)
             self.stdout.write(
                 self.style.WARNING(
                     f"Skipping Pinecone sync: cannot import cppa_pinecone_sync ({exc})."

@@ -16,18 +16,11 @@ import hashlib
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from enum import Enum
 from typing import Any, Optional
 
 from django.conf import settings
 
-
-class PineconeInstance(str, Enum):
-    """Selects which Pinecone API key to use."""
-
-    PUBLIC = "public"
-    PRIVATE = "private"
-
+from cppa_pinecone_sync.types import PineconeInstance
 
 try:
     from pinecone import Pinecone

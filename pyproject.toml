@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "boost-data-collector"
 dynamic = ["version"]
-requires-python = ">=3.11"
+# CI/Docker use 3.13; see README Prerequisites.
+requires-python = ">=3.13,<3.14"
 description = "Boost Data Collector Django project"
 
 [tool.setuptools.packages.find]

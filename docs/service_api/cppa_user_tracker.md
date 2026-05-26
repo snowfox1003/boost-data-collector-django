@@ -16,6 +16,7 @@
 | `add_temp_profile_identity_relation` | base_profile: BaseProfile, target_identity: TmpIdentity | tuple[TempProfileIdentityRelation, bool] | Link a BaseProfile to a TmpIdentity (staging). Returns (relation, created). |
 | `create_identity` | display_name: str = '', description: str = '' | Identity | Create an Identity. Returns the new Identity. |
 | `create_tmp_identity` | display_name: str = '', description: str = '' | TmpIdentity | Create a TmpIdentity (staging). Returns the new TmpIdentity. |
+| `get_github_account_by_username` | username: str | GitHubAccount \| None | Return GitHubAccount for username, or None if not found (read-only lookup). |
 | `get_or_create_discord_profile` | discord_user_id: int, username: str = '', display_name: str = '', avatar_url: str = '', is_bot: bool = False, identity: Optional[Identity] = None | tuple[DiscordProfile, bool] | Get or create a DiscordProfile by discord_user_id. Returns (profile, created). |
 | `get_or_create_github_account` | github_account_id: int, username: str = '', display_name: str = '', avatar_url: str = '', account_type: str = GitHubAccountType.USER, identity: Optional[Identity] = None | tuple[GitHubAccount, bool] | Get or create a GitHubAccount by github_account_id. Returns (account, created). |
 | `get_or_create_identity` | display_name: str = '', description: str = '', defaults: Optional[dict[str, Any]] = None | tuple[Identity, bool] | Get or create an Identity by display_name. If exists, updates description from defaults. |

@@ -5,7 +5,7 @@ Thank you for helping keep Boost Data Collector and its users safe. This documen
 ## Supported versions
 
 - **Source of security fixes:** fixes land on **`develop`**, this repository’s **GitHub default** branch (where pull requests land), and are promoted to **`main`** for stable production releases. Track the latest commit on **`main`** for production-aligned deployments, or **`develop`** for the latest default-branch integration, unless maintainers say otherwise for a specific case. We do not commit to backporting fixes to older tags unless maintainers explicitly agree for a specific case.
-- **Python:** this project targets **[Python 3.11+](https://github.com/python/cpython)** (see `requires-python` in `pyproject.toml`). Reports that only reproduce on **end-of-life** Python runtimes are **out of scope** for this policy.
+- **Python:** this project targets **[Python 3.13](https://github.com/python/cpython)** (`requires-python = ">=3.13,<3.14"` in `pyproject.toml`). Reports that only reproduce on **end-of-life** or unsupported Python runtimes are **out of scope** for this policy.
 - **Dependencies:** we address vulnerabilities in **this repository’s code and shipped configuration** as described below. Third-party package or platform bugs are handled upstream unless this project must apply a mitigation.
 
 ## How to report a vulnerability (private channels only)
