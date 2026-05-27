@@ -24,7 +24,6 @@ from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
 
 from boost_usage_tracker.models import BoostExternalRepository
-from github_activity_tracker.models import GitHubRepository
 from boost_usage_tracker.boost_searcher import (
     BOOST_INCLUDE_SEARCH_BATCH_SIZE,
     search_boost_include_files_batch,
@@ -37,6 +36,7 @@ from boost_usage_tracker.repo_searcher import (
 )
 from cppa_user_tracker.services import get_or_create_owner_account
 from github_activity_tracker.services import (
+    bulk_update_repository_stars,
     get_or_create_repository,
 )
 from core.operations.github_ops import get_github_client
@@ -287,13 +287,8 @@ def task_monitor_stars(
 
     # Bulk-update star counts for already-tracked repos where the count changed.
     if stars_to_update and not dry_run:
-        repos_to_refresh = list(
-            GitHubRepository.objects.filter(pk__in=stars_to_update.keys())
-        )
-        for repo_obj in repos_to_refresh:
-            repo_obj.stars = stars_to_update[repo_obj.pk]
-        GitHubRepository.objects.bulk_update(repos_to_refresh, ["stars"])
-        logger.info("Bulk-updated stars for %d repos", len(repos_to_refresh))
+        n = bulk_update_repository_stars(stars_to_update)
+        logger.info("Bulk-updated stars for %d repos", n)
 
     if dry_run:
         for r in new_repos[:20]:

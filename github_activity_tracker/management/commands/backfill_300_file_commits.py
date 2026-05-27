@@ -17,6 +17,7 @@ from django.db.models import Count
 
 from github_activity_tracker import big_commit
 from github_activity_tracker.models import GitCommit, GitCommitFileChange
+from github_activity_tracker.services import clear_commit_file_changes_for_commit
 from github_activity_tracker.sync.commits import _process_commit_files
 from github_activity_tracker.workspace import (
     clear_clone_registry,
@@ -101,7 +102,7 @@ class Command(BaseCommand):
 
                     # Replace file changes in DB: delete existing, re-add with full list
                     with transaction.atomic():
-                        GitCommitFileChange.objects.filter(commit=commit_obj).delete()
+                        clear_commit_file_changes_for_commit(commit_obj)
                         _process_commit_files(repo, commit_obj, full_files)
 
                     new_count = GitCommitFileChange.objects.filter(

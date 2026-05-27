@@ -258,6 +258,31 @@ remains a migration target; see historical note in git history for §5 Stage 3.
 
 ---
 
+## 6. Service-layer write linting (enabled)
+
+[`scripts/check_service_layer_writes.py`](../scripts/check_service_layer_writes.py) runs in CI via the **`check-service-layer-writes`** pre-commit hook (`uv run python scripts/...`). It AST-scans tracker app Python (excluding `tests/`, `migrations/`, `models.py`) and fails when an ORM **write** (`Model.objects.create`, `bulk_update`, `get_or_create`, `filter().delete()`, `instance.save()`, etc.) targets a model **not** owned by the current file’s `services.py` (writes must live in **`{owning_app}/services.py`**). **Reads** (e.g. `.objects.filter`) are not restricted.
+
+**Allowlist:** [`.service-layer-write-allowlist.json`](../.service-layer-write-allowlist.json) lists grandfathered violations as `{ "file", "line", "model", "eval" }` objects; each must have a nearby `# TODO(service-layer):` line containing the `eval` substring. Prefer an **empty** `violations` array once all debt is cleared.
+
+```bash
+uv run python scripts/check_service_layer_writes.py           # exit 1 on violations
+uv run python scripts/check_service_layer_writes.py --report  # markdown table
+```
+
+### Summary of resolved ORM write tech-debt (historical)
+
+These call sites previously performed writes outside the owning `services.py`; they now delegate to `github_activity_tracker.services` or `boost_library_tracker.services` as appropriate:
+
+| Source file | Change |
+| --- | --- |
+| `github_activity_tracker/sync/repos.py` | Repo metadata updates via `update_repository_metadata_from_api` |
+| `boost_usage_tracker/management/commands/run_boost_usage_tracker.py` | Star bulk updates via `bulk_update_repository_stars` |
+| `boost_library_tracker/management/commands/backfill_file_renames.py` | `GitHubFile` rows via `create_or_update_github_file` |
+| `boost_library_tracker/management/commands/import_boost_dependencies.py` | `BoostVersion` via `get_or_create_boost_version` |
+| `github_activity_tracker/management/commands/backfill_300_file_commits.py` | Clear file changes via `clear_commit_file_changes_for_commit` |
+
+---
+
 ## Related documentation
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — service-layer write rules

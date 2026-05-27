@@ -17,7 +17,10 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 
 from boost_library_tracker.models import BoostLibrary, BoostVersion
-from boost_library_tracker.services import add_boost_dependency
+from boost_library_tracker.services import (
+    add_boost_dependency,
+    get_or_create_boost_version,
+)
 from boost_library_tracker.workspace import get_boost_clone_dir
 
 logger = logging.getLogger(__name__)
@@ -511,10 +514,7 @@ class Command(BaseCommand):
         lib_cache = _build_library_cache()
 
         for version_tag, deps_list in _generate_deps_output(clone_dir, tags_to_process):
-            version_obj, _ = BoostVersion.objects.get_or_create(
-                version=version_tag,
-                defaults={"version_created_at": None},
-            )
+            version_obj, _ = get_or_create_boost_version(version_tag, None)
 
             for client_name, dep_names in deps_list:
                 client_lib = _library_by_name(client_name, cache=lib_cache)

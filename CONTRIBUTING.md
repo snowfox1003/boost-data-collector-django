@@ -43,6 +43,8 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 - **All** inserts/updates/deletes for an app’s models must go through functions in that app’s **`services.py`**.
 - Do **not** call `Model.objects.create()`, `model.save()`, or `model.delete()` from outside `services.py` (e.g. from management commands, views, other apps, or tests that are not testing the service layer itself).
 
+**CI:** Pre-commit runs **`uv run python scripts/check_service_layer_writes.py`**, which flags ORM writes outside the owning app’s `services.py` (see [docs/cross-app-dependencies.md](docs/cross-app-dependencies.md) §6). Temporary grandfathering uses [`.service-layer-write-allowlist.json`](.service-layer-write-allowlist.json) plus a `# TODO(service-layer):` comment; do not add new allowlist rows without maintainer agreement—fix the code or extend the correct `services.py` instead.
+
 ### Why
 
 - **Single place for write logic:** Validation, defaults, and side effects live in one module.

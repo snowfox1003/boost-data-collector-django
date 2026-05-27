@@ -52,3 +52,9 @@ repos:
         additional_dependencies: ["import-linter>=2.1,<3"]
         pass_filenames: false
         always_run: true
+      - id: check-service-layer-writes
+        name: check service-layer writes
+        entry: uv run python scripts/check_service_layer_writes.py
+        language: system
+        pass_filenames: false
+        always_run: true
