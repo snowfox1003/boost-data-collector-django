@@ -207,10 +207,6 @@ Split when:
 
 **Minimal in-repo example (inline, like scaffold):** [cppa_user_tracker/management/commands/run_cppa_user_tracker.py](../cppa_user_tracker/management/commands/run_cppa_user_tracker.py).
 
-### Legacy: `CollectorBase`
-
-Older collectors implement only `run()`. New work should use **`AbstractCollector`**. See [Core_public_API.md](Core_public_API.md#collectors).
-
 ---
 
 ## 3. Evolving the worked example
