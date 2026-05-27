@@ -1,7 +1,8 @@
 # Direct dependency inputs (one line per distribution). Version policy: >=X.Y,<next-major
-# unless pinning is required for a known breakage. Regenerate locks after edits:
-#   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.13
-#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13
+# unless pinning is required for a known breakage. Regenerate locks after edits (Linux/CI/Docker):
+#   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.13 --python-platform linux
+#   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13 --python-platform linux
+# Do not compile on Windows alone: browser-cookie3 pulls pywin32 into the lock and breaks Linux CI.
 
 # --- Core web / config ---
 Django>=4.2,<5
