@@ -7,7 +7,6 @@ Collector orchestration shared by every `run_*` management command.
 | Module | Role |
 | --- | --- |
 | [`base_collector.py`](base_collector.py) | `AbstractCollector` (`validate_config`, `collect`), `CollectorRunnable` protocol, lifecycle mixin (`sync_pinecone`, `handle_error`). |
-| [`base.py`](base.py) | Legacy `CollectorBase`, `DjangoCommandCollector`. |
 | [`command_base.py`](command_base.py) | `BaseCollectorCommand` — Django template: `get_collector` → `run` → `sync_pinecone`. |
 
 ## Usage

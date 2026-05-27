@@ -1,9 +1,9 @@
 """
 Structured collector contract: ``name``, ``validate_config``, ``collect``.
 
-:class:`AbstractCollector` composes with :class:`core.collectors.base.CollectorBase`
-via a shared lifecycle mixin (``handle_error`` / ``sync_pinecone``) so
-:class:`core.collectors.command_base.BaseCollectorCommand` stays unchanged.
+:class:`AbstractCollector` uses :class:`_CollectorLifecycleMixin` for
+``handle_error`` / ``sync_pinecone`` so :class:`core.collectors.command_base.BaseCollectorCommand`
+can invoke ``run`` then ``sync_pinecone`` unchanged.
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ class CollectorRunnable(Protocol):
     """
     Structural type for objects executed by :class:`BaseCollectorCommand`.
 
-    Implementations are typically :class:`CollectorBase` or :class:`AbstractCollector`
-    subclasses. The command invokes :meth:`run`, then :meth:`sync_pinecone`, and
+    Implementations are typically :class:`AbstractCollector` subclasses (or any object
+    satisfying this protocol). The command invokes :meth:`run`, then :meth:`sync_pinecone`, and
     routes failures through :meth:`handle_error` (except :class:`~django.core.management.base.CommandError`).
     """
 
     def run(self) -> None:
-        """Main collection phase; see :class:`CollectorBase` or :class:`AbstractCollector`."""
+        """Main collection phase; see :class:`AbstractCollector`."""
         ...
 
     def sync_pinecone(self) -> None:
@@ -42,7 +42,7 @@ class CollectorRunnable(Protocol):
 
 class _CollectorLifecycleMixin:
     """
-    Shared ``handle_error`` / ``sync_pinecone`` for legacy and structured collectors.
+    Shared ``handle_error`` / ``sync_pinecone`` for collector implementations.
 
     Uses :func:`core.errors.classify_failure` (not a method on
     :class:`~core.errors.CollectorFailureCategory`) so log ``extra`` includes a stable

@@ -17,7 +17,7 @@ python manage.py startcollector my_platform
 **What you get**
 
 - App package `my_platform/` with `apps.py` (`BigAutoField`, correct `name`), `models.py` (stub run-state model), `services.py` (stub `record_run` — all writes for this app should stay in this module per [Service layer](#service-layer-single-place-for-writes) below).
-- `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`** (not the deprecated `CollectorBase`); command subclasses **`BaseCollectorCommand`**.
+- `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`**; command subclasses **`BaseCollectorCommand`**.
 - `tests/test_run_my_platform_command.py` — smoke test; it runs only after you register the app (next step).
 - `schedule_snippet.yaml` — commented template to paste into **`config/boost_collector_schedule.yaml`** (see [Workflow.md](docs/Workflow.md)).
 

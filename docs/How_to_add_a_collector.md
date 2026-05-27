@@ -15,17 +15,14 @@ Add a task under the right group in `config/boost_collector_schedule.yaml` (see 
 
 ## 3. Shared abstractions (recommended)
 
-Stable imports live under **`core.collectors`** (re-exported in [`core/collectors/__init__.py`](../core/collectors/__init__.py)); see the **Collectors** table in [Core_public_API.md](Core_public_API.md#collectors) for `AbstractCollector`, `CollectorBase`, `CollectorRunnable`, `BaseCollectorCommand`, and `DjangoCommandCollector`.
+Stable imports live under **`core.collectors`** (re-exported in [`core/collectors/__init__.py`](../core/collectors/__init__.py)); see the **Collectors** table in [Core_public_API.md](Core_public_API.md#collectors) for `AbstractCollector`, `CollectorRunnable`, and `BaseCollectorCommand`.
 
-- **Preferred:** Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` aligned with legacy **`CollectorBase`**. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`).
-- **Legacy:** Subclass **`CollectorBase`** and implement `run()` only (same error/Pinecone hooks). New work should prefer **`AbstractCollector`**.
-- **`DjangoCommandCollector`** remains available for tests or internal `call_command` wrappers.
+- Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` from the shared lifecycle mixin. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`).
 
 ### Collector contracts (source of truth)
 
 The detailed contracts (abstract methods, lifecycle hooks, error handling, template-method flow) live in the **class docstrings** in the codebase—read these when wiring a new collector:
 
-- [`core/collectors/base.py`](../core/collectors/base.py) — `CollectorBase`
 - [`core/collectors/command_base.py`](../core/collectors/command_base.py) — `BaseCollectorCommand`
 - [`core/collectors/base_collector.py`](../core/collectors/base_collector.py) — `CollectorRunnable`, `AbstractCollector`, `_CollectorLifecycleMixin`
 
@@ -39,7 +36,7 @@ Keep imports and calls inside `collect()` going through `services.py` (for examp
 
 **Not a repo artifact:** The snippets below use a placeholder app name `my_skeleton_tracker`. They are meant to be copied into a **new** Django app directory and adjusted; this repository does not ship that app. For a **full** production-sized collector (fetch, raw files, Pinecone, many models), use [`github_activity_tracker/`](../github_activity_tracker/) as reference; use this skeleton to learn the shape without noise.
 
-**Failure taxonomy:** `AbstractCollector.handle_error` (same mixin as `CollectorBase`) logs with [`classify_failure`](../core/errors.py) so log records include a stable `failure_category` (see [`CollectorFailureCategory`](../core/errors.py)). When `name` is set, logs use that slug for the `collector=` field. Override `handle_error` only when you need extra context; map domain errors to categories there if the default classifier is not enough.
+**Failure taxonomy:** `AbstractCollector.handle_error` logs with [`classify_failure`](../core/errors.py) so log records include a stable `failure_category` (see [`CollectorFailureCategory`](../core/errors.py)). When `name` is set, logs use that slug for the `collector=` field. Override `handle_error` only when you need extra context; map domain errors to categories there if the default classifier is not enough.
 
 ### Layout (after find-replace)
 

@@ -6,13 +6,11 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 
 | Import | Purpose |
 |--------|---------|
-| `core.collectors.CollectorBase` | **Deprecated** (removed in v1.0): legacy abstract `run()`, optional `sync_pinecone()`, `handle_error()` with structured logging. Subclassing emits `DeprecationWarning` at class definition time. Prefer `AbstractCollector`|
-| `core.collectors.AbstractCollector` | Preferred contract: `name`, `validate_config()`, `collect()`; concrete `run()` runs validate then collect; same lifecycle hooks as `CollectorBase`. |
+| `core.collectors.AbstractCollector` | Collector contract: `name`, `validate_config()`, `collect()`; concrete `run()` runs validate then collect; optional `sync_pinecone()`, `handle_error()` with structured logging. |
 | `core.collectors.CollectorRunnable` | `Protocol` for objects returned from `get_collector()` (`run`, `sync_pinecone`, `handle_error`). |
 | `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()` then `sync_pinecone()`. |
-| `core.collectors.DjangoCommandCollector` | Wraps `call_command(name)` for tests or glue code. |
 
-### Collector base class usage (migration status)
+### Application collectors
 
 All **application** collectors listed below subclass **`AbstractCollector`** (`name`, `validate_config()`, `collect()`). **`BaseCollectorCommand`** runs `run()` (validate then collect) and `sync_pinecone()` for each.
 
@@ -32,8 +30,6 @@ All **application** collectors listed below subclass **`AbstractCollector`** (`n
 | `run_discord_activity_tracker` | `DiscordActivityCollector` | `discord_activity_tracker.management.commands.run_discord_activity_tracker` |
 | `backfill_discord_activity_tracker` | `DiscordBackfillCollector` | `discord_activity_tracker.management.commands.backfill_discord_activity_tracker` |
 
-**Still on `CollectorBase` (framework only):** `DjangoCommandCollector` in `core.collectors.base` subclasses the legacy abstract base for `call_command` glue. New app collectors should **not** subclass `CollectorBase`.
-
 ## Failure classification
 
 | Import | Purpose |
@@ -41,7 +37,7 @@ All **application** collectors listed below subclass **`AbstractCollector`** (`n
 | `core.errors.CollectorFailureCategory` | Enum of coarse failure buckets (`network`, `command`, …). |
 | `core.errors.classify_failure(exc)` | Map an exception to `CollectorFailureCategory` for logs and metrics. |
 
-Log records from `CollectorBase.handle_error` / `AbstractCollector.handle_error` include `extra` keys: `collector`, `collector_phase`, `failure_category`.
+Log records from `AbstractCollector.handle_error` include `extra` keys: `collector`, `collector_phase`, `failure_category`.
 
 ## Tracker protocols (DTOs)
 

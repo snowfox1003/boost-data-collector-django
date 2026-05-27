@@ -31,8 +31,8 @@ class BaseCollectorCommand(ABC, BaseCommand):
 
     **``get_collector`` contract:** Must return a :class:`CollectorRunnable`—any object
     with ``run()``, ``sync_pinecone()``, and ``handle_error(exc)``. Typical implementations
-    return a :class:`~core.collectors.base.CollectorBase` or
-    :class:`~core.collectors.base_collector.AbstractCollector` instance. Subclasses that
+    return an :class:`~core.collectors.base_collector.AbstractCollector` instance (or
+    any other :class:`CollectorRunnable`). Subclasses that
     do not implement :meth:`get_collector` cannot be instantiated (``TypeError`` from
     ``abc``), which surfaces as soon as the command object is constructed, usually when
     Django loads the command.

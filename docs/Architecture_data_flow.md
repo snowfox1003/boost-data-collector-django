@@ -74,7 +74,7 @@ flowchart TB
 
 | Django app | Role (summary) | Typical persistence |
 |------------|----------------|------------------------|
-| `core` | Shared collector base types (`CollectorBase`, `BaseCollectorCommand`), structured errors, **`core.operations`** (GitHub/Slack I/O helpers — not a separate app) | N/A (library code; `core` has no ORM models) |
+| `core` | Shared collector types (`AbstractCollector`, `BaseCollectorCommand`), structured errors, **`core.operations`** (GitHub/Slack I/O helpers — not a separate app) | N/A (library code; `core` has no ORM models) |
 | `boost_collector_runner` | YAML schedule resolution; **`run_scheduled_collectors`** entry point | N/A (no ORM models) |
 | `cppa_user_tracker` | Shared Slack/GitHub user identity used by trackers | PostgreSQL |
 | `github_activity_tracker` | GitHub raw fetch utilities, workspace JSON, models used across GitHub pipelines | PostgreSQL, `WORKSPACE_DIR` |

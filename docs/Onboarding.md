@@ -11,7 +11,7 @@ For setup steps (venv, migrate, tests), start with the root **[README.md](../REA
 1. **One Django project, one database** — All installed apps share PostgreSQL (`boost_dashboard`). There is no per-app database isolation.
 2. **Collectors are management commands** — Scheduled work is `python manage.py <command>`. Production batches run **`run_scheduled_collectors`**, which reads **`config/boost_collector_schedule.yaml`** (see **[Workflow.md](Workflow.md)**).
 3. **Writes go through `services.py`** — For apps that define models, creates/updates/deletes belong in that app’s **`services.py`**. Commands, fetchers, and other apps call those functions; they do not write models ad hoc (see **[CONTRIBUTING.md](../CONTRIBUTING.md)**).
-4. **Shared “collector contract” lives in `core`** — Prefer **`AbstractCollector`** (`name`, `validate_config`, `collect`) plus **`BaseCollectorCommand`** for a consistent shape; legacy **`CollectorBase`** (`run()` only) remains supported. See **[Core_public_API.md](Core_public_API.md)** and **[How_to_add_a_collector.md](How_to_add_a_collector.md)**.
+4. **Shared “collector contract” lives in `core`** — Use **`AbstractCollector`** (`name`, `validate_config`, `collect`) plus **`BaseCollectorCommand`** for a consistent shape. See **[Core_public_API.md](Core_public_API.md)** and **[How_to_add_a_collector.md](How_to_add_a_collector.md)**.
 5. **Cross-app coupling is intentionally loose** — Avoid **ForeignKeys** from one tracker app into another’s models when it would create tight coupling or import cycles. Prefer querying by IDs or shared reference tables (e.g. **Language**, **Identity**) as documented in **[Schema.md](Schema.md)** and **[Development_guideline.md](Development_guideline.md)**.
 
 ---
@@ -76,9 +76,9 @@ When adding a feature, ask: **who owns the table?** Only that app’s **`service
 
 ## 5. Coping with different patterns per app
 
-Historically, collectors evolved separately: some subclass **`CollectorBase`**, some use plain **`BaseCommand`**, workspace layouts differ, and docstring coverage varies. Use this **practical** approach:
+Historically, collectors evolved separately: some use plain **`BaseCommand`**, workspace layouts differ, and docstring coverage varies. Use this **practical** approach:
 
-1. **Anchor on contracts** — Prefer **`AbstractCollector` + `BaseCollectorCommand`** for new collectors (`name`, `validate_config`, `collect`; see **[How_to_add_a_collector.md](How_to_add_a_collector.md)** and **[Core_public_API.md](Core_public_API.md)**). Older commands may still use legacy **`CollectorBase`** (`run()` only) or plain **`BaseCommand`**.
+1. **Anchor on contracts** — Prefer **`AbstractCollector` + `BaseCollectorCommand`** for collectors (`name`, `validate_config`, `collect`; see **[How_to_add_a_collector.md](How_to_add_a_collector.md)** and **[Core_public_API.md](Core_public_API.md)**). Older one-off commands may still subclass plain **`BaseCommand`**.
 2. **Pick two reference apps** — For GitHub + DB + workspace: **`github_activity_tracker`** + **`boost_library_tracker`**. For Pinecone + docs: **`boost_library_docs_tracker`** + **`cppa_pinecone_sync`**.
 3. **Trace one vertical slice** — Example: “new Boost release” → **`collect_boost_libraries`** / **`check_new_boost_release`** → downstream **`run_boost_library_docs_tracker`** / usage jobs. Follow imports and **`services`** calls.
 4. **Operations vs services** — **`core.operations.github_ops`** = talking to GitHub/git; **`github_activity_tracker.services`** = persisting ORM rows. Do not mix the two responsibilities in one module.

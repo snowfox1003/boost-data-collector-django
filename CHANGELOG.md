@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.services`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
+- **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).
+- Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.sync_api`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
 - Added **import-linter** contracts and pre-commit hook to prevent regressions.
 - **slack_event_handler:** Workspace under `workspace/slack_event_handler/`; replace Selenium with `plyvel` + `browser-cookie3` extraction from `CHROME_PROFILE_PATH` (optional Compose `slack-session` / `slack-chromium` noVNC on port 7900 and `manage.py extract_slack_tokens`), store xoxc/xoxd in `slack_internal_tokens.json` with runtime load and automatic re-extract when stale, and remove `slack_session_refresh`, `refresh_slack_tokens`, and the `slack-profile-refresh` compose service.
 
