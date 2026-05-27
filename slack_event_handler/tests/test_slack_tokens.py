@@ -1,6 +1,7 @@
 """Tests for slack_event_handler.utils.slack_tokens (no real Chrome profile)."""
 
 import json
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -129,8 +130,7 @@ def test_read_local_config_v2_returns_none_when_no_leveldb(tmp_path):
     assert st._read_local_config_v2(profile) is None
 
 
-@patch("browser_cookie3.chrome")
-def test_read_xoxd_cookie_success(mock_chrome, tmp_path):
+def test_read_xoxd_cookie_success(tmp_path):
     profile = tmp_path / "profile"
     cookies = profile / "Default" / "Cookies"
     cookies.parent.mkdir(parents=True)
@@ -138,21 +138,25 @@ def test_read_xoxd_cookie_success(mock_chrome, tmp_path):
     cookie = MagicMock()
     cookie.name = "d"
     cookie.value = "xoxd-abc"
-    mock_chrome.return_value = [cookie]
-    assert st._read_xoxd_cookie(profile) == "xoxd-abc"
+    mock_bc3 = MagicMock()
+    mock_bc3.chrome.return_value = [cookie]
+    with patch.dict(sys.modules, {"browser_cookie3": mock_bc3}):
+        assert st._read_xoxd_cookie(profile) == "xoxd-abc"
 
 
-@patch("browser_cookie3.chrome")
-def test_read_xoxd_cookie_missing(mock_chrome, tmp_path):
+def test_read_xoxd_cookie_missing(tmp_path):
     profile = tmp_path / "profile"
     cookies = profile / "Default" / "Cookies"
     cookies.parent.mkdir(parents=True)
     cookies.touch()
-    mock_chrome.return_value = []
-    assert st._read_xoxd_cookie(profile) is None
+    mock_bc3 = MagicMock()
+    mock_bc3.chrome.return_value = []
+    with patch.dict(sys.modules, {"browser_cookie3": mock_bc3}):
+        assert st._read_xoxd_cookie(profile) is None
 
 
 def test_decrypt_chrome_linux_v10_cookie_roundtrip():
+    pytest.importorskip("Cryptodome", reason="pycryptodomex required")
     from Cryptodome.Cipher import AES
 
     value = "xoxd-test-token"
@@ -165,8 +169,8 @@ def test_decrypt_chrome_linux_v10_cookie_roundtrip():
     assert st._decrypt_chrome_linux_v10_cookie(encrypted) == value
 
 
-@patch("browser_cookie3.chrome", side_effect=ValueError("dbus"))
-def test_read_xoxd_cookie_sqlite_fallback(mock_chrome, tmp_path):
+def test_read_xoxd_cookie_sqlite_fallback(tmp_path):
+    pytest.importorskip("Cryptodome", reason="pycryptodomex required")
     from Cryptodome.Cipher import AES
 
     profile = tmp_path / "profile"
@@ -193,7 +197,10 @@ def test_read_xoxd_cookie_sqlite_fallback(mock_chrome, tmp_path):
     conn.commit()
     conn.close()
 
-    assert st._read_xoxd_cookie(profile) == value
+    mock_bc3 = MagicMock()
+    mock_bc3.chrome.side_effect = ValueError("dbus")
+    with patch.dict(sys.modules, {"browser_cookie3": mock_bc3}):
+        assert st._read_xoxd_cookie(profile) == value
 
 
 @patch.object(st, "_read_xoxd_cookie", return_value="xoxd")

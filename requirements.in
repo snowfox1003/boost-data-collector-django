@@ -34,7 +34,8 @@ pytz>=2024.1,<2026
 # --- slack_event_handler: Chrome profile read for Slack xoxc/xoxd token extraction ---
 # (slack_event_handler.utils.slack_tokens; used from core.operations.slack_ops.fetcher)
 # plyvel builds from source: install LevelDB headers (Debian: libleveldb-dev; macOS: brew install leveldb).
-plyvel>=1.5,<2
+# Omitted on Windows (no reliable LevelDB C++ build); cookie/SQLite paths still work there.
+plyvel>=1.5,<2; sys_platform != "win32"
 browser-cookie3>=0.19,<1
 
 # --- wg21_paper_tracker / cppa_youtube_script_tracker ---

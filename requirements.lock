@@ -46,6 +46,8 @@ click-plugins==1.1.1.2
     # via celery
 click-repl==0.3.0
     # via celery
+colorama==0.4.6
+    # via click
 cryptography==48.0.0
     # via
     #   google-auth
@@ -101,8 +103,6 @@ pinecone==6.0.2
     # via -r requirements.in
 pinecone-plugin-interface==0.0.7
     # via pinecone
-plyvel==1.5.1
-    # via -r requirements.in
 prompt-toolkit==3.0.52
     # via click-repl
 propcache==0.5.2
@@ -153,6 +153,8 @@ python-json-logger==3.3.0
     # via -r requirements.in
 pytz==2025.2
     # via -r requirements.in
+pywin32==311
+    # via wmi
 pyyaml==6.0.3
     # via -r requirements.in
 redis==5.3.1
@@ -164,6 +166,8 @@ requests==2.33.1
     #   -r requirements.in
     #   google-api-core
     #   pygithub
+shadowcopy==0.0.4
+    # via browser-cookie3
 six==1.17.0
     # via python-dateutil
 slack-bolt==1.28.0
@@ -185,7 +189,11 @@ typing-extensions==4.15.0
 typing-inspection==0.4.2
     # via pydantic
 tzdata==2026.2
-    # via kombu
+    # via
+    #   django
+    #   kombu
+    #   psycopg
+    #   tzlocal
 tzlocal==5.3.1
     # via celery
 uritemplate==4.2.0
@@ -203,6 +211,8 @@ vine==5.1.0
     #   kombu
 wcwidth==0.7.0
     # via prompt-toolkit
+wmi==1.5.1
+    # via shadowcopy
 yarl==1.23.0
     # via aiohttp
 yt-dlp==2026.3.17
