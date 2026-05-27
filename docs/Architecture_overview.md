@@ -51,7 +51,7 @@ Columns: **persistence** (usual durable stores), **coupling** (one-line upstream
 | **`cppa_youtube_script_tracker`** | YouTube metadata and transcripts | Yes | PostgreSQL, workspace | **Upstream:** `cppa_user_tracker` | [README](../cppa_youtube_script_tracker/README.md), [service_api](service_api/cppa_youtube_script_tracker.md) |
 | **`slack_event_handler`** | Slack Socket Mode listener (PR bot / huddles) — **long-running**, not YAML batch | **No ORM** / no `services.py` | Workspace JSON, GitHub optional | **Upstream:** Slack events. **Downstream:** GitHub MD via operations | [README](../slack_event_handler/README.md) — *no [service_api](service_api/) page* |
 
-**Primary scheduled commands** (non-exhaustive; see each app’s `management/commands/` and [Workflow.md](Workflow.md)):
+**Primary scheduled commands** (YAML / Celery batch via `config/boost_collector_schedule.yaml`; non-exhaustive — see [Workflow.md](Workflow.md)):
 
 | App | Typical `run_*` command |
 |-----|-------------------------|
@@ -69,7 +69,12 @@ Columns: **persistence** (usual durable stores), **coupling** (one-line upstream
 | `discord_activity_tracker` | `run_discord_activity_tracker` |
 | `wg21_paper_tracker` | `run_wg21_paper_tracker` |
 | `cppa_youtube_script_tracker` | `run_cppa_youtube_script_tracker` |
-| `slack_event_handler` | `run_slack_event_handler` |
+
+**Long-running entrypoint services** (not in the YAML schedule; run as a persistent process, e.g. Compose / `runserver` integration):
+
+| App | Entry command | Notes |
+|-----|---------------|-------|
+| `slack_event_handler` | `run_slack_event_handler` | Slack Socket Mode listener (PR bot / huddles); see [Docker.md §4b](Docker.md#4b-slack-session-tokens-huddle-transcripts-optional) |
 
 ---
 
