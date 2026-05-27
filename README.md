@@ -77,7 +77,7 @@ If you see `relation "cppa_user_tracker_githubaccount" does not exist` (or simil
 python manage.py run_scheduled_collectors --schedule daily --group github
 ```
 
-7. To **add a new collector app** (boilerplate, management command, and schedule snippet template), use **`python manage.py startcollector <name>`** and follow **[CONTRIBUTING.md](CONTRIBUTING.md#creating-a-new-collector)**.
+7. To **add a new collector app**, follow **[docs/Tutorial_building_a_collector.md](docs/Tutorial_building_a_collector.md)** (walkthrough), then **`python manage.py startcollector <name>`** and **[CONTRIBUTING.md](CONTRIBUTING.md#creating-a-new-collector)** (checklist).
 
 For local development you can start the dev server: `python manage.py runserver`.
 

@@ -10,6 +10,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | **Architecture overview** | [Architecture_overview.md](Architecture_overview.md) | **Start here for system design:** all 15 domain apps + `core`, persistence, coupling, links to app READMEs and service API. |
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
 | **Architecture (data flow)** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
+| **Tutorial: building a collector** | [Tutorial_building_a_collector.md](Tutorial_building_a_collector.md) | End-to-end walkthrough: `startcollector`, hooks, tests, YAML/Celery, deploy. |
 | **Cross-app dependencies** | [cross-app-dependencies.md](cross-app-dependencies.md) | FK/import matrix, import-linter contracts, regeneration via `list_cross_app_imports.py`. |
 | **CODEOWNERS / reviews** | [CODEOWNERS_and_branch_protection.md](CODEOWNERS_and_branch_protection.md) | CODEOWNERS behavior, enabling branch protection, verification checklist. |
 | **Onboarding walkthroughs** | [onboarding/](onboarding/README.md) | 1:1 session runbooks (Leo, Jonathan) and session logs. |

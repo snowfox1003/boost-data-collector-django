@@ -4,6 +4,8 @@ This document describes how to contribute to the project, with emphasis on the *
 
 ## Creating a new collector
 
+**Start here:** [docs/Tutorial_building_a_collector.md](docs/Tutorial_building_a_collector.md) — step-by-step walkthrough (scaffolding, `AbstractCollector` hooks, testing, YAML/Celery, deployment) with a worked `heartbeat_demo` example.
+
 Use the **`startcollector`** management command to generate a new Django app with the usual collector layout (stub `models.py`, `services.py`, `AbstractCollector` + `BaseCollectorCommand`, `tests/` package, `migrations/0001_initial.py`, and `schedule_snippet.yaml`). Run it from the **repository root** so the new package sits next to the other apps.
 
 ```bash

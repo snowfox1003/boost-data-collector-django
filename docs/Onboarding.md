@@ -25,10 +25,11 @@ For setup steps (venv, migrate, tests), start with the root **[README.md](../REA
 | 3 | [Architecture_data_flow.md](Architecture_data_flow.md) | Sources → collectors → DB / workspace → Pinecone (diagrams). |
 | 4 | [Workflow.md](Workflow.md) | YAML schedules, Celery Beat, execution order. |
 | 5 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Service-layer rule for DB writes. |
-| 6 | [Workspace.md](Workspace.md) | Where files land under `WORKSPACE_DIR`. |
-| 7 | [Schema.md](Schema.md) — § Overview + diagrams for your area | Cross-app tables (identity, GitHub, Boost libraries). |
-| 8 | [Service_API.md](Service_API.md) + `service_api/<app>.md` | Callable surface for writes you must use. |
-| 9 | [operations/README.md](operations/README.md) | Shared I/O (GitHub, etc.), not the same as services. |
+| 6 | [Tutorial_building_a_collector.md](Tutorial_building_a_collector.md) | **First collector:** scaffold → hooks → tests → schedule → deploy. |
+| 7 | [Workspace.md](Workspace.md) | Where files land under `WORKSPACE_DIR`. |
+| 8 | [Schema.md](Schema.md) — § Overview + diagrams for your area | Cross-app tables (identity, GitHub, Boost libraries). |
+| 9 | [Service_API.md](Service_API.md) + `service_api/<app>.md` | Callable surface for writes you must use. |
+| 10 | [operations/README.md](operations/README.md) | Shared I/O (GitHub, etc.), not the same as services. |
 
 Deep dives when you touch an area: **[Docker.md](Docker.md)**, **[Deployment.md](Deployment.md)**, per-app notes under **`docs/service_api/`** and **`docs/operations/`**.
 
