@@ -67,6 +67,11 @@ jobs:
             ${{ runner.os }}-uv-pyright-
             ${{ runner.os }}-uv-
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libleveldb-dev g++
+
       - name: Typecheck with Pyright
         env:
           SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"
@@ -125,7 +130,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends pandoc
+          sudo apt-get install -y --no-install-recommends pandoc libleveldb-dev g++
 
       # Fully pinned tree (requirements-dev.in → requirements-dev.lock).
       - name: Install dependencies
@@ -210,6 +215,12 @@ jobs:
 
       - name: Start stack and wait for health
         run: docker compose up -d --wait
+
+      - name: Compose smoke diagnostics
+        if: failure()
+        run: |
+          docker compose ps -a || true
+          docker compose logs --no-color --tail=200 celery_worker || true
 
       - name: Run migrations
         run: docker compose exec -T web python manage.py migrate --noinput

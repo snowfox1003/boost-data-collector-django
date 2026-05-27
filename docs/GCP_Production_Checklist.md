@@ -52,7 +52,7 @@ Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector
 | `web` | Gunicorn `gthread`; resource limits in `docker-compose.prod.yml` |
 | `celery_worker` | `--max-tasks-per-child` (default 50) |
 | `celery_beat` | Persistent `celerybeat` volume |
-| `selenium` | Profile `selenium` — off by default in prod |
+| `slack-chromium` | Profile `slack-session` — off by default in prod (noVNC Slack login only) |
 
 ## Ingress
 

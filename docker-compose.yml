@@ -1,5 +1,6 @@
 # Boost Data Collector - Docker Compose
-# Runs: Redis, Django (gunicorn), Celery worker, Celery beat, Selenium.
+# Runs: Redis, Django (gunicorn), Celery worker, Celery beat.
+# Optional: slack-chromium (profile slack-session) for noVNC Slack login on headless hosts.
 # DATABASE_URL must be set in .env (host Postgres, or postgres://...@db:5432/... if you enable db).
 
 services:
@@ -29,22 +30,20 @@ services:
       timeout: 3s
       retries: 5
 
-  selenium:
+  slack-chromium:
+    profiles: ["slack-session"]
     image: selenium/standalone-chrome:145.0-chromedriver-145.0-20260222
     platform: linux/amd64
     shm_size: "2g"
     ports:
-      - "127.0.0.1:4444:4444"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'curl -sf http://localhost:4444/status | grep -qE ''"ready"[[:space:]]*:[[:space:]]*true'' || exit 1',
-        ]
-      interval: 10s
-      timeout: 10s
-      retries: 12
-      start_period: 60s
+      - "127.0.0.1:7900:7900"
+    volumes:
+      # Chrome profile only (no full workspace mount — least privilege for noVNC login).
+      - ./workspace/slack_event_handler/chrome_profile:/home/seluser/.config/google-chrome
+    environment:
+      SE_BROWSER_ARGS_USER_DATA_DIR: "--user-data-dir=/home/seluser/.config/google-chrome"
+      SE_BROWSER_ARGS_NO_SANDBOX: "--no-sandbox"
+      SE_BROWSER_ARGS_DISABLE_DEV_SHM: "--disable-dev-shm-usage"
 
   web:
     build: .
@@ -61,7 +60,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,0.0.0.0}
-      SELENIUM_HUB_URL: http://selenium:4444/wd/hub
+      CHROME_PROFILE_PATH: /app/workspace/slack_event_handler/chrome_profile
     volumes:
       - ./workspace:/app/workspace
       - ./logs:/app/logs
@@ -75,6 +74,7 @@ services:
     restart: unless-stopped
     user: "0:0"
     # Override image HTTP HEALTHCHECK (no gunicorn on :8000 in this service).
+    # Broker-backed probe: /proc/cmdline parsing was flaky on CI (worker unhealthy during --wait).
     healthcheck:
       test:
         [
@@ -82,7 +82,7 @@ services:
           'python -c "import glob,sys; sys.exit(0 if any(b\"celery\" in (d:=open(p,\"rb\").read()) and b\"worker\" in d for p in glob.glob(\"/proc/[0-9]*/cmdline\")) else 1)"',
         ]
       interval: 30s
-      timeout: 5s
+      timeout: 15s
       retries: 5
       start_period: 90s
     extra_hosts:
@@ -93,7 +93,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      SELENIUM_HUB_URL: http://selenium:4444/wd/hub
+      CHROME_PROFILE_PATH: /app/workspace/slack_event_handler/chrome_profile
     volumes:
       - ./workspace:/app/workspace
       - ./logs:/app/logs

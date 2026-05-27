@@ -13,28 +13,25 @@ annotated-types==0.7.0
 asgiref==3.11.1
     # via django
 attrs==26.1.0
-    # via
-    #   aiohttp
-    #   outcome
-    #   trio
+    # via aiohttp
 audioop-lts==0.2.2
     # via discord-py
 beautifulsoup4==4.14.3
     # via -r requirements.in
 billiard==4.2.4
     # via celery
+browser-cookie3==0.20.1
+    # via -r requirements.in
 celery==5.6.3
     # via -r requirements.in
 certifi==2026.4.22
     # via
     #   pinecone
     #   requests
-    #   selenium
 cffi==2.0.0
     # via
     #   cryptography
     #   pynacl
-    #   trio
 cfgv==3.5.0
     # via pre-commit
 charset-normalizer==3.4.7
@@ -52,10 +49,6 @@ click-plugins==1.1.1.2
     # via celery
 click-repl==0.3.0
     # via celery
-colorama==0.4.6
-    # via
-    #   click
-    #   pytest
 coverage==7.14.0
     # via pytest-cov
 cryptography==48.0.0
@@ -109,8 +102,6 @@ grimp==3.14
     # via import-linter
 gunicorn==23.0.0
     # via -r requirements.in
-h11==0.16.0
-    # via wsproto
 httplib2==0.31.2
     # via
     #   google-api-python-client
@@ -120,7 +111,6 @@ identify==2.6.19
 idna==3.14
     # via
     #   requests
-    #   trio
     #   yarl
 import-linter==2.11
     # via -r requirements-dev.in
@@ -130,6 +120,8 @@ kombu==5.6.2
     # via celery
 lxml==6.1.0
     # via -r requirements.in
+lz4==4.4.5
+    # via browser-cookie3
 markdown-it-py==4.2.0
     # via rich
 mdurl==0.1.2
@@ -144,10 +136,6 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-outcome==1.3.0.post0
-    # via
-    #   trio
-    #   trio-websocket
 packaging==26.2
     # via
     #   django-test-plus
@@ -166,6 +154,8 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+plyvel==1.5.1
+    # via -r requirements.in
 pre-commit==4.6.0
     # via -r requirements-dev.in
 prompt-toolkit==3.0.52
@@ -193,6 +183,8 @@ pyasn1-modules==0.4.2
     # via google-auth
 pycparser==3.0
     # via cffi
+pycryptodomex==3.23.0
+    # via browser-cookie3
 pydantic==2.13.4
     # via -r requirements.in
 pydantic-core==2.46.4
@@ -215,8 +207,6 @@ pyparsing==3.3.2
     # via httplib2
 pyright==1.1.409
     # via -r requirements-dev.in
-pysocks==1.7.1
-    # via urllib3
 pytest==8.4.2
     # via
     #   -r requirements-dev.in
@@ -259,28 +249,16 @@ responses==0.26.0
     # via -r requirements-dev.in
 rich==15.0.0
     # via import-linter
-selenium==4.43.0
-    # via -r requirements.in
 six==1.17.0
     # via python-dateutil
 slack-bolt==1.28.0
     # via -r requirements.in
 slack-sdk==3.41.0
     # via slack-bolt
-sniffio==1.3.1
-    # via trio
-sortedcontainers==2.4.0
-    # via trio
 soupsieve==2.8.3
     # via beautifulsoup4
 sqlparse==0.5.5
     # via django
-trio==0.33.0
-    # via
-    #   selenium
-    #   trio-websocket
-trio-websocket==0.12.2
-    # via selenium
 types-pytz==2026.2.0.20260506
     # via django-stubs
 types-pyyaml==6.0.12.20260510
@@ -297,17 +275,13 @@ typing-extensions==4.15.0
     #   pydantic-core
     #   pygithub
     #   pyright
-    #   selenium
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
 tzdata==2026.2
     # via
-    #   django
     #   faker
     #   kombu
-    #   psycopg
-    #   tzlocal
 tzlocal==5.3.1
     # via celery
 uritemplate==4.2.0
@@ -319,7 +293,6 @@ urllib3==2.7.0
     #   pygithub
     #   requests
     #   responses
-    #   selenium
 vine==5.1.0
     # via
     #   amqp
@@ -329,10 +302,6 @@ virtualenv==21.3.1
     # via pre-commit
 wcwidth==0.7.0
     # via prompt-toolkit
-websocket-client==1.9.0
-    # via selenium
-wsproto==1.3.2
-    # via trio-websocket
 yarl==1.23.0
     # via aiohttp
 yt-dlp==2026.3.17

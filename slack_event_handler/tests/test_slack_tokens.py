@@ -1,343 +1,232 @@
-"""Tests for slack_event_handler.utils.slack_tokens (no real Selenium)."""
+"""Tests for slack_event_handler.utils.slack_tokens (no real Chrome profile)."""
 
-from unittest.mock import MagicMock, PropertyMock, patch
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+from django.test import override_settings
 
 from slack_event_handler.utils import slack_tokens as st
 
 
-@pytest.fixture(autouse=True)
-def reset_global_driver():
-    st._global_driver = None
-    yield
-    st._global_driver = None
+@pytest.fixture
+def sample_local_config():
+    return {
+        "teams": {
+            "T1": {"token": "xoxc-1", "name": "Team One", "user_id": "U1"},
+            "T2": {"token": "xoxc-2", "name": "Team Two", "user_id": "U2"},
+        }
+    }
 
 
-@pytest.mark.parametrize(
-    "url",
-    [
-        "http://localhost:4444/wd/hub",
-        "https://selenium.example.com/wd/hub/",
-    ],
-)
-def test_validate_selenium_hub_url_ok(url):
-    assert "/wd/hub" in st._validate_selenium_hub_url(url)
+def test_is_slack_internal_token_auth_error():
+    assert st.is_slack_internal_token_auth_error("invalid_auth")
+    assert not st.is_slack_internal_token_auth_error("file_not_found")
 
 
-@pytest.mark.parametrize(
-    "bad",
-    ["", None, "ftp://x/wd/hub", "http://localhost:4444/no-hub"],
-)
-def test_validate_selenium_hub_url_bad(bad):
-    with pytest.raises(ValueError):
-        st._validate_selenium_hub_url(bad)
+@patch("slack_event_handler.utils.slack_tokens.requests.post")
+def test_probe_slack_internal_tokens_ok(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"ok": False, "error": "file_not_found"}
+    mock_post.return_value = mock_resp
+    assert st.probe_slack_internal_tokens("xc", "xd") is True
+
+
+@patch("slack_event_handler.utils.slack_tokens.requests.post")
+def test_probe_slack_internal_tokens_auth_error(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"ok": False, "error": "invalid_auth"}
+    mock_post.return_value = mock_resp
+    assert st.probe_slack_internal_tokens("xc", "xd") is False
+
+
+def test_probe_slack_internal_tokens_empty():
+    assert st.probe_slack_internal_tokens("", "xd") is False
+
+
+@override_settings(CHROME_PROFILE_PATH="", WORKSPACE_DIR="/tmp/ws")
+def test_resolve_chrome_profile_uses_workspace_default(tmp_path, settings):
+    settings.WORKSPACE_DIR = str(tmp_path)
+    expected = tmp_path / "slack_event_handler" / "chrome_profile"
+    expected.mkdir(parents=True)
+    assert st._resolve_chrome_profile_root() == expected.resolve()
+
+
+def test_resolve_chrome_profile_respects_custom_path(tmp_path):
+    custom = tmp_path / "custom_slack_chrome"
+    custom.mkdir()
+    with override_settings(CHROME_PROFILE_PATH=str(custom), WORKSPACE_DIR="/tmp/ws"):
+        assert st._resolve_chrome_profile_root() == custom.resolve()
 
 
 def test_validate_chrome_profile_path_ok():
-    assert "/home/seluser/profile" in st._validate_chrome_profile_path(
-        "/home/seluser/profile"
+    assert "/home/user/profile" in st._validate_chrome_profile_path(
+        "/home/user/profile"
     )
 
 
-@pytest.mark.parametrize(
-    "bad",
-    ["", None, "bad\x00path", "???"],
-)
+@pytest.mark.parametrize("bad", ["", None, "bad\x00path", "???"])
 def test_validate_chrome_profile_path_bad(bad):
     with pytest.raises(ValueError):
         st._validate_chrome_profile_path(bad)
 
 
-def test_extract_slack_tokens_success():
-    driver = MagicMock()
-    driver.execute_script.return_value = (
-        '{"teams": {"T1": {"token": "xoxc", "name": "n", "user_id": "U1"}}}'
-    )
-    driver.get_cookies.return_value = [{"name": "d", "value": "xoxd-val"}]
-    out = st.extract_slack_tokens(driver, "T1")
-    assert out["xoxc"] == "xoxc"
+def test_parse_local_config_raw_strips_prefix_byte():
+    payload = {"teams": {}}
+    raw = b"\x01" + json.dumps(payload).encode("utf-8")
+    assert st._parse_local_config_raw(raw) == payload
+
+
+def test_extract_slack_tokens_from_config_success(sample_local_config):
+    out = st.extract_slack_tokens_from_config(sample_local_config, "xoxd-val", "T1")
+    assert out["xoxc"] == "xoxc-1"
     assert out["xoxd"] == "xoxd-val"
+    assert out["team_id"] == "T1"
+    assert out["team_name"] == "Team One"
 
 
-def test_extract_slack_tokens_no_local_config():
-    driver = MagicMock()
-    driver.execute_script.return_value = None
-    assert st.extract_slack_tokens(driver, "T1") is None
+def test_extract_slack_tokens_from_config_missing_team(sample_local_config):
+    assert st.extract_slack_tokens_from_config(sample_local_config, "d", "TX") is None
 
 
-def test_extract_slack_tokens_bad_json():
-    driver = MagicMock()
-    driver.execute_script.return_value = "{"
-    assert st.extract_slack_tokens(driver, "T1") is None
+def test_extract_slack_tokens_from_config_missing_xoxd(sample_local_config):
+    assert st.extract_slack_tokens_from_config(sample_local_config, "", "T1") is None
 
 
-def test_get_all_team_ids_returns_keys():
-    driver = MagicMock()
-    driver.execute_script.return_value = '{"teams": {"TA": {}, "TB": {}}}'
-    assert set(st.get_all_team_ids(driver)) == {"TA", "TB"}
+def test_get_all_team_ids_from_config(sample_local_config):
+    assert set(st.get_all_team_ids_from_config(sample_local_config)) == {"T1", "T2"}
 
 
-def test_get_all_team_ids_empty_on_error():
-    driver = MagicMock()
-    driver.execute_script.side_effect = RuntimeError("no")
-    assert st.get_all_team_ids(driver) == []
+def test_get_all_team_ids_with_explicit_config(sample_local_config):
+    assert st.get_all_team_ids(sample_local_config) == ["T1", "T2"]
 
 
-@pytest.mark.django_db
-def test_check_docker_selenium_connection_ok(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-
-    class FakeResp:
-        status = 200
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-    with patch("urllib.request.urlopen", return_value=FakeResp()):
-        assert st.check_docker_selenium_connection() is True
+@patch.object(st, "_read_local_config_v2", return_value=None)
+@patch.object(st, "_resolve_chrome_profile_root", return_value=Path("/tmp/profile"))
+def test_get_all_team_ids_empty_when_no_config(_resolve, _read):
+    assert st.get_all_team_ids() == []
 
 
-@pytest.mark.django_db
-def test_open_chrome_browser_delegates(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    with patch.object(st, "check_docker_selenium_connection", return_value=True):
-        assert st.open_chrome_browser() is True
+def test_read_local_config_v2_parses_leveldb(tmp_path):
+    profile = tmp_path / "chrome_profile"
+    leveldb_dir = profile / "Default" / "Local Storage" / "leveldb"
+    leveldb_dir.mkdir(parents=True)
+    config = {"teams": {"T1": {"token": "x"}}}
 
-
-@pytest.mark.django_db
-def test_connect_to_chrome_uses_remote(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    mock_driver = MagicMock()
-    with patch.object(st.webdriver, "Remote", return_value=mock_driver):
-        d = st.connect_to_chrome()
-    assert d is mock_driver
-    assert st._global_driver is mock_driver
-
-
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_stops_when_browser_unreachable(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    with patch.object(st, "open_chrome_browser", return_value=False):
-        assert st.extract_slack_tokens_auto("T1") is None
-
-
-def test_extract_slack_tokens_team_missing():
-    driver = MagicMock()
-    driver.execute_script.return_value = (
-        '{"teams": {"T2": {"token": "x", "name": "n"}}}'
-    )
-    assert st.extract_slack_tokens(driver, "T1") is None
-
-
-def test_extract_slack_tokens_missing_xoxc():
-    driver = MagicMock()
-    driver.execute_script.return_value = '{"teams": {"T1": {"name": "n"}}}'
-    assert st.extract_slack_tokens(driver, "T1") is None
-
-
-def test_extract_slack_tokens_missing_xoxd_cookie():
-    driver = MagicMock()
-    driver.execute_script.return_value = (
-        '{"teams": {"T1": {"token": "xoxc", "name": "n", "user_id": "U"}}}'
-    )
-    driver.get_cookies.return_value = [{"name": "other", "value": "v"}]
-    assert st.extract_slack_tokens(driver, "T1") is None
-
-
-def test_extract_slack_tokens_generic_exception():
-    driver = MagicMock()
-    driver.execute_script.side_effect = OSError("boom")
-    assert st.extract_slack_tokens(driver, "T1") is None
-
-
-def test_get_all_team_ids_empty_local_config():
-    driver = MagicMock()
-    driver.execute_script.return_value = None
-    assert st.get_all_team_ids(driver) == []
-
-
-@pytest.mark.django_db
-def test_check_docker_selenium_non_200(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-
-    class FakeResp:
-        status = 500
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-    with patch("urllib.request.urlopen", return_value=FakeResp()):
-        assert st.check_docker_selenium_connection() is False
-
-
-@pytest.mark.django_db
-def test_check_docker_selenium_socket_timeout(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    import socket
-
-    with patch("urllib.request.urlopen", side_effect=socket.timeout()):
-        assert st.check_docker_selenium_connection() is False
-
-
-@pytest.mark.django_db
-def test_check_docker_selenium_url_error(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    import urllib.error
-
-    with patch(
-        "urllib.request.urlopen",
-        side_effect=urllib.error.URLError("refused"),
-    ):
-        assert st.check_docker_selenium_connection() is False
-
-
-@pytest.mark.django_db
-def test_check_docker_selenium_outer_exception(settings):
     with patch.object(
-        st, "_validate_selenium_hub_url", side_effect=RuntimeError("bad")
+        st, "_read_leveldb_value", return_value=b"\x01" + json.dumps(config).encode()
     ):
-        assert st.check_docker_selenium_connection() is False
+        out = st._read_local_config_v2(profile)
+    assert out == config
 
 
-@pytest.mark.django_db
-def test_connect_to_chrome_reuses_live_driver(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    existing = MagicMock()
-    existing.current_url = "http://example.com"
-    st._global_driver = existing
-    assert st.connect_to_chrome() is existing
+def test_read_local_config_v2_returns_none_when_no_leveldb(tmp_path):
+    profile = tmp_path / "empty_profile"
+    profile.mkdir()
+    assert st._read_local_config_v2(profile) is None
 
 
-@pytest.mark.django_db
-def test_connect_to_chrome_recreates_when_stale(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    stale = MagicMock()
-    type(stale).current_url = PropertyMock(side_effect=OSError("gone"))
-    fresh = MagicMock()
-    st._global_driver = stale
-    with patch.object(st.webdriver, "Remote", return_value=fresh):
-        d = st.connect_to_chrome()
-    assert d is fresh
-    assert st._global_driver is fresh
+@patch("browser_cookie3.chrome")
+def test_read_xoxd_cookie_success(mock_chrome, tmp_path):
+    profile = tmp_path / "profile"
+    cookies = profile / "Default" / "Cookies"
+    cookies.parent.mkdir(parents=True)
+    cookies.touch()
+    cookie = MagicMock()
+    cookie.name = "d"
+    cookie.value = "xoxd-abc"
+    mock_chrome.return_value = [cookie]
+    assert st._read_xoxd_cookie(profile) == "xoxd-abc"
 
 
-@pytest.mark.django_db
-def test_connect_to_chrome_remote_failure_returns_none(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    st._global_driver = None
-    with patch.object(st.webdriver, "Remote", side_effect=OSError("no hub")):
-        assert st.connect_to_chrome() is None
+@patch("browser_cookie3.chrome")
+def test_read_xoxd_cookie_missing(mock_chrome, tmp_path):
+    profile = tmp_path / "profile"
+    cookies = profile / "Default" / "Cookies"
+    cookies.parent.mkdir(parents=True)
+    cookies.touch()
+    mock_chrome.return_value = []
+    assert st._read_xoxd_cookie(profile) is None
 
 
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_happy_path(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
+def test_decrypt_chrome_linux_v10_cookie_roundtrip():
+    from Cryptodome.Cipher import AES
 
-    driver = MagicMock()
-    driver.current_url = "https://app.slack.com/client/T1/channel"
-
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch("slack_event_handler.utils.slack_tokens.time.sleep"):
-                with patch.object(
-                    st,
-                    "extract_slack_tokens",
-                    return_value={"xoxc": "a", "xoxd": "b"},
-                ):
-                    out = st.extract_slack_tokens_auto("T1")
-    assert out["xoxc"] == "a"
+    value = "xoxd-test-token"
+    padded = value.encode("utf-8")
+    pad_len = 16 - (len(padded) % 16)
+    padded += bytes([pad_len]) * pad_len
+    payload = b"x" * 32 + padded
+    cipher = AES.new(st._chrome_linux_v10_cookie_key(), AES.MODE_CBC, iv=b" " * 16)
+    encrypted = b"v10" + cipher.encrypt(payload)
+    assert st._decrypt_chrome_linux_v10_cookie(encrypted) == value
 
 
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_navigate_when_not_on_slack(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    driver = MagicMock()
-    urls = iter(["about:blank", "https://app.slack.com/client/T1/x"])
-    type(driver).current_url = PropertyMock(side_effect=lambda: next(urls))
+@patch("browser_cookie3.chrome", side_effect=ValueError("dbus"))
+def test_read_xoxd_cookie_sqlite_fallback(mock_chrome, tmp_path):
+    from Cryptodome.Cipher import AES
 
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch("slack_event_handler.utils.slack_tokens.time.sleep"):
-                with patch.object(
-                    st,
-                    "extract_slack_tokens",
-                    return_value={"xoxc": "a", "xoxd": "b"},
-                ):
-                    assert st.extract_slack_tokens_auto("T1") is not None
-    driver.get.assert_called()
+    profile = tmp_path / "profile"
+    cookies = profile / "Default" / "Cookies"
+    cookies.parent.mkdir(parents=True)
+    value = "xoxd-from-sqlite"
+    padded = value.encode("utf-8")
+    pad_len = 16 - (len(padded) % 16)
+    padded += bytes([pad_len]) * pad_len
+    payload = b"x" * 32 + padded
+    cipher = AES.new(st._chrome_linux_v10_cookie_key(), AES.MODE_CBC, iv=b" " * 16)
+    encrypted = b"v10" + cipher.encrypt(payload)
 
+    import sqlite3
 
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_current_url_raises_then_get(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    driver = MagicMock()
-    urls = iter([OSError("no url yet"), "https://app.slack.com/x"])
-    type(driver).current_url = PropertyMock(side_effect=lambda: next(urls))
+    conn = sqlite3.connect(cookies)
+    conn.execute(
+        "CREATE TABLE cookies (host_key TEXT, name TEXT, encrypted_value BLOB)"
+    )
+    conn.execute(
+        "INSERT INTO cookies VALUES (?, ?, ?)",
+        (".slack.com", "d", encrypted),
+    )
+    conn.commit()
+    conn.close()
 
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch("slack_event_handler.utils.slack_tokens.time.sleep"):
-                with patch.object(
-                    st,
-                    "extract_slack_tokens",
-                    return_value={"xoxc": "a", "xoxd": "b"},
-                ):
-                    st.extract_slack_tokens_auto("T1")
-    driver.get.assert_called()
+    assert st._read_xoxd_cookie(profile) == value
 
 
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_not_slack_page_returns_none(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    driver = MagicMock()
-    driver.current_url = "https://evil.example/page"
-
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch("slack_event_handler.utils.slack_tokens.time.sleep"):
-                assert st.extract_slack_tokens_auto("T1") is None
-
-
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_extraction_failure_returns_none(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    driver = MagicMock()
-    driver.current_url = "https://app.slack.com/client/T1/x"
-
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch("slack_event_handler.utils.slack_tokens.time.sleep"):
-                with patch.object(st, "extract_slack_tokens", return_value=None):
-                    assert st.extract_slack_tokens_auto("T1") is None
+@patch.object(st, "_read_xoxd_cookie", return_value="xoxd")
+@patch.object(st, "_read_local_config_v2")
+@patch.object(st, "_resolve_chrome_profile_root")
+def test_extract_slack_tokens_auto_success(
+    mock_resolve, mock_config, mock_cookie, sample_local_config, tmp_path, settings
+):
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    settings.CHROME_PROFILE_PATH = str(profile)
+    mock_resolve.return_value = profile
+    mock_config.return_value = sample_local_config
+    out = st.extract_slack_tokens_auto("T1")
+    assert out["xoxc"] == "xoxc-1"
+    assert out["xoxd"] == "xoxd"
 
 
-@pytest.mark.django_db
-def test_extract_slack_tokens_auto_outer_exception_returns_none(settings):
-    settings.SELENIUM_HUB_URL = "http://localhost:4444/wd/hub"
-    settings.CHROME_PROFILE_PATH = "/home/seluser/chrome_profile"
-    driver = MagicMock()
-    driver.current_url = "https://app.slack.com/client/T1/x"
+@patch.object(st, "_resolve_chrome_profile_root")
+def test_extract_slack_tokens_auto_missing_profile(mock_resolve, settings):
+    settings.CHROME_PROFILE_PATH = "/nonexistent/profile/path"
+    mock_resolve.return_value = Path("/nonexistent/profile/path")
+    assert st.extract_slack_tokens_auto("T1") is None
 
-    with patch.object(st, "open_chrome_browser", return_value=True):
-        with patch.object(st, "connect_to_chrome", return_value=driver):
-            with patch(
-                "slack_event_handler.utils.slack_tokens.time.sleep",
-                side_effect=RuntimeError("boom"),
-            ):
-                assert st.extract_slack_tokens_auto("T1") is None
+
+@patch.object(st, "_read_xoxd_cookie", return_value=None)
+@patch.object(st, "_read_local_config_v2", return_value={"teams": {}})
+@patch.object(st, "_resolve_chrome_profile_root")
+def test_extract_slack_tokens_auto_no_cookie(
+    mock_resolve, mock_config, mock_cookie, tmp_path, settings
+):
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    settings.CHROME_PROFILE_PATH = str(profile)
+    mock_resolve.return_value = profile
+    assert st.extract_slack_tokens_auto("T1") is None

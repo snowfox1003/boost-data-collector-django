@@ -2,7 +2,7 @@
 Unified Slack Event Listener for slack_event_handler.
 
 Handles two event streams in a single Socket Mode connection:
-  1. Huddle AI note events → process_huddle_canvas() (cppa_slack_transcript_tracker)
+  1. Huddle AI note events → process_huddle_canvas() (slack_event_handler)
   2. GitHub PR URL messages on the configured channel / DMs → PR comment job queue
 """
 
@@ -231,7 +231,7 @@ class SlackListener:
             self._send_user_reply(channel, message_ts, is_dm, ack)
 
     # ------------------------------------------------------------------
-    # Huddle helpers (ported from cppa_slack_transcript_tracker)
+    # Huddle helpers (slack_event_handler)
     # ------------------------------------------------------------------
 
     def _extract_file_id_from_url(self, url: str) -> str | None:

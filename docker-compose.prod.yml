@@ -58,5 +58,5 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  selenium:
-    profiles: ["selenium"]
+  slack-chromium:
+    profiles: ["slack-session"]

@@ -1,6 +1,6 @@
 """
 Transcript markdown: parse huddle HTML/JSON and write transcript .md files.
-Used by cppa_slack_transcript_tracker; caller provides channel_name and user_info_map (from Slack).
+Used by slack_event_handler; caller provides channel_name and user_info_map (from Slack).
 """
 
 from __future__ import annotations

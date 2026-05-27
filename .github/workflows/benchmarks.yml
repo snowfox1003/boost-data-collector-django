@@ -45,6 +45,11 @@ jobs:
             ${{ runner.os }}-uv-benchmark-
             ${{ runner.os }}-uv-
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libleveldb-dev g++
+
       - name: Install dependencies
         env:
           SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"

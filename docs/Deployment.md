@@ -149,7 +149,7 @@ Add the private key content (`~/.ssh/deploy_key`) as the **`SSH_PRIVATE_KEY`** s
 This matches a common production/staging layout for this repo:
 
 - **On the host:** PostgreSQL (package install), **nginx** (TLS + reverse proxy).
-- **In Docker Compose:** `web` (Gunicorn), `celery_worker`, `celery_beat`, `redis`, `selenium`. The bundled **`db` service is commented out** in `docker-compose.yml`; the app uses **`DATABASE_URL`** to reach PostgreSQL on the host.
+- **In Docker Compose:** `web` (Gunicorn), `celery_worker`, `celery_beat`, `redis`. Optional profile **`slack-session`** (`slack-chromium` noVNC) for Slack login on headless hosts. The bundled **`db` service is commented out** in `docker-compose.yml`; the app uses **`DATABASE_URL`** to reach PostgreSQL on the host.
 
 Compose already sets `extra_hosts: host.docker.internal:host-gateway` on app containers so `DATABASE_URL` can use host `host.docker.internal` (see `.env.example`). **`DATABASE_URL` is required** in `.env` for `docker compose` (there is no default to a bundled `db` service while that service stays commented out).
 
@@ -412,11 +412,13 @@ server {
 
 Reload nginx after testing config (`sudo nginx -t && sudo systemctl reload nginx`).
 
-**Selenium (port 4444)** is bound to **`127.0.0.1:4444`** in Compose so it is not exposed on the public interface. Access from your laptop via **SSH port forwarding** if you need the hub from outside the VM:
+**Slack login (optional, port 7900):** When using `docker compose --profile slack-session`, noVNC is bound to **`127.0.0.1:7900`**. Access from your laptop via SSH port forwarding:
 
 ```bash
-ssh -L 4444:127.0.0.1:4444 YOUR_DEPLOY_USER@YOUR_SERVER_HOST
+ssh -L 7900:127.0.0.1:7900 YOUR_DEPLOY_USER@YOUR_SERVER_HOST
 ```
+
+Then open **http://localhost:7900**, sign in to Slack, stop `slack-chromium`, and run `docker compose run --rm web python manage.py extract_slack_tokens` (from the repo root on the server; same as `make extract-slack-tokens`). If you run **`run_slack_event_handler`** outside Compose, mount the same `workspace` path and `.env` as the Docker stack.
 
 ---
 
@@ -459,7 +461,7 @@ cd /opt/boost-data-collector && make down && make up
 
 ## Production Compose overlay
 
-For VM production, use the prod overlay (resource limits, `LOG_FORMAT=json`, Selenium off by default):
+For VM production, use the prod overlay (resource limits, `LOG_FORMAT=json`, `slack-session` off by default):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d

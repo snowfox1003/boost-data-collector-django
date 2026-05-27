@@ -32,7 +32,7 @@ help:
 	@echo ""
 	@echo "  Logs & status"
 	@echo "    ps             Show running containers"
-	@echo "    health         Verify DB, Redis, Selenium, Celery Beat schedule, and containers"
+	@echo "    health         Verify DB, Redis, Celery Beat schedule, and containers"
 	@echo "    notify         Send Slack/Discord startup notification (celery_beat; optional DEPLOY_BRANCH)"
 	@echo "    logs           Follow logs for all services"
 	@echo "    logs-web       Follow logs for the web service"
@@ -51,6 +51,14 @@ help:
 	@echo "    test           Run full pytest suite"
 	@echo "    test-fast      Run tests, stop on first failure"
 	@echo "    test-cov       Run tests with coverage report"
+	@echo ""
+	@echo "  Slack session (xoxc/xoxd token extraction)"
+	@echo "    slack-login            Start slack-chromium (noVNC http://127.0.0.1:7900)"
+	@echo "    slack-wait-profile     Wait until Slack login wrote Cookies + LevelDB"
+	@echo "    slack-login-stop       Stop slack-chromium before extract"
+	@echo "    extract-slack-tokens   Extract tokens to workspace JSON (one-shot)"
+	@echo "    slack-tokens-reextract Stop chromium → extract JSON"
+	@echo "    slack-tokens-refresh   Login (noVNC) → wait → extract JSON"
 	@echo ""
 	@echo "  Utilities"
 	@echo "    clean-mac      Remove macOS ._* resource-fork files"
@@ -167,6 +175,33 @@ test-fast:
 .PHONY: test-cov
 test-cov:
 	python -m pytest --tb=short --cov=. --cov-report=term-missing
+
+# ── Slack session ─────────────────────────────────────────────────────────────
+
+.PHONY: slack-login slack-wait-profile slack-login-stop extract-slack-tokens \
+	slack-tokens-reextract slack-tokens-refresh
+
+slack-login:
+	@mkdir -p workspace/slack_event_handler/chrome_profile
+	$(COMPOSE) --profile slack-session up -d --force-recreate slack-chromium
+	@echo "Open http://127.0.0.1:7900 and sign in at https://app.slack.com (wait until Slack is fully loaded)"
+	@command -v open >/dev/null 2>&1 && open "http://127.0.0.1:7900" || true
+
+slack-wait-profile:
+	@chmod +x scripts/wait_slack_chrome_profile.sh
+	@./scripts/wait_slack_chrome_profile.sh
+
+slack-login-stop:
+	$(COMPOSE) --profile slack-session stop slack-chromium
+
+extract-slack-tokens: slack-login-stop
+	$(MANAGE) extract_slack_tokens
+
+# Profile already exists (re-extract without opening noVNC again).
+slack-tokens-reextract: extract-slack-tokens
+
+# Login in noVNC, wait for profile files, then extract JSON.
+slack-tokens-refresh: slack-login slack-wait-profile extract-slack-tokens
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ This guide explains how to run the project with Docker. It is written for people
 
 ## What you need to know
 
-- **Docker** runs your app and its dependencies (PostgreSQL, Redis, Selenium) in isolated containers.
+- **Docker** runs your app and its dependencies (PostgreSQL, Redis) in isolated containers.
 - **Docker Compose** starts multiple containers together and wires them (e.g. app → database).
 - You do **not** need to install Python or PostgreSQL on your machine to run the app with Docker.
 
@@ -93,7 +93,6 @@ Containers that will run:
 | ----------------- | ----------------- | ------------------------------------------------------------- |
 | **db**            | PostgreSQL        | Internal only                                                 |
 | **redis**         | Redis (Celery)    | Internal only                                                 |
-| **selenium**      | Chrome (Selenium) | **http://localhost:4444** (for cppa_slack_transcript_tracker) |
 | **web**           | Django (gunicorn) | **http://localhost:8000**                                     |
 | **celery_worker** | Celery worker     | Runs tasks                                                    |
 | **celery_beat**   | Celery beat       | Schedules daily job (schedule persisted in volume)            |
@@ -113,6 +112,63 @@ docker compose run --rm web python manage.py migrate
 - **`web`** = use the app image and env (DB connection, etc.).
 
 After this, the app is ready to use.
+
+---
+
+## 4b. Slack session tokens (huddle transcripts, optional)
+
+Huddle flows may need internal Slack session tokens with `ALLOW_INTERNAL_SLACK_TOKENS=true`. Tokens are stored in `workspace/slack_event_handler/slack_internal_tokens.json` (not `.env`). Extraction reads a Chrome profile under `workspace/slack_event_handler/chrome_profile` (see `CHROME_PROFILE_PATH` in `.env.example`).
+
+**Headless server (no UI on the host):**
+
+1. Start the optional login container (persists Chrome data under `workspace/slack_event_handler/chrome_profile`):
+
+   ```bash
+   make slack-login
+   # or: docker compose --profile slack-session up -d slack-chromium
+   ```
+
+   The optional **`slack-chromium`** service runs **`selenium/standalone-chrome`** as an **interactive noVNC desktop** (manual Slack login only — not the project's old Selenium-driven token flow). Chrome's user-data directory in the container is `/home/seluser/.config/google-chrome`; Compose bind-mounts that path to **`CHROME_PROFILE_PATH`** on the host (default: `workspace/slack_event_handler/chrome_profile`).
+
+2. From your laptop, SSH tunnel noVNC (port **7900**):
+
+   ```bash
+   ssh -L 7900:127.0.0.1:7900 YOUR_USER@YOUR_SERVER
+   ```
+
+   Open **http://localhost:7900** and sign in at **https://app.slack.com**.
+
+3. Stop the login container before extraction (avoids LevelDB locks):
+
+   ```bash
+   docker compose --profile slack-session stop slack-chromium
+   ```
+
+4. Extract tokens into workspace JSON (read by running web/celery via the mounted workspace volume):
+
+   ```bash
+   make extract-slack-tokens      # writes workspace/slack_event_handler/slack_internal_tokens.json
+   ```
+
+   **One-shot (login → wait → extract):**
+
+   ```bash
+   make slack-tokens-refresh
+   ```
+
+   While `slack-wait-profile` runs, sign in at **http://127.0.0.1:7900**. If the profile already exists:
+
+   ```bash
+   make slack-tokens-reextract
+   ```
+
+**Token usage at runtime:** `fetch_huddle_transcript` reads `workspace/slack_event_handler/slack_internal_tokens.json`. If JSON is missing or tokens fail an auth probe, it re-extracts from `CHROME_PROFILE_PATH` and updates JSON automatically (no `make slack-tokens-reextract`, no scripted browser navigation). If the Chrome session itself expired, use `make slack-tokens-refresh` (manual noVNC login).
+
+| Command | When to use |
+|---------|-------------|
+| `make extract-slack-tokens` | Write/update token JSON from Chrome profile |
+| `make slack-tokens-reextract` | Profile already logged in; extract JSON only |
+| `make slack-tokens-refresh` | First-time or expired session (noVNC login, then extract) |
 
 ---
 

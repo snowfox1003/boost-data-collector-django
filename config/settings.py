@@ -165,6 +165,7 @@ _WORKSPACE_APP_SLUGS = (
     "boost_mailing_list_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
+    "slack_event_handler",
     "shared",
 )
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
@@ -348,7 +349,7 @@ GIT_AUTHOR_EMAIL = (
 ).strip()
 
 
-# Slack (bot + app token for operations.slack_ops and cppa_slack_transcript_tracker)
+# Slack (bot + app token for operations.slack_ops and slack_event_handler)
 # SLACK_BOT_TOKEN: built from env (prefixed vars). In settings it is a dict (team_id -> token).
 # Env: SLACK_TEAM_IDS=id1,id2 and SLACK_BOT_TOKEN_id1=xoxb-..., etc.
 
@@ -413,31 +414,18 @@ def _slack_team_scope_from_env():
 
 
 SLACK_TEAM_SCOPE = _slack_team_scope_from_env()
-_allow_internal_slack_tokens = (
+ALLOW_INTERNAL_SLACK_TOKENS = (
     env("ALLOW_INTERNAL_SLACK_TOKENS", default="") or ""
 ).strip().lower() == "true"
-_xoxc_raw = (env("SLACK_XOXC_TOKEN", default="") or "").strip()
-_xoxd_raw = (env("SLACK_XOXD_TOKEN", default="") or "").strip()
-if _allow_internal_slack_tokens:
-    SLACK_XOXC_TOKEN = _xoxc_raw
-    SLACK_XOXD_TOKEN = _xoxd_raw
-else:
-    SLACK_XOXC_TOKEN = ""
-    SLACK_XOXD_TOKEN = ""
-    if _xoxc_raw or _xoxd_raw:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "SLACK_XOXC_TOKEN/SLACK_XOXD_TOKEN are set but ignored: "
-            "internal session tokens require ALLOW_INTERNAL_SLACK_TOKENS=true after compliance review."
-        )
-# Selenium/Chrome for Slack token extraction (cppa_slack_transcript_tracker)
-SELENIUM_HUB_URL = (
-    env("SELENIUM_HUB_URL", default="http://localhost:4444/wd/hub") or ""
+SLACK_INTERNAL_TOKENS_JSON = (
+    env("SLACK_INTERNAL_TOKENS_JSON", default="") or ""
 ).strip()
-_DEFAULT_CHROME_PROFILE = str(
-    WORKSPACE_DIR / "cppa_slack_transcript_tracker" / "chrome_profile"
-)
+# xoxc/xoxd are read at runtime from workspace JSON (see slack_internal_tokens_store),
+# not loaded into settings at Django startup.
+SLACK_XOXC_TOKEN = ""
+SLACK_XOXD_TOKEN = ""
+# Chrome user-data dir for Slack xoxc/xoxd extraction (logged-in session on disk)
+_DEFAULT_CHROME_PROFILE = str(WORKSPACE_DIR / "slack_event_handler" / "chrome_profile")
 CHROME_PROFILE_PATH = (
     env("CHROME_PROFILE_PATH", default=_DEFAULT_CHROME_PROFILE) or ""
 ).strip()

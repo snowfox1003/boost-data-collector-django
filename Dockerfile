@@ -11,12 +11,14 @@ WORKDIR /app
 
 # System deps: PostgreSQL client, git, curl (HEALTHCHECK), gosu (dev entrypoint only).
 # Pinned to Debian 13 (trixie) versions from python:3.13-slim at pin time; refresh with:
-#   docker run --rm python:3.13-slim bash -c 'apt-get update -qq && for p in libpq5 git curl gosu; do echo -n "$p="; apt-cache policy "$p" | awk "/Candidate:/{print \$2; exit}"; done'
+#   docker run --rm python:3.13-slim bash -c 'apt-get update -qq && for p in libpq5 git curl gosu g++ libleveldb-dev; do echo -n "$p="; apt-cache policy "$p" | awk "/Candidate:/{print \$2; exit}"; done'
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5=17.10-0+deb13u1 \
     git=1:2.47.3-0+deb13u1 \
     curl=8.14.1-2+deb13u3 \
     gosu=1.17-3+b4 \
+    g++=4:14.2.0-1 \
+    libleveldb-dev=1.23-5+b2 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.lock .

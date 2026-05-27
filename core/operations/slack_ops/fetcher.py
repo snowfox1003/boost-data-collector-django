@@ -12,8 +12,6 @@ import logging
 import requests
 from requests.exceptions import RequestException, ConnectionError, Timeout
 
-from django.conf import settings
-
 from core.operations.file_ops import sanitize_filename
 
 from .client import SlackAPIClient
@@ -213,64 +211,51 @@ def download_file(file_url, save_path=None, filename=None, bot_token=None):
     return fetcher.download_file(file_url, save_path, filename)
 
 
-def _update_tokens_in_env(xoxc_token, xoxd_token):
-    """Update SLACK_XOXC_TOKEN and SLACK_XOXD_TOKEN in .env file."""
-    try:
-        env_file = ".env"
-        if not os.path.exists(env_file):
-            with open(env_file, "w") as f:
-                f.write(f"SLACK_XOXC_TOKEN={xoxc_token}\n")
-                f.write(f"SLACK_XOXD_TOKEN={xoxd_token}\n")
-            return
-        with open(env_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        updated_xoxc = updated_xoxd = False
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith("SLACK_XOXC_TOKEN="):
-                new_lines.append(f"SLACK_XOXC_TOKEN={xoxc_token}\n")
-                updated_xoxc = True
-            elif line.strip().startswith("SLACK_XOXD_TOKEN="):
-                new_lines.append(f"SLACK_XOXD_TOKEN={xoxd_token}\n")
-                updated_xoxd = True
-            else:
-                new_lines.append(line)
-        if not updated_xoxc:
-            new_lines.append(f"SLACK_XOXC_TOKEN={xoxc_token}\n")
-        if not updated_xoxd:
-            new_lines.append(f"SLACK_XOXD_TOKEN={xoxd_token}\n")
-        with open(env_file, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
-        logger.debug("Updated tokens in .env file")
-    except Exception as e:
-        logger.warning("Failed to update .env file: %s", e)
-
-
 def fetch_huddle_transcript(file_id):
-    """Fetch a huddle transcript/file info with transcription (uses xoxc/xoxd when set)."""
-    xoxc_token = getattr(settings, "SLACK_XOXC_TOKEN", None) or None
-    xoxd_token = getattr(settings, "SLACK_XOXD_TOKEN", None) or None
-    team_id = get_default_team_key() or None
-    if not xoxc_token or not xoxd_token:
-        logger.debug("Tokens not found in .env, extracting from Slack...")
-        if not team_id:
-            logger.error(
-                "No default team. Set SLACK_TEAM_IDS and SLACK_BOT_TOKEN_<id> in .env."
-            )
-            return None
-        from slack_event_handler.utils.slack_tokens import extract_slack_tokens_auto
+    """
+    Fetch huddle transcript/file info using xoxc/xoxd from workspace JSON.
 
-        tokens = extract_slack_tokens_auto(team_id)
-        if not tokens or "xoxc" not in tokens or "xoxd" not in tokens:
-            logger.error("Failed to extract Slack tokens")
-            return None
-        xoxc_token, xoxd_token = tokens["xoxc"], tokens["xoxd"]
-        _update_tokens_in_env(xoxc_token, xoxd_token)
+    Stale JSON tokens with a valid Chrome profile are refreshed automatically via
+    get_or_load_slack_internal_token_pair (probe + re-extract). On auth errors,
+    re-extract is attempted once more before giving up.
+    """
+    from slack_event_handler.utils.slack_internal_tokens_store import (
+        SLACK_TOKENS_RELOGIN_HINT,
+        _extract_validate_and_return,
+        get_or_load_slack_internal_token_pair,
+        log_slack_internal_tokens_still_invalid,
+    )
+    from slack_event_handler.utils.slack_tokens import (
+        is_slack_internal_token_auth_error,
+    )
+
+    team_id = get_default_team_key() or None
+    pair = get_or_load_slack_internal_token_pair(team_id)
+    if not pair:
+        if team_id:
+            logger.error(
+                "Cannot fetch huddle transcript for file %s: no valid Slack internal "
+                "tokens for team %s. %s",
+                file_id,
+                team_id,
+                SLACK_TOKENS_RELOGIN_HINT,
+            )
+        else:
+            logger.error(
+                "Cannot fetch huddle transcript for file %s: no Slack team id "
+                "(set SLACK_TEAM_IDS) and no valid internal tokens. %s",
+                file_id,
+                SLACK_TOKENS_RELOGIN_HINT,
+            )
+        return None
+
+    xoxc_token, xoxd_token = pair
     url = "https://slack.com/api/files.info"
     headers = {"Authorization": f"Bearer {xoxc_token}"}
     cookies = {"d": xoxd_token}
     data = {"file": file_id, "include_transcription": "true"}
     max_retries, retry_delay = 3, 2
+    reextracted = False
     for attempt in range(max_retries):
         try:
             response = requests.post(
@@ -281,19 +266,38 @@ def fetch_huddle_transcript(file_id):
             if result.get("ok"):
                 logger.debug("Fetched file info for: %s", file_id)
                 return result
-            if attempt == 0 and team_id:
-                from slack_event_handler.utils.slack_tokens import (
-                    extract_slack_tokens_auto,
+            err = (result.get("error") or "").strip()
+            if team_id and is_slack_internal_token_auth_error(err) and not reextracted:
+                reextracted = True
+                logger.info(
+                    "Slack auth error (%s); re-extracting tokens from Chrome profile",
+                    err,
                 )
-
-                tokens = extract_slack_tokens_auto(team_id)
-                if tokens and "xoxc" in tokens and "xoxd" in tokens:
-                    xoxc_token, xoxd_token = tokens["xoxc"], tokens["xoxd"]
-                    _update_tokens_in_env(xoxc_token, xoxd_token)
+                new_pair = _extract_validate_and_return(team_id)
+                if new_pair:
+                    xoxc_token, xoxd_token = new_pair
                     headers = {"Authorization": f"Bearer {xoxc_token}"}
                     cookies = {"d": xoxd_token}
                     continue
-            logger.warning("Slack API error: %s", result.get("error", "Unknown error"))
+                logger.error(
+                    "Cannot fetch huddle transcript for file %s: re-extract from Chrome "
+                    "profile did not yield valid tokens for team %s. %s",
+                    file_id,
+                    team_id,
+                    SLACK_TOKENS_RELOGIN_HINT,
+                )
+                return None
+            if reextracted and team_id and is_slack_internal_token_auth_error(err):
+                log_slack_internal_tokens_still_invalid(team_id)
+                logger.error(
+                    "Cannot fetch huddle transcript for file %s: Slack auth error (%s) "
+                    "after re-extract. %s",
+                    file_id,
+                    err,
+                    SLACK_TOKENS_RELOGIN_HINT,
+                )
+                return result
+            logger.warning("Slack API error: %s", err or "Unknown error")
             return result
         except (ConnectionError, Timeout, RequestException) as e:
             if attempt < max_retries - 1:
