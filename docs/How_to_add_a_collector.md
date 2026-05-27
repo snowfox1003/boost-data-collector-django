@@ -1,6 +1,10 @@
 # How to add a collector
 
+**Tutorial (start here):** [Tutorial_building_a_collector.md](Tutorial_building_a_collector.md) — end-to-end walkthrough with design decisions for scaffolding, `AbstractCollector` hooks, testing, Celery scheduling, and deployment.
+
 **Preferred:** scaffold a new app from the repo root with **`python manage.py startcollector <app_label>`** (see [CONTRIBUTING.md — Creating a new collector](../CONTRIBUTING.md#creating-a-new-collector)), then follow the manual steps there (`INSTALLED_APPS`, YAML schedule, migrations, **cross-app-dependencies.md**).
+
+**Layout note:** `startcollector` places the collector class and `BaseCollectorCommand` in **`management/commands/run_<app>.py`**. Split into a separate **`collectors.py`** when the command grows (see the tutorial §2.5). Section 4 below uses a `collectors.py` layout as an alternate copy-paste skeleton, not the default scaffold output.
 
 If you used **`startcollector`**, section 1 below is mostly satisfied (you still add the app to **`INSTALLED_APPS`**). Otherwise, this checklist assumes you already have a Django app (or are creating one) with a `management/commands/run_<your_app>.py` entry point. For a high-level diagram and GitHub pipeline notes, see the **Architecture** section in [Development_guideline.md](Development_guideline.md).
 
