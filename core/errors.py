@@ -263,4 +263,32 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
         # Often validation-ish in collectors
         return CollectorFailureCategory.VALIDATION
 
+    try:
+        from pydantic import ValidationError as PydanticValidationError
+    except ImportError:
+        PydanticValidationError = ()  # type: ignore[misc, assignment]
+    if PydanticValidationError and isinstance(exc, PydanticValidationError):
+        return CollectorFailureCategory.VALIDATION
+
+    for mod_name, exc_name in (
+        ("github_activity_tracker.api_schemas", "GitHubApiValidationError"),
+        ("cppa_slack_tracker.api_schemas", "SlackApiValidationError"),
+        ("discord_activity_tracker.staging_schema", "StagingValidationError"),
+        (
+            "discord_activity_tracker.api_schemas",
+            "DiscordLiveSyncValidationError",
+        ),
+    ):
+        try:
+            import importlib
+
+            mod = importlib.import_module(mod_name)
+            app_exc = getattr(mod, exc_name, None)
+            if isinstance(app_exc, type) and isinstance(exc, app_exc):
+                return CollectorFailureCategory.VALIDATION
+        except ImportError:
+            continue
+        except Exception:
+            continue
+
     return CollectorFailureCategory.UNKNOWN

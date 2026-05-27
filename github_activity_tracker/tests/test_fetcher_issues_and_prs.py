@@ -3,11 +3,15 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+from github_activity_tracker.api_schemas import (
+    GitHubIssueBundle,
+    GitHubPullRequestBundle,
+)
 from github_activity_tracker.fetcher import fetch_issues_and_prs_from_github
 
 
 def test_fetch_issues_and_prs_routes_issue_correctly():
-    """fetch_issues_and_prs_from_github yields issue with issue_info key when no pull_request key."""
+    """fetch_issues_and_prs_from_github yields issue bundle when no pull_request key."""
     client = MagicMock()
     client.rest_request_with_link.return_value = (
         [
@@ -27,14 +31,13 @@ def test_fetch_issues_and_prs_routes_issue_correctly():
     items = list(fetch_issues_and_prs_from_github(client, "owner", "repo"))
 
     assert len(items) == 1
-    assert "issue_info" in items[0]
-    assert "pr_info" not in items[0]
-    assert items[0]["issue_info"]["number"] == 1
-    assert items[0]["comments"] == []
+    assert isinstance(items[0], GitHubIssueBundle)
+    assert items[0].issue.number == 1
+    assert items[0].issue.comments == []
 
 
 def test_fetch_issues_and_prs_routes_pr_correctly():
-    """fetch_issues_and_prs_from_github yields PR with pr_info key when pull_request key present."""
+    """fetch_issues_and_prs_from_github yields PR bundle when pull_request key present."""
     client = MagicMock()
     client.rest_request_with_link.return_value = (
         [
@@ -56,11 +59,10 @@ def test_fetch_issues_and_prs_routes_pr_correctly():
     items = list(fetch_issues_and_prs_from_github(client, "owner", "repo"))
 
     assert len(items) == 1
-    assert "pr_info" in items[0]
-    assert "issue_info" not in items[0]
-    assert items[0]["pr_info"]["number"] == 2
-    assert items[0]["comments"] == []
-    assert items[0]["reviews"] == []
+    assert isinstance(items[0], GitHubPullRequestBundle)
+    assert items[0].pr.number == 2
+    assert items[0].pr.comments == []
+    assert items[0].pr.reviews == []
 
 
 def test_fetch_issues_and_prs_fetches_both_in_one_call():
@@ -89,8 +91,8 @@ def test_fetch_issues_and_prs_fetches_both_in_one_call():
     items = list(fetch_issues_and_prs_from_github(client, "o", "r"))
 
     assert len(items) == 2
-    assert "issue_info" in items[0]
-    assert "pr_info" in items[1]
+    assert isinstance(items[0], GitHubIssueBundle)
+    assert isinstance(items[1], GitHubPullRequestBundle)
 
 
 def test_fetch_issues_and_prs_uses_direction_asc():
@@ -132,7 +134,8 @@ def test_fetch_issues_and_prs_filters_by_date_range():
     )
 
     assert len(items) == 1
-    assert items[0]["issue_info"]["number"] == 2
+    assert isinstance(items[0], GitHubIssueBundle)
+    assert items[0].issue.number == 2
 
 
 def test_fetch_issues_and_prs_paginates_with_link_header():

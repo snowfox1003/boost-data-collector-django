@@ -12,6 +12,17 @@ from typing import Optional
 
 from core.operations.slack_ops.tokens import get_slack_client
 
+from .api_schemas import (
+    SlackChannelPayload,
+    SlackMessagePayload,
+    SlackTeamPayload,
+    SlackUserPayload,
+    parse_channel,
+    parse_message,
+    parse_team,
+    parse_user,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,15 +30,14 @@ def fetch_user_list(
     _team_id: str,
     *,
     client=None,
-) -> list[dict]:
+) -> list[SlackUserPayload]:
     """
     Fetch all team members for the workspace (team_id).
     The bot token is scoped to one workspace; team_id is for consistency.
-    Returns list of member dicts (id, name, real_name, profile, ...).
     """
     if client is None:
         client = get_slack_client(team_id=_team_id)
-    members = []
+    members: list[SlackUserPayload] = []
     cursor = None
     while True:
         data = client.users_list(
@@ -37,7 +47,8 @@ def fetch_user_list(
         if not data.get("ok"):
             logger.warning("users.list failed: %s", data.get("error", "unknown"))
             break
-        members.extend(data.get("members", []))
+        for raw in data.get("members", []):
+            members.append(parse_user(raw))
         cursor = (data.get("response_metadata") or {}).get("next_cursor")
         if not cursor:
             break
@@ -49,11 +60,8 @@ def fetch_user_info(
     *,
     client=None,
     team_id: Optional[str] = None,
-) -> Optional[dict]:
-    """
-    Fetch detailed user info for user_id.
-    Returns the Slack user object (id, name, real_name, profile, ...) or None on error.
-    """
+) -> Optional[SlackUserPayload]:
+    """Fetch detailed user info for user_id."""
     if client is None:
         client = get_slack_client(team_id=team_id)
     data = client.users_info(user_id)
@@ -64,19 +72,20 @@ def fetch_user_info(
             data.get("error", "unknown"),
         )
         return None
-    return data.get("user")
+    user = data.get("user")
+    if not isinstance(user, dict):
+        return None
+    return parse_user(user)
 
 
 def fetch_team_info(
     team_id: Optional[str] = None,
     *,
     client=None,
-) -> Optional[dict]:
+) -> Optional[SlackTeamPayload]:
     """
     Fetch workspace/team info (team the bot token belongs to).
-    Returns the Slack team object (id, name, ...) or None on error.
-    Tries team.info first; if that fails (e.g. missing team:read scope),
-    falls back to auth.test which returns team name without extra scope.
+    Tries team.info first; falls back to auth.test.
     """
     if client is None:
         client = get_slack_client(team_id=team_id)
@@ -85,7 +94,7 @@ def fetch_team_info(
         team = data.get("team")
         if team and (team.get("name") or team.get("id")):
             if not team_id or team.get("id") == team_id:
-                return team
+                return parse_team(team)
     logger.debug(
         "team.info failed or no name: %s; trying auth.test",
         data.get("error", "no team name"),
@@ -94,12 +103,11 @@ def fetch_team_info(
     if not auth.get("ok"):
         logger.warning("auth.test failed: %s", auth.get("error", "unknown"))
         return None
-    # auth.test returns "team" (workspace name) and "team_id"
     tid = auth.get("team_id") or ""
     tname = (auth.get("team") or "").strip() or tid
     if team_id and tid != team_id:
         return None
-    return {"id": tid, "name": tname}
+    return parse_team({"id": tid, "name": tname})
 
 
 def fetch_channel_list(
@@ -108,14 +116,11 @@ def fetch_channel_list(
     types: str = "public_channel",
     exclude_archived: bool = False,
     client=None,
-) -> list[dict]:
-    """
-    Fetch channel list for the workspace (team_id).
-    The bot token is scoped to one workspace. Returns list of channel dicts (id, name, ...).
-    """
+) -> list[SlackChannelPayload]:
+    """Fetch channel list for the workspace (team_id)."""
     if client is None:
         client = get_slack_client(team_id=_team_id)
-    channels = []
+    channels: list[SlackChannelPayload] = []
     cursor = None
     while True:
         data = client.conversations_list(
@@ -129,7 +134,8 @@ def fetch_channel_list(
                 "conversations.list failed: %s", data.get("error", "unknown")
             )
             break
-        channels.extend(data.get("channels", []))
+        for raw in data.get("channels", []):
+            channels.append(parse_channel(raw))
         cursor = (data.get("response_metadata") or {}).get("next_cursor")
         if not cursor:
             break
@@ -154,15 +160,8 @@ def fetch_messages(
     *,
     client=None,
     team_id: Optional[str] = None,
-) -> list[dict]:
-    """
-    Fetch all messages for a channel.
-
-    When start_date is set: messages in [start_date, end_date] (inclusive, UTC).
-    When start_date is None: all messages up to end_date (API called without oldest,
-    so from the beginning of the channel). Uses conversations.history, then filters
-    by created or edited date.
-    """
+) -> list[SlackMessagePayload]:
+    """Fetch all messages for a channel in the requested date range."""
     if client is None:
         client = get_slack_client(team_id=team_id)
     if isinstance(end_date, datetime):
@@ -194,7 +193,7 @@ def fetch_messages(
         tzinfo=timezone.utc,
     )
     latest_ts = str(range_end.timestamp())
-    messages = []
+    messages: list[SlackMessagePayload] = []
     cursor = None
     while True:
         kwargs = {
@@ -214,22 +213,25 @@ def fetch_messages(
             )
             break
         batch = data.get("messages", [])
-        for msg in batch:
-            created_d = _ts_to_utc_date(msg.get("ts"))
+        for raw in batch:
+            msg = parse_message(raw)
+            created_d = _ts_to_utc_date(msg.ts)
+            edited_ts = None
+            if isinstance(msg.edited, dict):
+                edited_ts = msg.edited.get("ts")
+            elif msg.edited is not None:
+                edited_ts = msg.edited.ts
+            edited_d = _ts_to_utc_date(edited_ts)
             if start_date is not None:
                 if created_d and start_date <= created_d <= end_date:
                     messages.append(msg)
                     continue
-                edited = msg.get("edited") or {}
-                edited_d = _ts_to_utc_date(edited.get("ts"))
                 if edited_d and start_date <= edited_d <= end_date:
                     messages.append(msg)
             else:
                 if created_d and created_d <= end_date:
                     messages.append(msg)
                     continue
-                edited = msg.get("edited") or {}
-                edited_d = _ts_to_utc_date(edited.get("ts"))
                 if edited_d and edited_d <= end_date:
                     messages.append(msg)
         if not batch:

@@ -13,10 +13,10 @@
 | Function | Parameters | Return type | Summary |
 | --- | --- | --- | --- |
 | `add_or_update_reaction` | message: DiscordMessage, emoji: str, count: int | Tuple[DiscordReaction, bool] | Upsert one reaction row per (message, emoji) with the given reaction count. |
-| `bulk_process_message_batch` | message_data_list: List[Dict[str, Any]], channel: DiscordChannel | int | Run user upsert, message upsert, and reaction upsert inside one DB transaction. |
-| `bulk_upsert_discord_messages` | message_data_list: List[Dict[str, Any]], channel: DiscordChannel, user_map: Dict[int, DiscordProfile] | Dict[int, DiscordMessage] | Bulk upsert messages for one channel using ``bulk_create(update_conflicts=True)``. |
-| `bulk_upsert_discord_reactions` | reaction_data_list: List[Dict[str, Any]], message_map: Dict[int, DiscordMessage] | None | Bulk upsert reactions using ``bulk_create(update_conflicts=True)``. |
-| `bulk_upsert_discord_users` | user_data_list: List[Dict[str, Any]] | Dict[int, DiscordProfile] | Upsert author profiles for a batch of messages. |
+| `bulk_process_message_batch` | message_data_list: List[Union[DiscordLivePreparedMessage, Dict[str, Any]]], channel: DiscordChannel | int | Run user upsert, message upsert, and reaction upsert inside one DB transaction. |
+| `bulk_upsert_discord_messages` | message_data_list: Sequence[Union[DiscordLivePreparedMessage, Dict[str, Any]]], channel: DiscordChannel, user_map: Dict[int, DiscordProfile] | Dict[int, DiscordMessage] | Bulk upsert messages for one channel using ``bulk_create(update_conflicts=True)``. |
+| `bulk_upsert_discord_reactions` | reaction_data_list: Sequence[Union[DiscordReactionPayload, Dict[str, Any]]], message_map: Dict[int, DiscordMessage] | None | Bulk upsert reactions using ``bulk_create(update_conflicts=True)``. |
+| `bulk_upsert_discord_users` | user_data_list: List[Union[DiscordLiveUserPayload, Dict[str, Any]]] | Dict[int, DiscordProfile] | Upsert author profiles for a batch of messages. |
 | `create_or_update_discord_message` | message_id: int, channel: DiscordChannel, author: DiscordProfile, content: str, message_created_at: datetime, message_edited_at: Optional[datetime] = None, reply_to_message_id: Optional[int] = None, attachment_urls: Optional[list] = None, message_type: str = 'Default', is_pinned: bool = False | Tuple[DiscordMessage, bool] | Create or update a single message by Discord ``message_id`` (upsert). |
 | `get_active_channels` | server: DiscordServer, days: int = 30, channel_ids: Optional[List[int]] = None | QuerySet[DiscordChannel] | Same as ``queryset_channels_with_recent_messages`` with ``cutoff = now - days``. |
 | `get_channel_latest_message_at` | channel: DiscordChannel | Optional[datetime] | Return the latest ``message_created_at`` among non-deleted messages in a channel. |

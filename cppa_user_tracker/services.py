@@ -258,22 +258,26 @@ def _get_next_negative_github_account_id() -> int:
 
 @transaction.atomic
 def get_or_create_slack_user(
-    user_data: dict[str, Any],
+    user_data: Any,
 ) -> tuple[SlackUser, bool]:
     """Get or create a SlackUser from Slack API user data. Returns (SlackUser, created).
 
     If the user exists, updates username, display_name, and avatar_url from user_data.
     Creates an Email linked to the user if profile.email is provided and not already
     present. Does not create or link an Identity (that is handled separately).
-    Raises ValueError if user_data has no 'id'.
+    Accepts :class:`~cppa_slack_tracker.api_schemas.SlackUserPayload` or a raw dict.
     """
-    user_id = (user_data.get("id") or "").strip()
+    if isinstance(user_data, dict):
+        from cppa_slack_tracker.api_schemas import parse_user
+
+        user_data = parse_user(user_data)
+    user_id = (user_data.id or "").strip()
     if not user_id:
         raise ValueError("Slack user ID ('id') is required")
-    profile = user_data.get("profile") or {}
-    username = (user_data.get("name") or "").strip()
-    display_name = (user_data.get("real_name") or user_data.get("name") or "").strip()
-    avatar_url = (profile.get("image_72") or "").strip()
+    profile = user_data.profile
+    username = (user_data.name or "").strip()
+    display_name = (user_data.real_name or user_data.name or "").strip()
+    avatar_url = (profile.image_72 or "").strip()
     user, created = SlackUser.objects.get_or_create(
         slack_user_id=user_id,
         defaults={
@@ -287,7 +291,7 @@ def get_or_create_slack_user(
         user.display_name = display_name or user.display_name
         user.avatar_url = avatar_url or user.avatar_url
         user.save()
-    email_str = (profile.get("email") or "").strip()
+    email_str = (profile.email or "").strip()
     if email_str and not user.emails.filter(email=email_str).exists():
         add_email(
             user,

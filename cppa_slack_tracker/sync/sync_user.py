@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _process_user_info(
-    user_data: dict,
+    user_data,
     *,
     include_bots: bool = True,
 ) -> bool:
@@ -27,7 +27,10 @@ def _process_user_info(
     get_or_create_slack_user. Returns True if user was synced, False if skipped.
     Raises on error.
     """
-    if not include_bots and user_data.get("is_bot"):
+    is_bot = (
+        user_data.is_bot if hasattr(user_data, "is_bot") else user_data.get("is_bot")
+    )
+    if not include_bots and is_bot:
         return False
     get_or_create_slack_user(user_data)
     return True

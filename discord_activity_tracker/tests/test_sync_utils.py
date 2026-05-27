@@ -16,9 +16,9 @@ from discord_activity_tracker.sync.utils import (
 
 def test_parse_discord_user_empty_dict():
     out = parse_discord_user(None)
-    assert out["user_id"] == 0
-    assert out["username"] == "unknown"
-    assert out["is_bot"] is False
+    assert out.user_id == 0
+    assert out.username == "unknown"
+    assert out.is_bot is False
 
 
 def test_parse_discord_user_bot_api_shape():
@@ -31,16 +31,16 @@ def test_parse_discord_user_bot_api_shape():
             "bot": True,
         }
     )
-    assert out["user_id"] == 123456789012345678
-    assert out["username"] == "alice"
-    assert out["display_name"] == "Alice"
-    assert out["avatar_url"] == "https://cdn.example/a.png"
-    assert out["is_bot"] is True
+    assert out.user_id == 123456789012345678
+    assert out.username == "alice"
+    assert out.display_name == "Alice"
+    assert out.avatar_url == "https://cdn.example/a.png"
+    assert out.is_bot is True
 
 
 def test_parse_discord_user_exporter_name_fallback():
     out = parse_discord_user({"id": 1, "name": "bob"})
-    assert out["username"] == "bob"
+    assert out.username == "bob"
 
 
 # --- new: DiscordChatExporter shape ---
@@ -49,8 +49,8 @@ def test_parse_discord_user_exporter_name_fallback():
 def test_parse_discord_user_string_id_coerced_to_int():
     """Exporter provides id as string; must become int."""
     out = parse_discord_user({"id": "1082347485026070548", "name": "raubtier"})
-    assert out["user_id"] == 1082347485026070548
-    assert isinstance(out["user_id"], int)
+    assert out.user_id == 1082347485026070548
+    assert isinstance(out.user_id, int)
 
 
 def test_parse_discord_user_avatarUrl_camelCase():
@@ -62,7 +62,7 @@ def test_parse_discord_user_avatarUrl_camelCase():
             "avatarUrl": "https://cdn.discordapp.com/avatar.png",
         }
     )
-    assert out["avatar_url"] == "https://cdn.discordapp.com/avatar.png"
+    assert out.avatar_url == "https://cdn.discordapp.com/avatar.png"
 
 
 def test_parse_discord_user_avatar_url_takes_priority_over_avatarUrl():
@@ -75,13 +75,13 @@ def test_parse_discord_user_avatar_url_takes_priority_over_avatarUrl():
             "avatarUrl": "https://cdn/b",
         }
     )
-    assert out["avatar_url"] == "https://cdn/a"
+    assert out.avatar_url == "https://cdn/a"
 
 
 def test_parse_discord_user_isBot_camelCase():
     """Exporter uses isBot; must be interpreted as a boolean."""
     out = parse_discord_user({"id": "1", "name": "mybot", "isBot": True})
-    assert out["is_bot"] is True
+    assert out.is_bot is True
 
 
 def test_parse_discord_user_nickname_as_display_name():
@@ -93,17 +93,17 @@ def test_parse_discord_user_nickname_as_display_name():
             "nickname": "Cool User",
         }
     )
-    assert out["display_name"] == "Cool User"
+    assert out.display_name == "Cool User"
 
 
 def test_parse_discord_user_invalid_id_defaults_to_zero():
     out = parse_discord_user({"id": "not-a-number", "name": "x"})
-    assert out["user_id"] == 0
+    assert out.user_id == 0
 
 
 def test_parse_discord_user_none_id_defaults_to_zero():
     out = parse_discord_user({"id": None, "name": "x"})
-    assert out["user_id"] == 0
+    assert out.user_id == 0
 
 
 # --- unchanged helpers ---

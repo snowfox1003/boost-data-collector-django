@@ -301,3 +301,36 @@ def test_classify_command_error_when_management_import_fails(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
     assert classify_failure(CommandError("x")) is CollectorFailureCategory.UNKNOWN
+
+
+def test_classify_pydantic_validation_error():
+    pydantic = pytest.importorskip("pydantic")
+    from pydantic import BaseModel
+
+    class M(BaseModel):
+        x: int
+
+    try:
+        M.model_validate({"x": "not-int"})
+    except pydantic.ValidationError as exc:
+        assert classify_failure(exc) is CollectorFailureCategory.VALIDATION
+    else:
+        pytest.fail("expected ValidationError")
+
+
+def test_classify_github_api_validation_error():
+    from github_activity_tracker.api_schemas import GitHubApiValidationError
+
+    assert (
+        classify_failure(GitHubApiValidationError("bad issue"))
+        is CollectorFailureCategory.VALIDATION
+    )
+
+
+def test_classify_slack_api_validation_error():
+    from cppa_slack_tracker.api_schemas import SlackApiValidationError
+
+    assert (
+        classify_failure(SlackApiValidationError("bad slack"))
+        is CollectorFailureCategory.VALIDATION
+    )

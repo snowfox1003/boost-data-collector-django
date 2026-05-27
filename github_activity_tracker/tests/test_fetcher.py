@@ -81,8 +81,8 @@ def test_fetch_commits_from_github_yields_commit_dicts():
     }
     items = list(fetch_commits_from_github(client, "o", "r"))
     assert len(items) == 1
-    assert items[0]["sha"] == "abc"
-    assert items[0]["commit"]["message"] == "msg"
+    assert items[0].sha == "abc"
+    assert items[0].commit.message == "msg"
 
 
 def test_fetch_commits_from_github_stops_on_empty_page():
@@ -149,8 +149,8 @@ def test_fetch_commits_from_github_with_etag_cache_200_yields_and_sets():
 
     # Should yield oldest first: abc, def
     assert len(items) == 2
-    assert items[0]["sha"] == "abc"
-    assert items[1]["sha"] == "def"
+    assert items[0].sha == "abc"
+    assert items[1].sha == "def"
     # ETag should be cached after processing
     etag_cache.set.assert_called_once()
     call_args = etag_cache.set.call_args[0]
@@ -229,8 +229,8 @@ def test_fetch_comments_from_github_returns_list():
     ]
     result = fetch_comments_from_github(client, "o", "r", issue_number=1)
     assert len(result) == 2
-    assert result[0]["id"] == 1
-    assert result[1]["body"] == "c2"
+    assert result[0].id == 1
+    assert result[1].body == "c2"
 
 
 def test_fetch_comments_from_github_stops_on_empty_page():
@@ -261,7 +261,7 @@ def test_fetch_pr_reviews_from_github_returns_list():
     ]
     result = fetch_pr_reviews_from_github(client, "o", "r", pr_number=1)
     assert len(result) == 1
-    assert result[0]["id"] == 1
+    assert result[0].id == 1
 
 
 def test_fetch_pr_reviews_from_github_stops_on_empty_page():

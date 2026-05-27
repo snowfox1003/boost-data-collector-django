@@ -12,18 +12,23 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 
 from cppa_user_tracker.services import get_or_create_github_account
 from github_activity_tracker import fetcher, services
+from github_activity_tracker.api_schemas import (
+    GitHubIssueBundle,
+    GitHubPullRequestBundle,
+    GitHubUser,
+    parse_issue_bundle,
+    parse_pr_bundle,
+)
 from github_activity_tracker.sync.etag_cache import RedisListETagCache
 from github_activity_tracker.sync.raw_source import (
     save_issue_raw_source,
     save_pr_raw_source,
 )
 from github_activity_tracker.sync.utils import (
-    normalize_issue_json,
-    normalize_pr_json,
     parse_datetime,
     parse_github_user,
 )
@@ -47,15 +52,36 @@ from github_activity_tracker.models import (
 logger = logging.getLogger(__name__)
 
 
-def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
-    """Apply one issue dict (with comments, assignees, labels) to the database.
-    Accepts flat or nested { issue_info, comments } format."""
-    issue_data = normalize_issue_json(issue_data)
-    user_info = parse_github_user(issue_data.get("user"))
+def _user_info_from_model(user: GitHubUser | None) -> dict:
+    return parse_github_user(user.model_dump() if user is not None else None)
+
+
+def _issue_bundle_to_storage_dict(bundle: GitHubIssueBundle) -> dict:
+    detail = bundle.issue.model_dump()
+    comments = detail.pop("comments", [])
+    return {"issue_info": detail, "comments": comments}
+
+
+def _pr_bundle_to_storage_dict(bundle: GitHubPullRequestBundle) -> dict:
+    detail = bundle.pr.model_dump()
+    comments = detail.pop("comments", [])
+    reviews = detail.pop("reviews", [])
+    return {"pr_info": detail, "comments": comments, "reviews": reviews}
+
+
+def _process_issue_data(
+    repo: GitHubRepository,
+    issue_data: Union[GitHubIssueBundle, dict],
+) -> None:
+    """Apply one issue bundle to the database. Accepts validated bundle or raw dict."""
+    if isinstance(issue_data, dict):
+        issue_data = parse_issue_bundle(issue_data)
+    issue = issue_data.issue
+    user_info = _user_info_from_model(issue.user)
     if not user_info["account_id"]:
         logger.warning(
             "Issue #%s: no user account_id; skipping",
-            issue_data.get("number", "?"),
+            issue.number if issue.number is not None else "?",
         )
         return
     account, _ = get_or_create_github_account(
@@ -65,23 +91,21 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
         avatar_url=user_info["avatar_url"],
     )
 
-    issue_number_raw = issue_data.get("number")
-    issue_id_raw = issue_data.get("id")
-    if issue_number_raw is None or issue_id_raw is None:
+    if issue.number is None or issue.id is None:
         logger.warning(
             "Issue missing number or id; skipping (got number=%r id=%r)",
-            issue_number_raw,
-            issue_id_raw,
+            issue.number,
+            issue.id,
         )
         return
     try:
-        issue_number = int(issue_number_raw)
-        issue_id = int(issue_id_raw)
+        issue_number = int(issue.number)
+        issue_id = int(issue.id)
     except (TypeError, ValueError):
         logger.warning(
             "Issue number/id not numeric; skipping (got number=%r id=%r)",
-            issue_number_raw,
-            issue_id_raw,
+            issue.number,
+            issue.id,
         )
         return
 
@@ -90,17 +114,19 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
         account=account,
         issue_number=issue_number,
         issue_id=issue_id,
-        title=issue_data.get("title", ""),
-        body=issue_data.get("body", ""),
-        state=issue_data.get("state", "open"),
-        state_reason=issue_data.get("state_reason", ""),
-        issue_created_at=parse_datetime(issue_data.get("created_at")),
-        issue_updated_at=parse_datetime(issue_data.get("updated_at")),
-        issue_closed_at=parse_datetime(issue_data.get("closed_at")),
+        title=issue.title or "",
+        body=issue.body or "",
+        state=issue.state or "open",
+        state_reason=issue.state_reason or "",
+        issue_created_at=parse_datetime(issue.created_at),
+        issue_updated_at=parse_datetime(issue.updated_at),
+        issue_closed_at=parse_datetime(issue.closed_at),
     )
 
-    for comment_data in issue_data.get("comments", []):
-        comment_user_info = parse_github_user(comment_data.get("user"))
+    for comment_data in issue.comments:
+        if comment_data.id is None:
+            continue
+        comment_user_info = _user_info_from_model(comment_data.user)
         if comment_user_info["account_id"]:
             comment_account, _ = get_or_create_github_account(
                 github_account_id=comment_user_info["account_id"],
@@ -111,13 +137,13 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
             services.create_or_update_issue_comment(
                 issue=issue_obj,
                 account=comment_account,
-                issue_comment_id=comment_data.get("id"),
-                body=comment_data.get("body", ""),
-                issue_comment_created_at=parse_datetime(comment_data.get("created_at")),
-                issue_comment_updated_at=parse_datetime(comment_data.get("updated_at")),
+                issue_comment_id=comment_data.id,
+                body=comment_data.body or "",
+                issue_comment_created_at=parse_datetime(comment_data.created_at),
+                issue_comment_updated_at=parse_datetime(comment_data.updated_at),
             )
 
-    assignee_infos = [parse_github_user(a) for a in issue_data.get("assignees", [])]
+    assignee_infos = [_user_info_from_model(a) for a in issue.assignees]
     current_assignee_ids = {i["account_id"] for i in assignee_infos if i["account_id"]}
     for assignee_account in issue_obj.assignees.all():
         if assignee_account.github_account_id not in current_assignee_ids:
@@ -133,9 +159,7 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
             services.add_issue_assignee(issue_obj, assignee_account)
 
     incoming_label_names = {
-        (label_data.get("name") or "")
-        for label_data in issue_data.get("labels", [])
-        if (label_data.get("name") or "")
+        (label.name or "") for label in issue.labels if (label.name or "")
     }
     existing_label_names = {
         il.label_name
@@ -147,7 +171,7 @@ def _process_issue_data(repo: GitHubRepository, issue_data: dict) -> None:
     for label_name in incoming_label_names - existing_label_names:
         services.add_issue_label(issue_obj, label_name)
 
-    logger.debug("Issue #%s: saved to DB", issue_data.get("number"))
+    logger.debug("Issue #%s: saved to DB", issue.number)
 
 
 def _process_existing_issue_jsons(
@@ -164,11 +188,14 @@ def _process_existing_issue_jsons(
     numbers: list[int] = []
     for path in iter_existing_issue_jsons(owner, repo_name):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            _process_issue_data(repo, data)
-            save_issue_raw_source(owner, repo_name, data)
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            bundle = parse_issue_bundle(raw, source=str(path))
+            _process_issue_data(repo, bundle)
+            save_issue_raw_source(
+                owner, repo_name, _issue_bundle_to_storage_dict(bundle)
+            )
             path.unlink()
-            number = (data.get("issue_info") or {}).get("number") or data.get("number")
+            number = bundle.issue.number
             if number is not None:
                 numbers.append(number)
             count += 1
@@ -177,15 +204,19 @@ def _process_existing_issue_jsons(
     return count, numbers
 
 
-def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
-    """Apply one PR dict (with comments, reviews, assignees, labels) to the database.
-    Accepts flat or nested { pr_info, comments, reviews } format."""
-    pr_data = normalize_pr_json(pr_data)
-    user_info = parse_github_user(pr_data.get("user"))
+def _process_pr_data(
+    repo: GitHubRepository,
+    pr_data: Union[GitHubPullRequestBundle, dict],
+) -> None:
+    """Apply one PR bundle to the database. Accepts validated bundle or raw dict."""
+    if isinstance(pr_data, dict):
+        pr_data = parse_pr_bundle(pr_data)
+    pr = pr_data.pr
+    user_info = _user_info_from_model(pr.user)
     if not user_info["account_id"]:
         logger.warning(
             "PR #%s: no user account_id; skipping",
-            pr_data.get("number", "?"),
+            pr.number if pr.number is not None else "?",
         )
         return
     account, _ = get_or_create_github_account(
@@ -195,23 +226,21 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
         avatar_url=user_info["avatar_url"],
     )
 
-    pr_number_raw = pr_data.get("number")
-    pr_id_raw = pr_data.get("id")
-    if pr_number_raw is None or pr_id_raw is None:
+    if pr.number is None or pr.id is None:
         logger.warning(
             "PR missing number or id; skipping (got number=%r id=%r)",
-            pr_number_raw,
-            pr_id_raw,
+            pr.number,
+            pr.id,
         )
         return
     try:
-        pr_number = int(pr_number_raw)
-        pr_id = int(pr_id_raw)
+        pr_number = int(pr.number)
+        pr_id = int(pr.id)
     except (TypeError, ValueError):
         logger.warning(
             "PR number/id not numeric; skipping (got number=%r id=%r)",
-            pr_number_raw,
-            pr_id_raw,
+            pr.number,
+            pr.id,
         )
         return
 
@@ -220,19 +249,21 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
         account=account,
         pr_number=pr_number,
         pr_id=pr_id,
-        title=pr_data.get("title", ""),
-        body=pr_data.get("body", ""),
-        state=pr_data.get("state", "open"),
-        head_hash=pr_data.get("head", {}).get("sha", ""),
-        base_hash=pr_data.get("base", {}).get("sha", ""),
-        pr_created_at=parse_datetime(pr_data.get("created_at")),
-        pr_updated_at=parse_datetime(pr_data.get("updated_at")),
-        pr_merged_at=parse_datetime(pr_data.get("merged_at")),
-        pr_closed_at=parse_datetime(pr_data.get("closed_at")),
+        title=pr.title or "",
+        body=pr.body or "",
+        state=pr.state or "open",
+        head_hash=pr.head.sha if pr.head else "",
+        base_hash=pr.base.sha if pr.base else "",
+        pr_created_at=parse_datetime(pr.created_at),
+        pr_updated_at=parse_datetime(pr.updated_at),
+        pr_merged_at=parse_datetime(pr.merged_at),
+        pr_closed_at=parse_datetime(pr.closed_at),
     )
 
-    for comment_data in pr_data.get("comments", []):
-        comment_user_info = parse_github_user(comment_data.get("user"))
+    for comment_data in pr.comments:
+        if comment_data.id is None:
+            continue
+        comment_user_info = _user_info_from_model(comment_data.user)
         if comment_user_info["account_id"]:
             comment_account, _ = get_or_create_github_account(
                 github_account_id=comment_user_info["account_id"],
@@ -243,14 +274,16 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
             services.create_or_update_pr_comment(
                 pr=pr_obj,
                 account=comment_account,
-                pr_comment_id=comment_data.get("id"),
-                body=comment_data.get("body", ""),
-                pr_comment_created_at=parse_datetime(comment_data.get("created_at")),
-                pr_comment_updated_at=parse_datetime(comment_data.get("updated_at")),
+                pr_comment_id=comment_data.id,
+                body=comment_data.body or "",
+                pr_comment_created_at=parse_datetime(comment_data.created_at),
+                pr_comment_updated_at=parse_datetime(comment_data.updated_at),
             )
 
-    for review_data in pr_data.get("reviews", []):
-        review_user_info = parse_github_user(review_data.get("user"))
+    for review_data in pr.reviews:
+        if review_data.id is None:
+            continue
+        review_user_info = _user_info_from_model(review_data.user)
         if review_user_info["account_id"]:
             review_account, _ = get_or_create_github_account(
                 github_account_id=review_user_info["account_id"],
@@ -261,14 +294,14 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
             services.create_or_update_pr_review(
                 pr=pr_obj,
                 account=review_account,
-                pr_review_id=review_data.get("id"),
-                body=review_data.get("body", ""),
-                in_reply_to_id=review_data.get("in_reply_to_id"),
-                pr_review_created_at=parse_datetime(review_data.get("created_at")),
-                pr_review_updated_at=parse_datetime(review_data.get("updated_at")),
+                pr_review_id=review_data.id,
+                body=review_data.body or "",
+                in_reply_to_id=review_data.in_reply_to_id,
+                pr_review_created_at=parse_datetime(review_data.created_at),
+                pr_review_updated_at=parse_datetime(review_data.updated_at),
             )
 
-    assignee_infos = [parse_github_user(a) for a in pr_data.get("assignees", [])]
+    assignee_infos = [_user_info_from_model(a) for a in pr.assignees]
     current_assignee_ids = {i["account_id"] for i in assignee_infos if i["account_id"]}
     for assignee_account in pr_obj.assignees.all():
         if assignee_account.github_account_id not in current_assignee_ids:
@@ -284,9 +317,7 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
             services.add_pr_assignee(pr_obj, assignee_account)
 
     incoming_pr_label_names = {
-        (label_data.get("name") or "")
-        for label_data in pr_data.get("labels", [])
-        if (label_data.get("name") or "")
+        (label.name or "") for label in pr.labels if (label.name or "")
     }
     existing_pr_label_names = {
         pl.label_name
@@ -298,7 +329,7 @@ def _process_pr_data(repo: GitHubRepository, pr_data: dict) -> None:
     for label_name in incoming_pr_label_names - existing_pr_label_names:
         services.add_pull_request_label(pr_obj, label_name)
 
-    logger.debug("PR #%s: saved to DB", pr_data.get("number"))
+    logger.debug("PR #%s: saved to DB", pr.number)
 
 
 def _process_existing_pr_jsons(
@@ -315,11 +346,12 @@ def _process_existing_pr_jsons(
     numbers: list[int] = []
     for path in iter_existing_pr_jsons(owner, repo_name):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            _process_pr_data(repo, data)
-            save_pr_raw_source(owner, repo_name, data)
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            bundle = parse_pr_bundle(raw, source=str(path))
+            _process_pr_data(repo, bundle)
+            save_pr_raw_source(owner, repo_name, _pr_bundle_to_storage_dict(bundle))
             path.unlink()
-            number = (data.get("pr_info") or {}).get("number") or data.get("number")
+            number = bundle.pr.number
             if number is not None:
                 numbers.append(number)
             count += 1
@@ -414,36 +446,47 @@ def sync_issues_and_prs(
             end_date,
             etag_cache=etag_cache,
         ):
-            if "pr_info" in item:
-                pr_number = (item["pr_info"] or {}).get("number")
-                if pr_number is None:
-                    continue
-                json_path = get_pr_json_path(owner, repo_name, pr_number)
-                json_path.parent.mkdir(parents=True, exist_ok=True)
-                json_path.write_text(
-                    json.dumps(item, indent=2, default=str), encoding="utf-8"
-                )
-                _process_pr_data(repo, item)
-                save_pr_raw_source(owner, repo_name, item)
-                json_path.unlink()
-                pr_numbers.append(pr_number)
-                count_prs += 1
+            if isinstance(item, GitHubPullRequestBundle):
+                pr_bundle = item
+            elif isinstance(item, dict) and "pr_info" in item:
+                pr_bundle = parse_pr_bundle(item)
             else:
-                issue_number = (item.get("issue_info") or {}).get("number") or item.get(
-                    "number"
-                )
+                if isinstance(item, GitHubIssueBundle):
+                    issue_bundle = item
+                elif isinstance(item, dict):
+                    issue_bundle = parse_issue_bundle(item)
+                else:
+                    continue
+                issue_number = issue_bundle.issue.number
                 if issue_number is None:
                     continue
+                storage = _issue_bundle_to_storage_dict(issue_bundle)
                 json_path = get_issue_json_path(owner, repo_name, issue_number)
                 json_path.parent.mkdir(parents=True, exist_ok=True)
                 json_path.write_text(
-                    json.dumps(item, indent=2, default=str), encoding="utf-8"
+                    json.dumps(storage, indent=2, default=str), encoding="utf-8"
                 )
-                _process_issue_data(repo, item)
-                save_issue_raw_source(owner, repo_name, item)
+                _process_issue_data(repo, issue_bundle)
+                save_issue_raw_source(owner, repo_name, storage)
                 json_path.unlink()
                 issue_numbers.append(issue_number)
                 count_issues += 1
+                continue
+
+            pr_number = pr_bundle.pr.number
+            if pr_number is None:
+                continue
+            storage = _pr_bundle_to_storage_dict(pr_bundle)
+            json_path = get_pr_json_path(owner, repo_name, pr_number)
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            json_path.write_text(
+                json.dumps(storage, indent=2, default=str), encoding="utf-8"
+            )
+            _process_pr_data(repo, pr_bundle)
+            save_pr_raw_source(owner, repo_name, storage)
+            json_path.unlink()
+            pr_numbers.append(pr_number)
+            count_prs += 1
 
         logger.info(
             "sync_issues_and_prs: finished for repo id=%s; "

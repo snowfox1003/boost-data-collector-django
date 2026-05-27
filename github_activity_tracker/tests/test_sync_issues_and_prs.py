@@ -291,7 +291,9 @@ def test_process_existing_pr_jsons_bad_file(github_repository, tmp_path):
 
 
 @pytest.mark.django_db
-def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository):
+def test_sync_issues_and_prs_issue_branch_none_number_raises(github_repository):
+    from github_activity_tracker.api_schemas import GitHubApiValidationError
+
     item = {"issue_info": {"number": None}, "comments": []}
 
     with (
@@ -304,9 +306,9 @@ def test_sync_issues_and_prs_issue_branch_none_number_skipped(github_repository)
             lambda *a, **k: [item],
         ),
         patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
+        pytest.raises(GitHubApiValidationError),
     ):
-        out = issues_mod.sync_issues_and_prs(github_repository)
-    assert out["issues"] == []
+        issues_mod.sync_issues_and_prs(github_repository)
 
 
 @pytest.mark.django_db
@@ -637,7 +639,9 @@ def test_process_existing_issue_jsons_success_nested(
 
 
 @pytest.mark.django_db
-def test_sync_issues_pr_info_present_but_number_none(github_repository):
+def test_sync_issues_pr_info_present_but_number_none_raises(github_repository):
+    from github_activity_tracker.api_schemas import GitHubApiValidationError
+
     item = {"pr_info": {}, "comments": []}
     with (
         patch.object(issues_mod, "_process_existing_issue_jsons", return_value=(0, [])),
@@ -649,9 +653,9 @@ def test_sync_issues_pr_info_present_but_number_none(github_repository):
             lambda *a, **k: [item],
         ),
         patch.object(issues_mod, "RedisListETagCache", return_value=MagicMock()),
+        pytest.raises(GitHubApiValidationError),
     ):
-        out = issues_mod.sync_issues_and_prs(github_repository)
-    assert out["pull_requests"] == []
+        issues_mod.sync_issues_and_prs(github_repository)
 
 
 @pytest.mark.django_db

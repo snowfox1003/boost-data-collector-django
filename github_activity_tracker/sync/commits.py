@@ -13,13 +13,14 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from cppa_user_tracker.services import (
     get_or_create_github_account,
     get_or_create_unknown_github_account,
 )
 from github_activity_tracker import big_commit, fetcher, services
+from github_activity_tracker.api_schemas import GitHubCommit, parse_commit
 from github_activity_tracker.models import FileChangeStatus, GitCommit
 from github_activity_tracker.workspace import (
     get_commit_json_path,
@@ -44,15 +45,27 @@ _VALID_FILE_STATUSES = {c[0] for c in FileChangeStatus.choices}
 
 
 def _process_commit_files(
-    repo: GitHubRepository, commit_obj: GitCommit, files: list[dict]
+    repo: GitHubRepository, commit_obj: GitCommit, files: list
 ) -> None:
     """Create/update GitHubFile and GitCommitFileChange for each file in the commit."""
     for file_info in files:
-        filename = file_info.get("filename") or file_info.get("previous_filename")
-        if not (filename and filename.strip()):
+        if hasattr(file_info, "filename"):
+            filename = file_info.filename or file_info.previous_filename
+            api_status = (file_info.status or "modified").strip().lower()
+            previous_filename = file_info.previous_filename
+            additions = file_info.additions or 0
+            deletions = file_info.deletions or 0
+            patch = (file_info.patch or "").strip()
+        else:
+            filename = file_info.get("filename") or file_info.get("previous_filename")
+            api_status = (file_info.get("status") or "modified").strip().lower()
+            previous_filename = file_info.get("previous_filename")
+            additions = file_info.get("additions") or 0
+            deletions = file_info.get("deletions") or 0
+            patch = (file_info.get("patch") or "").strip()
+        if not (filename and str(filename).strip()):
             continue
-        filename = filename.strip()
-        api_status = (file_info.get("status") or "modified").strip().lower()
+        filename = str(filename).strip()
         status = (
             api_status
             if api_status in _VALID_FILE_STATUSES
@@ -61,7 +74,6 @@ def _process_commit_files(
         is_deleted = status == FileChangeStatus.REMOVED
 
         # Handle rename: link new filename to old filename
-        previous_filename = file_info.get("previous_filename")
         if status == FileChangeStatus.RENAMED and previous_filename:
             previous_filename = previous_filename.strip()
             old_file, _ = services.create_or_update_github_file(
@@ -82,30 +94,38 @@ def _process_commit_files(
             commit_obj,
             github_file,
             status=status,
-            additions=file_info.get("additions") or 0,
-            deletions=file_info.get("deletions") or 0,
-            patch=(file_info.get("patch") or "").strip(),
+            additions=additions,
+            deletions=deletions,
+            patch=patch,
         )
 
 
-def _commit_author_name_and_email(commit_data: dict) -> tuple[str, str]:
+def _commit_author_name_and_email(commit: GitHubCommit) -> tuple[str, str]:
     """Get author name and email from commit blob (commit.author or commit.committer)."""
-    commit = commit_data.get("commit") or {}
-    author = commit.get("author") or commit.get("committer") or {}
-    name = author.get("name")
+    blob = commit.commit
+    author = blob.author or blob.committer
+    if author is None:
+        return "unknown", ""
+    name = author.name
     if name is None:
         name = "unknown"
     else:
         name = (name or "").strip() or "unknown"
-    email = (author.get("email") or "").strip()
+    email = (author.email or "").strip()
     return name, email
 
 
-def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
-    """Apply one commit dict to the database. Uses synthetic account (id -1, -2, ...) when no API author/committer."""
-    author_dict = commit_data.get("author") or commit_data.get("committer")
-    if author_dict:
-        user_info = parse_github_user(author_dict)
+def _process_commit_data(
+    repo: GitHubRepository,
+    commit_data: Union[GitHubCommit, dict],
+) -> None:
+    """Apply one commit to the database. Uses synthetic account when no API author/committer."""
+    if isinstance(commit_data, dict):
+        commit_data = parse_commit(commit_data)
+    commit = commit_data
+    author_dict = commit.author or commit.committer
+    if author_dict and author_dict.id is not None:
+        user_info = parse_github_user(author_dict.model_dump())
         account, _ = get_or_create_github_account(
             github_account_id=user_info["account_id"],
             username=user_info["username"],
@@ -113,18 +133,16 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
             avatar_url=user_info["avatar_url"],
         )
     else:
-        name, email = _commit_author_name_and_email(commit_data)
+        name, email = _commit_author_name_and_email(commit)
         account, _ = get_or_create_unknown_github_account(name=name, email=email)
 
-    commit_hash_raw = commit_data.get("sha")
-    if not isinstance(commit_hash_raw, str) or not commit_hash_raw.strip():
+    if not isinstance(commit.sha, str) or not commit.sha.strip():
         logger.warning("Commit payload missing sha; skipping")
         return
-    commit_hash = commit_hash_raw.strip()
-    comment = commit_data.get("commit", {}).get("message", "")
-    commit_date_str = commit_data.get("commit", {}).get("author", {}).get(
-        "date"
-    ) or commit_data.get("commit", {}).get("committer", {}).get("date")
+    commit_hash = commit.sha.strip()
+    comment = commit.commit.message or ""
+    author_blob = commit.commit.author or commit.commit.committer
+    commit_date_str = author_blob.date if author_blob else None
     commit_at = parse_datetime(commit_date_str)
 
     commit_obj, _ = services.create_or_update_commit(
@@ -134,7 +152,7 @@ def _process_commit_data(repo: GitHubRepository, commit_data: dict) -> None:
         comment=comment,
         commit_at=commit_at,
     )
-    files = commit_data.get("files") or []
+    files = commit.files or []
     if files:
         _process_commit_files(repo, commit_obj, files)
     else:
@@ -149,9 +167,10 @@ def _process_existing_commit_jsons(repo: GitHubRepository) -> int:
     count = 0
     for path in iter_existing_commit_jsons(owner, repo_name):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            _process_commit_data(repo, data)
-            save_commit_raw_source(owner, repo_name, data)
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            commit = parse_commit(raw, source=str(path))
+            _process_commit_data(repo, commit)
+            save_commit_raw_source(owner, repo_name, commit.model_dump())
             path.unlink()
             count += 1
         except Exception as e:
@@ -302,16 +321,21 @@ def sync_commits(
 
         try:
             etag_cache = RedisListETagCache(repo_id=repo.pk)
-            for commit_data in fetcher.fetch_commits_from_github(
+            for commit in fetcher.fetch_commits_from_github(
                 client, owner, repo_name, start_date, end_date, etag_cache=etag_cache
             ):
-                sha = commit_data.get("sha")
-                if not isinstance(sha, str) or not sha.strip():
+                if isinstance(commit, dict):
+                    raw_sha = commit.get("sha")
+                    if not isinstance(raw_sha, str) or not raw_sha.strip():
+                        continue
+                    commit = parse_commit(commit)
+                elif not isinstance(commit.sha, str) or not commit.sha.strip():
                     continue
-                sha = sha.strip()
+                sha = commit.sha.strip()
+                commit_dump = commit.model_dump()
 
                 # Check if commit is truncated (300 files = possible truncation)
-                is_truncated = big_commit.is_commit_truncated(commit_data)
+                is_truncated = big_commit.is_commit_truncated(commit_dump)
 
                 if is_truncated:
                     # Big commit: submit to background worker
@@ -323,7 +347,7 @@ def sync_commits(
                         _process_big_commit_worker,
                         owner,
                         repo_name,
-                        commit_data,
+                        commit_dump,
                     )
                     futures.append(future)
                     count_big += 1
@@ -332,10 +356,10 @@ def sync_commits(
                     json_path = get_commit_json_path(owner, repo_name, sha)
                     json_path.parent.mkdir(parents=True, exist_ok=True)
                     json_path.write_text(
-                        json.dumps(commit_data, indent=2, default=str),
+                        json.dumps(commit_dump, indent=2, default=str),
                         encoding="utf-8",
                     )
-                    _process_commit_data(repo, commit_data)
+                    _process_commit_data(repo, commit)
                     json_path.unlink()
                     count_normal += 1
 

@@ -49,27 +49,34 @@ def _ts_to_date(ts: Optional[str]) -> Optional[date]:
 
 
 def _messages_by_day(
-    messages: list[dict], start_date: date, end_date: date
-) -> dict[date, list[dict]]:
+    messages: list, start_date: date, end_date: date
+) -> dict[date, list]:
     """Group messages by day: a message appears on each day it was created or edited (within range)."""
-    by_day: dict[date, list[dict]] = defaultdict(list)
+    by_day: dict[date, list] = defaultdict(list)
     for msg in messages:
-        if not isinstance(msg, dict):
-            logger.debug("Skip non-dict message payload: %r", msg)
+        if isinstance(msg, dict):
+            ts = msg.get("ts")
+            edited = msg.get("edited")
+        elif hasattr(msg, "ts"):
+            ts = msg.ts
+            edited = getattr(msg, "edited", None)
+        else:
             continue
-        created_d = _ts_to_date(msg.get("ts"))
+        created_d = _ts_to_date(ts)
         if created_d and start_date <= created_d <= end_date:
             by_day[created_d].append(msg)
-        edited = msg.get("edited")
-        if not isinstance(edited, dict):
-            edited = {}
-        edited_d = _ts_to_date(edited.get("ts"))
+        edited_ts = None
+        if isinstance(edited, dict):
+            edited_ts = edited.get("ts")
+        elif edited is not None and hasattr(edited, "ts"):
+            edited_ts = edited.ts
+        edited_d = _ts_to_date(edited_ts)
         if edited_d and edited_d != created_d and start_date <= edited_d <= end_date:
             by_day[edited_d].append(msg)
     return dict(by_day)
 
 
-def _process_message(channel: SlackChannel, msg: dict) -> bool:
+def _process_message(channel: SlackChannel, msg) -> bool:
     """
     Process one message: save_slack_message. Returns True if saved, False if
     skipped (e.g. ignored subtype). Raises on error.
@@ -218,7 +225,13 @@ def sync_messages(
             (
                 d
                 for m in all_messages
-                for d in [_ts_to_date(m.get("ts"))]
+                for d in [
+                    _ts_to_date(
+                        m.ts
+                        if hasattr(m, "ts")
+                        else (m.get("ts") if isinstance(m, dict) else None)
+                    )
+                ]
                 if d is not None
             ),
             default=None,

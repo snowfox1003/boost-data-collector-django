@@ -8,15 +8,30 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterator, Optional, cast
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Union, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
+
+from github_activity_tracker.api_schemas import (
+    GitHubCommit,
+    GitHubComment,
+    GitHubIssueBundle,
+    GitHubPullRequestBundle,
+    GitHubReview,
+    parse_commit,
+    parse_comment,
+    parse_issue_bundle,
+    parse_pr_bundle,
+    parse_review,
+)
 
 if TYPE_CHECKING:
     from core.operations.github_ops.client import GitHubAPIClient
 
 logger = logging.getLogger(__name__)
+
+IssueOrPrBundle = Union[GitHubIssueBundle, GitHubPullRequestBundle]
 
 
 def _make_aware(dt: datetime) -> datetime:
@@ -77,7 +92,7 @@ def _yield_commit_with_stats(
     commit: dict,
     start_time: Optional[datetime],
     end_time: Optional[datetime],
-) -> Iterator[dict]:
+) -> Iterator[GitHubCommit]:
     """Filter a single commit list entry by date range, fetch full stats, and yield."""
     commit_date_str = commit.get("commit", {}).get("author", {}).get(
         "date"
@@ -106,7 +121,7 @@ def _yield_commit_with_stats(
             )
             raise
         raise
-    yield commit_with_stats
+    yield parse_commit(commit_with_stats)
 
 
 def fetch_commits_from_github(
@@ -116,7 +131,7 @@ def fetch_commits_from_github(
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
     etag_cache: Optional[Any] = None,
-) -> Iterator[dict]:
+) -> Iterator[GitHubCommit]:
     """Fetch commits from GitHub API oldest-to-newest using Link header pagination.
 
     When GitHub includes rel="last", walks backward (last → prev → … → page 1) so
@@ -249,13 +264,13 @@ def fetch_comments_from_github(
     issue_number: int,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
-) -> list[dict]:
+) -> list[GitHubComment]:
     """Fetch comments for an issue/PR from GitHub API (paginated)."""
     logger.debug(
         f"Fetching comments for {owner}/{repo} issue #{issue_number} from {start_time} to {end_time}"
     )
 
-    results: list[dict] = []
+    results: list[GitHubComment] = []
     page = 1
     per_page = 100
     while True:
@@ -292,7 +307,10 @@ def fetch_comments_from_github(
                     logger.debug(f"Failed to parse comment date '{created_str}': {e}")
                     continue
 
-            results.append(comment)
+            if isinstance(comment, dict):
+                results.append(parse_comment(comment))
+            else:
+                results.append(comment)
 
         if len(comments) < per_page:
             break
@@ -310,12 +328,12 @@ def fetch_pr_reviews_from_github(
     pr_number: int,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
-) -> list[dict]:
+) -> list[GitHubReview]:
     """Fetch reviews/review comments for a PR from GitHub API (paginated)."""
     logger.debug(
         f"Fetching reviews for {owner}/{repo} PR #{pr_number} from {start_time} to {end_time}"
     )
-    results: list[dict] = []
+    results: list[GitHubReview] = []
     page = 1
     per_page = 100
     while True:
@@ -346,7 +364,10 @@ def fetch_pr_reviews_from_github(
                     logger.debug(f"Failed to parse review date '{updated_str}': {e}")
                     continue
 
-            results.append(review)
+            if isinstance(review, dict):
+                results.append(parse_review(review))
+            else:
+                results.append(review)
 
         if len(reviews) < per_page:
             logger.debug(
@@ -369,7 +390,7 @@ def fetch_issues_and_prs_from_github(
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
     etag_cache: Optional[Any] = None,
-) -> Iterator[dict]:
+) -> Iterator[IssueOrPrBundle]:
     """Fetch issues and PRs from GitHub using a single /issues list endpoint.
 
     GitHub's issues API returns both issues and pull requests; this function routes each
@@ -408,7 +429,7 @@ def fetch_issues_and_prs_from_github(
             params["since"] = start_time.isoformat()
         return params
 
-    def _yield_issue_pr_items_for_list_page(items: list) -> Iterator[dict]:
+    def _yield_issue_pr_items_for_list_page(items: list) -> Iterator[IssueOrPrBundle]:
         for item in items:
             updated_str = item.get("updated_at") or item.get("created_at")
             if not updated_str:
@@ -446,7 +467,9 @@ def fetch_issues_and_prs_from_github(
                     client, owner, repo, number, start_time, end_time
                 )
                 time.sleep(0.2)
-                yield {"pr_info": item, "comments": comments, "reviews": reviews}
+                yield parse_pr_bundle(
+                    {"pr_info": item, "comments": comments, "reviews": reviews}
+                )
             else:
                 # Issue: fetch full detail from /issues endpoint, then comments.
                 try:
@@ -462,7 +485,7 @@ def fetch_issues_and_prs_from_github(
                     client, owner, repo, number, start_time, end_time
                 )
                 logger.debug("Found %d comments for issue #%s", len(comments), number)
-                yield {"issue_info": item, "comments": comments}
+                yield parse_issue_bundle({"issue_info": item, "comments": comments})
 
     # Phase 1: params-based list requests (optional conditional GET + ETag cache).
     while next_url is None:

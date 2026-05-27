@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from cppa_slack_tracker.api_schemas import SlackApiValidationError, SlackTeamPayload
 from cppa_slack_tracker.fetcher import (
     _ts_to_utc_date,
     fetch_channel_list,
@@ -28,6 +29,17 @@ def test_ts_to_utc_date_ok():
     assert d == date(2021, 1, 1)
 
 
+def test_fetch_user_list_raises_on_malformed_member():
+    client = MagicMock()
+    client.users_list.return_value = {
+        "ok": True,
+        "members": [{"id": "U1"}, "bad-entry"],
+        "response_metadata": {},
+    }
+    with pytest.raises(SlackApiValidationError, match="expected object"):
+        fetch_user_list("T1", client=client)
+
+
 def test_fetch_user_list_paginates():
     client = MagicMock()
     client.users_list.side_effect = [
@@ -39,13 +51,13 @@ def test_fetch_user_list_paginates():
         {"ok": True, "members": [{"id": "U2"}], "response_metadata": {}},
     ]
     out = fetch_user_list("T1", client=client)
-    assert [m["id"] for m in out] == ["U1", "U2"]
+    assert [m.id for m in out] == ["U1", "U2"]
 
 
 def test_fetch_user_info_ok_and_none():
     client = MagicMock()
     client.users_info.return_value = {"ok": True, "user": {"id": "U1"}}
-    assert fetch_user_info("U1", client=client)["id"] == "U1"
+    assert fetch_user_info("U1", client=client).id == "U1"
     client.users_info.return_value = {"ok": False, "error": "user_not_found"}
     assert fetch_user_info("U9", client=client) is None
 
@@ -83,7 +95,7 @@ def test_fetch_team_info_team_info_ok():
         "team": {"id": "T9", "name": "My Team"},
     }
     team = fetch_team_info(team_id="T9", client=client)
-    assert team["name"] == "My Team"
+    assert team.team_name == "My Team"
 
 
 def test_fetch_team_info_auth_test_fallback():
@@ -95,7 +107,7 @@ def test_fetch_team_info_auth_test_fallback():
         "team": "Fallback Name",
     }
     team = fetch_team_info(team_id="T1", client=client)
-    assert team == {"id": "T1", "name": "Fallback Name"}
+    assert team == SlackTeamPayload(team_id="T1", team_name="Fallback Name")
 
 
 def test_fetch_team_info_auth_test_team_id_mismatch():
@@ -134,7 +146,7 @@ def test_fetch_messages_with_start_date_filters():
     start = date(2021, 1, 1)
     end = date(2021, 1, 31)
     msgs = fetch_messages("C1", start, end, client=client)
-    texts = {m["text"] for m in msgs}
+    texts = {m.text for m in msgs}
     assert "in range" in texts
     assert "edited in range" in texts
     assert "too old" not in texts

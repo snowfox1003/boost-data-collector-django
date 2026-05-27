@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from django.utils import timezone as django_timezone
 from asgiref.sync import sync_to_async
@@ -11,6 +11,10 @@ from asgiref.sync import sync_to_async
 from cppa_user_tracker.services import get_or_create_discord_profile
 from core.utils.datetime_parsing import parse_iso_datetime_lenient
 
+from ..api_schemas import (
+    DiscordLivePreparedMessage,
+    parse_live_message,
+)
 from ..models import DiscordServer, DiscordChannel, DiscordMessage
 from ..services import (
     get_or_create_discord_server,
@@ -77,50 +81,45 @@ async def sync_channels_async(
     return synced_channels
 
 
-async def _process_message_data(channel: DiscordChannel, message_data: Dict[str, Any]):
+async def _process_message_data(
+    channel: DiscordChannel,
+    message_data: Union[DiscordLivePreparedMessage, Dict[str, Any]],
+):
     """Process message dict and store in DB."""
     try:
-        author_data = message_data.get("author", {})
-        author_info = parse_discord_user(author_data)
+        if isinstance(message_data, dict):
+            prepared = _prepare_message_data(message_data)
+            if prepared is None:
+                return
+            message_data = prepared
+        author = message_data.author
 
-        author, _ = await sync_to_async(get_or_create_discord_profile)(
-            discord_user_id=author_info["user_id"],
-            username=author_info["username"],
-            display_name=author_info["display_name"],
-            avatar_url=author_info["avatar_url"],
-            is_bot=author_info["is_bot"],
+        profile, _ = await sync_to_async(get_or_create_discord_profile)(
+            discord_user_id=author.user_id,
+            username=author.username,
+            display_name=author.display_name,
+            avatar_url=author.avatar_url,
+            is_bot=author.is_bot,
         )
-
-        created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
-        edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
-
-        if created_at is None:
-            logger.error(
-                f"Message {message_data.get('id')} has no created_at timestamp"
-            )
-            return
-
-        attachments = message_data.get("attachments", [])
-        attachment_urls = [att.get("url") for att in attachments if att.get("url")]
-
-        reference = message_data.get("reference", {})
-        reply_to_message_id = reference.get("message_id") if reference else None
 
         message, created = await sync_to_async(create_or_update_discord_message)(
-            message_id=message_data["id"],
+            message_id=message_data.message_id,
             channel=channel,
-            author=author,
-            content=message_data.get("content", ""),
-            message_created_at=created_at,
-            message_edited_at=edited_at,
-            reply_to_message_id=reply_to_message_id,
-            attachment_urls=attachment_urls,
+            author=profile,
+            content=message_data.content,
+            message_created_at=message_data.message_created_at,
+            message_edited_at=message_data.message_edited_at,
+            reply_to_message_id=message_data.reply_to_message_id,
+            attachment_urls=message_data.attachment_urls,
         )
 
-        reactions = message_data.get("reactions", [])
-        for reaction_data in reactions:
-            emoji = reaction_data.get("emoji")
-            count = reaction_data.get("count", 0)
+        for reaction_data in message_data.reactions:
+            if isinstance(reaction_data, dict):
+                emoji = reaction_data.get("emoji")
+                count = reaction_data.get("count", 0)
+            else:
+                emoji = getattr(reaction_data, "emoji", None)
+                count = getattr(reaction_data, "count", 0)
             if emoji:
                 await sync_to_async(add_or_update_reaction)(message, emoji, count)
 
@@ -130,7 +129,12 @@ async def _process_message_data(channel: DiscordChannel, message_data: Dict[str,
             )
 
     except Exception as e:
-        logger.exception(f"Error processing message {message_data.get('id')}: {e}")
+        mid = (
+            message_data.message_id
+            if isinstance(message_data, DiscordLivePreparedMessage)
+            else message_data.get("id")
+        )
+        logger.exception("Error processing message %s: %s", mid, e)
 
 
 BATCH_SIZE = 500
@@ -138,16 +142,15 @@ BATCH_SIZE = 500
 
 def _prepare_message_data(
     message_data: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+) -> Optional[DiscordLivePreparedMessage]:
     """Parse raw Discord message dict into normalized format for bulk processing."""
-    author_data = message_data.get("author", {})
-    author_info = parse_discord_user(author_data)
+    author_info = parse_discord_user(message_data.get("author", {}))
 
     created_at = parse_iso_datetime_lenient(message_data.get("created_at"))
     edited_at = parse_iso_datetime_lenient(message_data.get("edited_at"))
 
     if created_at is None:
-        logger.error(f"Message {message_data.get('id')} has no created_at timestamp")
+        logger.error("Message %s has no created_at timestamp", message_data.get("id"))
         return None
 
     attachments = message_data.get("attachments", [])
@@ -156,23 +159,33 @@ def _prepare_message_data(
     reference = message_data.get("reference", {})
     reply_to_message_id = reference.get("message_id") if reference else None
 
-    return {
-        "message_id": message_data["id"],
-        "author": author_info,
-        "content": message_data.get("content", ""),
-        "message_type": message_data.get("message_type") or "Default",
-        "is_pinned": bool(message_data.get("is_pinned", False)),
-        "message_created_at": created_at,
-        "message_edited_at": edited_at,
-        "reply_to_message_id": reply_to_message_id,
-        "attachment_urls": attachment_urls,
-        "reactions": message_data.get("reactions", []),
-    }
+    raw_id = message_data.get("id")
+    if raw_id is None:
+        return None
+    try:
+        message_id = int(raw_id)
+    except (TypeError, ValueError):
+        return None
+
+    return parse_live_message(
+        {
+            "message_id": message_id,
+            "author": author_info.model_dump(),
+            "content": message_data.get("content", ""),
+            "message_type": message_data.get("message_type") or "Default",
+            "is_pinned": bool(message_data.get("is_pinned", False)),
+            "message_created_at": created_at,
+            "message_edited_at": edited_at,
+            "reply_to_message_id": reply_to_message_id,
+            "attachment_urls": attachment_urls,
+            "reactions": message_data.get("reactions", []),
+        }
+    )
 
 
 async def _process_messages_in_batches(
     channel: DiscordChannel,
-    messages: List[Dict[str, Any]],
+    messages: List[Any],
     batch_size: int = BATCH_SIZE,
 ) -> int:
     """Process messages in batches using bulk DB operations."""

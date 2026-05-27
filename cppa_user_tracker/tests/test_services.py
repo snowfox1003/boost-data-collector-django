@@ -13,6 +13,7 @@ from cppa_user_tracker.models import (
     WG21PaperAuthorProfile,
     YoutubeSpeaker,
 )
+from cppa_slack_tracker.api_schemas import SlackApiValidationError
 from cppa_user_tracker import services
 
 
@@ -704,8 +705,8 @@ def test_get_or_create_wg21_paper_author_profile_two_candidates_email_matches_no
 
 @pytest.mark.django_db
 def test_get_or_create_slack_user_requires_id():
-    """Raise ValueError when Slack payload has no usable id."""
-    with pytest.raises(ValueError, match="Slack user ID"):
+    """Reject payloads with no usable id (boundary validation or service check)."""
+    with pytest.raises(SlackApiValidationError, match="Invalid Slack user"):
         services.get_or_create_slack_user({})
     with pytest.raises(ValueError, match="Slack user ID"):
         services.get_or_create_slack_user({"id": "   "})

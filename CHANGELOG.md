@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Pydantic boundary schemas at GitHub, Slack, and Discord ingestion (`api_schemas.py` per app; Discord ChatExporter uses `staging_schema.py`); fetchers validate with `model_validate()`; services accept typed payloads; `classify_failure` maps validation errors to `VALIDATION`.
 - `core` — shared utilities, collector base classes, and cross-cutting operations (e.g. GitHub, Slack, files, markdown).
 - `boost_collector_runner` — YAML-driven schedules, Celery tasks, and `run_scheduled_collectors` management command.
 - `github_activity_tracker` — GitHub repos, commits, issues, and related activity.

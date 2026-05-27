@@ -1,5 +1,10 @@
 {
-  "include": ["core", "github_activity_tracker", "discord_activity_tracker"],
+  "include": [
+    "core",
+    "github_activity_tracker",
+    "discord_activity_tracker",
+    "cppa_slack_tracker"
+  ],
   "exclude": [
     "**/.venv/**",
     "**/migrations/**",

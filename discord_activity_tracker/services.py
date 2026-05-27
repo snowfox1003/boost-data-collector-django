@@ -20,7 +20,7 @@ paths may skip individual rows and log warnings (see each function's side effect
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from django.db import transaction
 from django.db.models import Max, QuerySet
@@ -28,6 +28,12 @@ from django.utils import timezone as django_timezone
 
 from cppa_user_tracker.models import DiscordProfile
 from cppa_user_tracker.services import get_or_create_discord_profile
+from .api_schemas import (
+    DiscordLivePreparedMessage,
+    DiscordLiveUserPayload,
+    DiscordReactionPayload,
+    parse_reaction,
+)
 from .models import (
     DiscordServer,
     DiscordChannel,
@@ -413,7 +419,7 @@ def get_active_channels(
 
 
 def bulk_upsert_discord_users(
-    user_data_list: List[Dict[str, Any]],
+    user_data_list: List[Union[DiscordLiveUserPayload, Dict[str, Any]]],
 ) -> Dict[int, DiscordProfile]:
     """Upsert author profiles for a batch of messages.
 
@@ -432,8 +438,9 @@ def bulk_upsert_discord_users(
         Map ``discord_user_id -> DiscordProfile`` including database PKs on profiles.
 
     Raises:
-        None intentionally. Missing keys in a dict (e.g. no ``user_id``) will
-        raise ``KeyError``. Django ORM may raise database-related exceptions.
+        None intentionally. Invalid payloads raise
+        :class:`~discord_activity_tracker.api_schemas.DiscordLiveSyncValidationError`.
+        Django ORM may raise database-related exceptions.
 
     Side effects:
         Reads/writes ``cppa_user_tracker.DiscordProfile`` via queries and
@@ -443,8 +450,17 @@ def bulk_upsert_discord_users(
     if not user_data_list:
         return {}
 
+    from .api_schemas import parse_live_user
+
+    normalized: list[DiscordLiveUserPayload] = []
+    for d in user_data_list:
+        if isinstance(d, dict):
+            normalized.append(parse_live_user(d))
+        else:
+            normalized.append(d)
+
     # Deduplicate by user_id (last-seen wins)
-    unique = {d["user_id"]: d for d in user_data_list}
+    unique = {d.user_id: d for d in normalized}
 
     # Fetch existing profiles in one query
     existing = {
@@ -456,9 +472,9 @@ def bulk_upsert_discord_users(
     for uid, d in unique.items():
         if uid in existing:
             profile = existing[uid]
-            username_val = d["username"] or ""
-            display_name_val = d.get("display_name", "") or ""
-            avatar_url_val = d.get("avatar_url", "") or ""
+            username_val = d.username or ""
+            display_name_val = d.display_name or ""
+            avatar_url_val = d.avatar_url or ""
             updated = False
             if username_val and profile.username != username_val:
                 profile.username = username_val
@@ -469,8 +485,8 @@ def bulk_upsert_discord_users(
             if avatar_url_val and profile.avatar_url != avatar_url_val:
                 profile.avatar_url = avatar_url_val
                 updated = True
-            if profile.is_bot != d.get("is_bot", False):
-                profile.is_bot = d.get("is_bot", False)
+            if profile.is_bot != d.is_bot:
+                profile.is_bot = d.is_bot
                 updated = True
             if updated:
                 profile.save()
@@ -478,10 +494,10 @@ def bulk_upsert_discord_users(
         else:
             profile, _ = get_or_create_discord_profile(
                 discord_user_id=uid,
-                username=d["username"],
-                display_name=d.get("display_name", ""),
-                avatar_url=d.get("avatar_url", ""),
-                is_bot=d.get("is_bot", False),
+                username=d.username,
+                display_name=d.display_name,
+                avatar_url=d.avatar_url,
+                is_bot=d.is_bot,
             )
             result[uid] = profile
 
@@ -489,7 +505,7 @@ def bulk_upsert_discord_users(
 
 
 def bulk_upsert_discord_messages(
-    message_data_list: List[Dict[str, Any]],
+    message_data_list: Sequence[Union[DiscordLivePreparedMessage, Dict[str, Any]]],
     channel: DiscordChannel,
     user_map: Dict[int, DiscordProfile],
 ) -> Dict[int, DiscordMessage]:
@@ -510,7 +526,8 @@ def bulk_upsert_discord_messages(
         Map ``message_id -> DiscordMessage`` with PKs loaded (``id``, ``message_id`` only).
 
     Raises:
-        None intentionally. Malformed dicts (missing keys) may raise ``KeyError``.
+        None intentionally. Invalid payloads raise
+        :class:`~discord_activity_tracker.api_schemas.DiscordLiveSyncValidationError`.
         Django ORM may raise database-related exceptions.
 
     Side effects:
@@ -519,27 +536,28 @@ def bulk_upsert_discord_messages(
     if not message_data_list:
         return {}
 
+    from .api_schemas import parse_live_message
+
     now = django_timezone.now()
     instances = []
-    for d in message_data_list:
-        author = user_map.get(d["author"]["user_id"])
+    for raw in message_data_list:
+        d = parse_live_message(raw) if isinstance(raw, dict) else raw
+        author = user_map.get(d.author.user_id)
         if author is None:
-            logger.warning(
-                f"Skipping message {d['message_id']}: author not in user_map"
-            )
+            logger.warning("Skipping message %s: author not in user_map", d.message_id)
             continue
-        attachments = d.get("attachment_urls", [])
+        attachments = d.attachment_urls or []
         instances.append(
             DiscordMessage(
-                message_id=d["message_id"],
+                message_id=d.message_id,
                 channel=channel,
                 author=author,
-                content=d.get("content", ""),
-                message_type=d.get("message_type") or "Default",
-                is_pinned=bool(d.get("is_pinned", False)),
-                message_created_at=d["message_created_at"],
-                message_edited_at=d.get("message_edited_at"),
-                reply_to_message_id=d.get("reply_to_message_id"),
+                content=d.content or "",
+                message_type=d.message_type or "Default",
+                is_pinned=bool(d.is_pinned),
+                message_created_at=d.message_created_at,
+                message_edited_at=d.message_edited_at,
+                reply_to_message_id=d.reply_to_message_id,
                 has_attachments=len(attachments) > 0,
                 attachment_urls=attachments,
                 is_deleted=False,
@@ -579,7 +597,7 @@ def bulk_upsert_discord_messages(
 
 
 def bulk_upsert_discord_reactions(
-    reaction_data_list: List[Dict[str, Any]],
+    reaction_data_list: Sequence[Union[DiscordReactionPayload, Dict[str, Any]]],
     message_map: Dict[int, DiscordMessage],
 ) -> None:
     """Bulk upsert reactions using ``bulk_create(update_conflicts=True)``.
@@ -597,8 +615,9 @@ def bulk_upsert_discord_reactions(
         None
 
     Raises:
-        None intentionally. Malformed dicts may raise ``KeyError``. Django ORM may
-        raise database-related exceptions.
+        None intentionally. Invalid payloads raise
+        :class:`~discord_activity_tracker.api_schemas.DiscordLiveSyncValidationError`.
+        Django ORM may raise database-related exceptions.
 
     Side effects:
         Writes ``DiscordReaction``.
@@ -609,15 +628,16 @@ def bulk_upsert_discord_reactions(
     now = django_timezone.now()
     # Deduplicate by (message_id, emoji) — keep last
     seen = {}
-    for d in reaction_data_list:
-        msg = message_map.get(d["discord_message_id"])
+    for raw in reaction_data_list:
+        d = parse_reaction(raw) if isinstance(raw, dict) else raw
+        msg = message_map.get(d.discord_message_id)
         if msg is None:
             continue
-        key = (msg.pk, d["emoji"])
+        key = (msg.pk, d.emoji)
         seen[key] = DiscordReaction(
             message=msg,
-            emoji=d["emoji"],
-            count=d.get("count", 1),
+            emoji=d.emoji,
+            count=d.count if d.count is not None else 1,
             created_at=now,
             updated_at=now,
         )
@@ -634,7 +654,7 @@ def bulk_upsert_discord_reactions(
 
 
 def bulk_process_message_batch(
-    message_data_list: List[Dict[str, Any]],
+    message_data_list: List[Union[DiscordLivePreparedMessage, Dict[str, Any]]],
     channel: DiscordChannel,
 ) -> int:
     """Run user upsert, message upsert, and reaction upsert inside one DB transaction.
@@ -653,8 +673,9 @@ def bulk_process_message_batch(
         ``0`` if ``message_data_list`` is empty; otherwise ``len(message_data_list)``.
 
     Raises:
-        None intentionally. Malformed dicts may raise ``KeyError``. Django ORM may
-        raise database-related exceptions; on failure the whole transaction rolls back.
+        None intentionally. Invalid payloads raise
+        :class:`~discord_activity_tracker.api_schemas.DiscordLiveSyncValidationError`.
+        Django ORM may raise database-related exceptions; on failure the whole transaction rolls back.
 
     Side effects:
         One ``transaction.atomic()`` block: writes profiles (via
@@ -666,26 +687,39 @@ def bulk_process_message_batch(
 
     with transaction.atomic():
         # Phase 1: users
-        user_data_by_id = {}
-        for msg in message_data_list:
-            author = msg["author"]
-            user_data_by_id[author["user_id"]] = author
+        from .api_schemas import parse_live_message
+
+        prepared: list[DiscordLivePreparedMessage] = [
+            parse_live_message(m) if isinstance(m, dict) else m
+            for m in message_data_list
+        ]
+        user_data_by_id: dict[int, DiscordLiveUserPayload] = {}
+        for msg in prepared:
+            user_data_by_id[msg.author.user_id] = msg.author
         user_map = bulk_upsert_discord_users(list(user_data_by_id.values()))
 
         # Phase 2: messages
-        message_map = bulk_upsert_discord_messages(message_data_list, channel, user_map)
+        message_map = bulk_upsert_discord_messages(prepared, channel, user_map)
 
         # Phase 3: reactions
-        reaction_data = []
-        for msg in message_data_list:
-            for reaction in msg.get("reactions", []):
-                if reaction.get("emoji"):
+        reaction_data: list[DiscordReactionPayload] = []
+        for msg in prepared:
+            for reaction in msg.reactions:
+                if isinstance(reaction, dict):
+                    emoji = reaction.get("emoji")
+                    count = reaction.get("count", 0)
+                else:
+                    emoji = getattr(reaction, "emoji", None)
+                    count = getattr(reaction, "count", 0)
+                if emoji:
                     reaction_data.append(
-                        {
-                            "discord_message_id": msg["message_id"],
-                            "emoji": reaction["emoji"],
-                            "count": reaction.get("count", 0),
-                        }
+                        parse_reaction(
+                            {
+                                "discord_message_id": msg.message_id,
+                                "emoji": emoji,
+                                "count": count,
+                            }
+                        )
                     )
         if reaction_data:
             bulk_upsert_discord_reactions(reaction_data, message_map)

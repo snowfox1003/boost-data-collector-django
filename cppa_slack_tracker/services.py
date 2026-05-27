@@ -12,13 +12,24 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from django.db import transaction
 
 from cppa_user_tracker.models import SlackUser
 from cppa_user_tracker.services import get_or_create_slack_user
 
+from .api_schemas import (
+    SlackChannelPayload,
+    SlackMessagePayload,
+    SlackProfilePayload,
+    SlackTopicPurpose,
+    SlackTeamPayload,
+    SlackUserPayload,
+    parse_channel,
+    parse_message,
+    parse_team,
+)
 from .fetcher import fetch_user_info
 from .models import (
     SlackChannel,
@@ -65,12 +76,12 @@ def _parse_slack_ts_string(ts: str) -> datetime:
 
 # Synthetic "unknown" Slack user when a real user cannot be resolved (do not call API)
 _UNKNOWN_SLACK_USER_ID = "-1"
-_UNKNOWN_SLACK_USER_DATA = {
-    "id": _UNKNOWN_SLACK_USER_ID,
-    "name": "unknown",
-    "real_name": "Unknown",
-    "profile": {"image_72": ""},
-}
+_UNKNOWN_SLACK_USER = SlackUserPayload(
+    id=_UNKNOWN_SLACK_USER_ID,
+    name="unknown",
+    real_name="Unknown",
+    profile=SlackProfilePayload(image_72=""),
+)
 
 
 def _get_or_fetch_slack_user(
@@ -80,26 +91,26 @@ def _get_or_fetch_slack_user(
 ) -> SlackUser:
     """Get a Slack user from DB; if not found, fetch via fetch_user_info and upsert. Returns unknown user (id -1) if not found."""
     if user_id == _UNKNOWN_SLACK_USER_ID:
-        return get_or_create_slack_user(_UNKNOWN_SLACK_USER_DATA)[0]
+        return get_or_create_slack_user(_UNKNOWN_SLACK_USER)[0]
     try:
         return SlackUser.objects.get(slack_user_id=user_id)
     except SlackUser.DoesNotExist:
         slack_user_data = fetch_user_info(user_id, team_id=team_id)
         if slack_user_data:
             return get_or_create_slack_user(slack_user_data)[0]
-        return get_or_create_slack_user(_UNKNOWN_SLACK_USER_DATA)[0]
+        return get_or_create_slack_user(_UNKNOWN_SLACK_USER)[0]
 
 
 # --- SlackTeam ---
 @transaction.atomic
 def get_or_create_slack_team(
-    team_data: dict[str, Any],
+    team_data: Union[SlackTeamPayload, dict[str, Any]],
 ) -> tuple[SlackTeam, bool]:
-    """Get or create a Slack team (workspace). Requires team_data['team_id']. Returns (SlackTeam, created)."""
-    if not team_data.get("team_id"):
-        raise ValueError("Slack team ID is required")
-    team_id = team_data["team_id"]
-    team_name = team_data.get("team_name") or team_id
+    """Get or create a Slack team (workspace). Returns (SlackTeam, created)."""
+    if isinstance(team_data, dict):
+        team_data = parse_team(team_data)
+    team_id = team_data.team_id
+    team_name = team_data.team_name or team_id
     team, created = SlackTeam.objects.get_or_create(
         team_id=team_id,
         defaults={"team_name": team_name},
@@ -113,40 +124,44 @@ def get_or_create_slack_team(
 # --- SlackChannel ---
 @transaction.atomic
 def get_or_create_slack_channel(
-    slack_channel: dict[str, Any],
+    slack_channel: Union[SlackChannelPayload, dict[str, Any]],
     team: SlackTeam,
 ) -> tuple[Optional[SlackChannel], bool]:
     """Get or create a Slack channel. Returns (channel, created); channel is None when skipped."""
-    if not slack_channel.get("id"):
-        raise ValueError("Slack channel ID is required")
+    if isinstance(slack_channel, dict):
+        slack_channel = parse_channel(slack_channel)
     creator = None
-    creator_user_id = slack_channel.get("creator")
-    if creator_user_id:
-        creator = _get_or_fetch_slack_user(creator_user_id, team_id=team.team_id)
+    if slack_channel.creator:
+        creator = _get_or_fetch_slack_user(slack_channel.creator, team_id=team.team_id)
     description = ""
-    purpose = slack_channel.get("purpose")
-    topic = slack_channel.get("topic")
+    purpose = slack_channel.purpose
+    topic = slack_channel.topic
     if isinstance(purpose, dict):
         description = purpose.get("value") or ""
-    elif isinstance(topic, dict):
-        description = topic.get("value") or ""
-    channel_name = (slack_channel.get("name") or slack_channel.get("id") or "").strip()
-    if slack_channel.get("is_im"):
+    elif isinstance(purpose, SlackTopicPurpose):
+        description = purpose.value or ""
+    if not description:
+        if isinstance(topic, dict):
+            description = topic.get("value") or ""
+        elif isinstance(topic, SlackTopicPurpose):
+            description = topic.value or ""
+    channel_name = (slack_channel.name or slack_channel.id or "").strip()
+    if slack_channel.is_im:
         channel_type = "im"
-    elif slack_channel.get("is_mpim"):
+    elif slack_channel.is_mpim:
         channel_type = "mpim"
-    elif slack_channel.get("is_private"):
+    elif slack_channel.is_private:
         channel_type = "private_channel"
-    elif slack_channel.get("is_channel"):
+    elif slack_channel.is_channel:
         channel_type = "public_channel"
     else:
-        channel_type = slack_channel.get("type", "public_channel")
+        channel_type = slack_channel.type or "public_channel"
     if channel_type != "public_channel":
-        logger.warning(f"Skipping non-public channel: {slack_channel['id']}")
+        logger.warning("Skipping non-public channel: %s", slack_channel.id)
         return None, False
     channel, created = SlackChannel.objects.get_or_create(
         team=team,
-        channel_id=slack_channel["id"],
+        channel_id=slack_channel.id,
         defaults={
             "channel_name": channel_name,
             "channel_type": channel_type,
@@ -238,18 +253,18 @@ def sync_channel_memberships(channel: SlackChannel, member_ids: list[str]) -> No
 
 # --- SlackMessage ---
 def _message_text_for_subtype(
-    slack_message: dict[str, Any], subtype: str
+    slack_message: SlackMessagePayload, subtype: str
 ) -> Optional[str]:
     """Return message text for me_message; None for unknown."""
     if subtype == "me_message":
-        return f"<@{slack_message.get('user')}> {slack_message.get('text', '')}"
+        return f"<@{slack_message.user}> {slack_message.text or ''}"
     return None
 
 
 @transaction.atomic
 def save_slack_message(
     channel: SlackChannel,
-    slack_message: dict[str, Any],
+    slack_message: Union[SlackMessagePayload, dict[str, Any]],
 ) -> Optional[SlackMessage]:
     """
     Save or update a Slack message from a Slack API payload.
@@ -262,17 +277,19 @@ def save_slack_message(
 
     Raises ValueError if user is required but missing, or if ts is missing.
     """
-    subtype = slack_message.get("subtype")
+    if isinstance(slack_message, dict):
+        slack_message = parse_message(slack_message)
+    subtype = slack_message.subtype
     if subtype in SUBTYPE_IGNORE:
         return None
     if subtype == "channel_join":
-        event_ts = slack_message.get("ts")
+        event_ts = slack_message.ts
         if not event_ts:
             logger.warning("Skipping channel_join without ts")
             return None
-        if slack_message.get("user"):
+        if slack_message.user:
             user = _get_or_fetch_slack_user(
-                slack_message["user"], team_id=channel.team.team_id
+                slack_message.user, team_id=channel.team.team_id
             )
             add_channel_membership_change(
                 channel,
@@ -282,13 +299,13 @@ def save_slack_message(
             )
         return None
     if subtype == "channel_leave":
-        event_ts = slack_message.get("ts")
+        event_ts = slack_message.ts
         if not event_ts:
             logger.warning("Skipping channel_leave without ts")
             return None
-        if slack_message.get("user"):
+        if slack_message.user:
             user = _get_or_fetch_slack_user(
-                slack_message["user"], team_id=channel.team.team_id
+                slack_message.user, team_id=channel.team.team_id
             )
             add_channel_membership_change(
                 channel,
@@ -301,35 +318,41 @@ def save_slack_message(
     user: Optional[SlackUser] = None
     text: str
     if subtype == "file_comment":
-        user = _get_or_fetch_slack_user(
-            slack_message.get("user", "") or "-1", team_id=channel.team.team_id
-        )
-        text = slack_message.get("text", "")
-        comment = slack_message.get("comment")
+        if not slack_message.user and slack_message.text == "A file was commented on":
+            return None
+        user_id = slack_message.user
+        if not user_id:
+            raise ValueError("User not found")
+        user = _get_or_fetch_slack_user(user_id, team_id=channel.team.team_id)
+        text = slack_message.text or ""
+        comment = slack_message.comment
         if isinstance(comment, dict):
             text += f"\nComment: {comment.get('comment', '')}"
     elif subtype:
         text = _message_text_for_subtype(slack_message, subtype) or ""
     else:
-        text = slack_message.get("text", "")
+        text = slack_message.text or ""
 
     if user is None:
-        user_id = slack_message.get("user")
+        user_id = slack_message.user
         if not user_id:
-            if slack_message.get("text") == "A file was commented on":
+            if slack_message.text == "A file was commented on":
                 return None
             raise ValueError("User not found")
         user = _get_or_fetch_slack_user(user_id, team_id=channel.team.team_id)
 
     clean_text = text.replace("\x00", "").replace("\u0000", "")
-    ts = slack_message.get("ts")
+    ts = slack_message.ts
     if not ts:
         raise ValueError("Message timestamp (ts) is required")
     created_at = _parse_slack_ts_string(ts)
-    edited = slack_message.get("edited")
-    if not isinstance(edited, dict):
-        edited = {}
-    updated_at = _parse_slack_ts_string(edited.get("ts", ts)) if edited else created_at
+    edited = slack_message.edited
+    edited_ts = None
+    if isinstance(edited, dict):
+        edited_ts = edited.get("ts")
+    elif edited is not None and hasattr(edited, "ts"):
+        edited_ts = edited.ts
+    updated_at = _parse_slack_ts_string(edited_ts or ts) if edited_ts else created_at
 
     message, created = SlackMessage.objects.get_or_create(
         channel=channel,
@@ -337,7 +360,7 @@ def save_slack_message(
         defaults={
             "user": user,
             "message": clean_text,
-            "thread_ts": slack_message.get("thread_ts"),
+            "thread_ts": slack_message.thread_ts,
             "slack_message_created_at": created_at,
             "slack_message_updated_at": updated_at,
         },
@@ -345,7 +368,7 @@ def save_slack_message(
     if not created:
         message.user = user
         message.message = clean_text
-        message.thread_ts = slack_message.get("thread_ts")
+        message.thread_ts = slack_message.thread_ts
         message.slack_message_created_at = created_at
         message.slack_message_updated_at = updated_at
         message.save()

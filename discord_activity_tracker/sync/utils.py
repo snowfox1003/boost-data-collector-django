@@ -1,9 +1,11 @@
 """Helpers for Discord sync."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
+from discord_activity_tracker.api_schemas import DiscordLiveUserPayload
 
 
-def parse_discord_user(user_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def parse_discord_user(user_data: Optional[dict[str, Any]]) -> DiscordLiveUserPayload:
     """Normalize user dict from Bot API or DiscordChatExporter.
 
     Handles both sources:
@@ -12,13 +14,13 @@ def parse_discord_user(user_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     All snowflake IDs are coerced to int.
     """
     if not user_data:
-        return {
-            "user_id": 0,
-            "username": "unknown",
-            "display_name": "",
-            "avatar_url": "",
-            "is_bot": False,
-        }
+        return DiscordLiveUserPayload(
+            user_id=0,
+            username="unknown",
+            display_name="",
+            avatar_url="",
+            is_bot=False,
+        )
 
     raw_id = user_data.get("id", 0)
     try:
@@ -26,21 +28,20 @@ def parse_discord_user(user_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         user_id = 0
 
-    # avatar_url: Bot API uses "avatar_url"; DiscordChatExporter uses "avatarUrl"
     avatar_url = user_data.get("avatar_url") or user_data.get("avatarUrl") or ""
 
-    return {
-        "user_id": user_id,
-        "username": user_data.get("username") or user_data.get("name") or "unknown",
-        "display_name": (
+    return DiscordLiveUserPayload(
+        user_id=user_id,
+        username=user_data.get("username") or user_data.get("name") or "unknown",
+        display_name=(
             user_data.get("display_name")
             or user_data.get("global_name")
             or user_data.get("nickname")
             or ""
         ),
-        "avatar_url": avatar_url,
-        "is_bot": bool(user_data.get("bot") or user_data.get("isBot", False)),
-    }
+        avatar_url=avatar_url,
+        is_bot=bool(user_data.get("bot") or user_data.get("isBot", False)),
+    )
 
 
 def sanitize_channel_name(channel_name: str) -> str:

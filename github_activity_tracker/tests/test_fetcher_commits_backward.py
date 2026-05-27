@@ -26,7 +26,7 @@ def test_fetch_commits_single_page_yields_oldest_first():
     commits = list(fetch_commits_from_github(client, "owner", "repo"))
 
     # Should yield oldest→newest: c1, c2, c3
-    assert [c["sha"] for c in commits] == ["c1", "c2", "c3"]
+    assert [c.sha for c in commits] == ["c1", "c2", "c3"]
 
 
 def test_fetch_commits_next_without_last_forward_pagination():
@@ -56,7 +56,7 @@ def test_fetch_commits_next_without_last_forward_pagination():
 
     commits = list(fetch_commits_from_github(client, "owner", "repo"))
 
-    assert [c["sha"] for c in commits] == ["c1", "c2", "c3"]
+    assert [c.sha for c in commits] == ["c1", "c2", "c3"]
     assert client.rest_request_url_with_all_links.call_count == 2
 
 
@@ -103,7 +103,7 @@ def test_fetch_commits_multiple_pages_backward_traversal():
     commits = list(fetch_commits_from_github(client, "owner", "repo"))
 
     # Should yield oldest→newest: c1 (page 3), c5 (page 2), c9 (page 1 cached)
-    assert [c["sha"] for c in commits] == ["c1", "c5", "c9"]
+    assert [c.sha for c in commits] == ["c1", "c5", "c9"]
     # Page 1 should NOT be fetched again via rest_request_url_with_all_links
     assert client.rest_request_url_with_all_links.call_count == 2
 
@@ -135,7 +135,7 @@ def test_fetch_commits_caches_first_page():
     commits = list(fetch_commits_from_github(client, "owner", "repo"))
 
     # Should yield c1 (page 2), c3 (page 1 from cache)
-    assert [c["sha"] for c in commits] == ["c1", "c3"]
+    assert [c.sha for c in commits] == ["c1", "c3"]
     # rest_request_url_with_all_links called only once for page 2
     assert client.rest_request_url_with_all_links.call_count == 1
 
@@ -163,7 +163,7 @@ def test_fetch_commits_filters_by_date_range():
     )
 
     # Only c2 is in range [2024-01-02, 2024-01-03]
-    assert [c["sha"] for c in commits] == ["c2"]
+    assert [c.sha for c in commits] == ["c2"]
 
 
 def test_fetch_commits_handles_304_not_modified():

@@ -310,7 +310,9 @@ class TestSlackService:
         assert "-1" not in calls
 
     def test_get_or_create_slack_team_requires_team_id(self):
-        with pytest.raises(ValueError, match="Slack team ID is required"):
+        from cppa_slack_tracker.api_schemas import SlackApiValidationError
+
+        with pytest.raises(SlackApiValidationError):
             get_or_create_slack_team({})
 
     def test_parse_slack_ts_string_invalid_returns_now_utc(self):
@@ -414,6 +416,20 @@ class TestSlackService:
         msg = save_slack_message(
             sample_slack_channel,
             {"text": "A file was commented on", "ts": "1609459200.666666"},
+        )
+        assert msg is None
+
+    def test_save_slack_message_file_comment_placeholder_without_user_returns_none(
+        self,
+        sample_slack_channel,
+    ):
+        msg = save_slack_message(
+            sample_slack_channel,
+            {
+                "subtype": "file_comment",
+                "text": "A file was commented on",
+                "ts": "1609459200.666667",
+            },
         )
         assert msg is None
 

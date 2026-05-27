@@ -15,10 +15,16 @@ from cppa_user_tracker.models import SlackUser
 class SlackChannelType(models.TextChoices):
     """Slack channel type (matches Slack API)."""
 
-    PUBLIC_CHANNEL = "public_channel", "Public channel"
-    PRIVATE_CHANNEL = "private_channel", "Private channel"
-    MPIM = "mpim", "Multi-party direct message"
-    IM = "im", "Direct message"
+    PUBLIC_CHANNEL = (
+        "public_channel",
+        "Public channel",
+    )  # pyright: ignore[reportCallIssue]
+    PRIVATE_CHANNEL = (
+        "private_channel",
+        "Private channel",
+    )  # pyright: ignore[reportCallIssue]
+    MPIM = "mpim", "Multi-party direct message"  # pyright: ignore[reportCallIssue]
+    IM = "im", "Direct message"  # pyright: ignore[reportCallIssue]
 
 
 class SlackTeam(models.Model):

@@ -205,8 +205,8 @@ def test_prepare_message_data_ok():
     raw = _sample_api_message()
     out = _prepare_message_data(raw)
     assert out is not None
-    assert out["message_id"] == 100
-    assert out["author"]["user_id"] == 7
+    assert out.message_id == 100
+    assert out.author.user_id == 7
 
 
 @pytest.mark.django_db

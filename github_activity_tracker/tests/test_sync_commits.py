@@ -211,11 +211,27 @@ def test_process_commit_files_renamed_already_linked_does_not_call_set_previous(
 
 
 def test_commit_author_name_and_email_variants():
-    assert sync_commits_mod._commit_author_name_and_email({}) == ("unknown", "")
-    d = {"commit": {"author": {"name": None, "email": "  a@b.c "}}}
-    assert sync_commits_mod._commit_author_name_and_email(d) == ("unknown", "a@b.c")
-    d2 = {"commit": {"committer": {"name": "  x  ", "email": ""}}}
-    assert sync_commits_mod._commit_author_name_and_email(d2)[0] == "x"
+    from github_activity_tracker.api_schemas import parse_commit
+
+    assert sync_commits_mod._commit_author_name_and_email(
+        parse_commit({"sha": "a" * 40, "commit": {}})
+    ) == (
+        "unknown",
+        "",
+    )
+    d = {
+        "sha": "b" * 40,
+        "commit": {"author": {"name": None, "email": "  a@b.c "}},
+    }
+    assert sync_commits_mod._commit_author_name_and_email(parse_commit(d)) == (
+        "unknown",
+        "a@b.c",
+    )
+    d2 = {
+        "sha": "c" * 40,
+        "commit": {"committer": {"name": "  x  ", "email": ""}},
+    }
+    assert sync_commits_mod._commit_author_name_and_email(parse_commit(d2))[0] == "x"
 
 
 @pytest.mark.django_db
