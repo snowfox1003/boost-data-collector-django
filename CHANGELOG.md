@@ -11,8 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.services`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
+- **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).
+- Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.sync_api`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
 - Added **import-linter** contracts and pre-commit hook to prevent regressions.
+- Enforced **service-layer-only ORM writes** with `scripts/check_service_layer_writes.py` and pre-commit; moved remaining direct writes (repo metadata sync, star bulk-update, GitHub file backfill, BoostVersion import, commit file-change backfill) into `github_activity_tracker.services` / `boost_library_tracker.services`. Allowlist [`.service-layer-write-allowlist.json`](.service-layer-write-allowlist.json) is empty by default for new debt only.
 - **slack_event_handler:** Workspace under `workspace/slack_event_handler/`; replace Selenium with `plyvel` + `browser-cookie3` extraction from `CHROME_PROFILE_PATH` (optional Compose `slack-session` / `slack-chromium` noVNC on port 7900 and `manage.py extract_slack_tokens`), store xoxc/xoxd in `slack_internal_tokens.json` with runtime load and automatic re-extract when stale, and remove `slack_session_refresh`, `refresh_slack_tokens`, and the `slack-profile-refresh` compose service.
 
 ## [0.1.0] - 2026-05-22

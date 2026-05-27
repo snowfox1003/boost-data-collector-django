@@ -16,8 +16,11 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from github_activity_tracker.models import GitHubRepository, GitHubFile
-from github_activity_tracker.services import set_github_file_previous_filename
+from github_activity_tracker.models import GitHubRepository
+from github_activity_tracker.services import (
+    create_or_update_github_file,
+    set_github_file_previous_filename,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,15 +159,11 @@ class Command(BaseCommand):
                             # Update database
                             try:
                                 with transaction.atomic():
-                                    old_file, _ = GitHubFile.objects.get_or_create(
-                                        repo=repo,
-                                        filename=previous_filename,
-                                        defaults={"is_deleted": False},
+                                    old_file, _ = create_or_update_github_file(
+                                        repo, previous_filename, is_deleted=False
                                     )
-                                    new_file, _ = GitHubFile.objects.get_or_create(
-                                        repo=repo,
-                                        filename=filename,
-                                        defaults={"is_deleted": False},
+                                    new_file, _ = create_or_update_github_file(
+                                        repo, filename, is_deleted=False
                                     )
 
                                     # Only update if not already set

@@ -24,7 +24,7 @@ flowchart LR
   end
   subgraph core [Core]
     BC[BaseCollectorCommand]
-    CB[CollectorBase]
+    AC[AbstractCollector]
   end
   Beat --> Task
   Task --> Cmd
@@ -33,7 +33,7 @@ flowchart LR
   Cmd --> C2
   C1 --> BC
   C2 --> BC
-  BC --> CB
+  BC --> AC
 ```
 
 **GitHub activity vs Boost library tracker:** Scheduled GitHub sync for Boost repos runs through **`boost_library_tracker`** (`run_boost_github_activity_tracker`, `collect_boost_libraries`, etc.). The **`github_activity_tracker`** app holds shared fetch/sync utilities, models, and maintenance commands (e.g. workspace migration); it is not the primary entry point for the nightly Boost GitHub collector. Use `boost_library_tracker` as the reference when adding or debugging that pipeline.

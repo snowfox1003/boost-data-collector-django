@@ -71,7 +71,7 @@ Collectors, management commands, and sync layers classify failures with [`classi
 
 ## Ingestion commands
 
-Two management commands handle message ingestion. Both follow the `CollectorBase` pattern with four phases: **fetch → db_sync → save_raw → pinecone_sync**.
+Two management commands handle message ingestion. Both use **`AbstractCollector`** via **`BaseCollectorCommand`**, with four phases: **fetch → db_sync → save_raw → pinecone_sync**.
 
 ### `run_discord_activity_tracker` — incremental / scheduled
 

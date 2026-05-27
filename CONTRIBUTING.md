@@ -19,7 +19,7 @@ python manage.py startcollector my_platform
 **What you get**
 
 - App package `my_platform/` with `apps.py` (`BigAutoField`, correct `name`), `models.py` (stub run-state model), `services.py` (stub `record_run` — all writes for this app should stay in this module per [Service layer](#service-layer-single-place-for-writes) below).
-- `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`** (not the deprecated `CollectorBase`); command subclasses **`BaseCollectorCommand`**.
+- `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`**; command subclasses **`BaseCollectorCommand`**.
 - `tests/test_run_my_platform_command.py` — smoke test; it runs only after you register the app (next step).
 - `schedule_snippet.yaml` — commented template to paste into **`config/boost_collector_schedule.yaml`** (see [Workflow.md](docs/Workflow.md)).
 
@@ -44,6 +44,8 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 
 - **All** inserts/updates/deletes for an app’s models must go through functions in that app’s **`services.py`**.
 - Do **not** call `Model.objects.create()`, `model.save()`, or `model.delete()` from outside `services.py` (e.g. from management commands, views, other apps, or tests that are not testing the service layer itself).
+
+**CI:** Pre-commit runs **`uv run python scripts/check_service_layer_writes.py`**, which flags ORM writes outside the owning app’s `services.py` (see [docs/cross-app-dependencies.md](docs/cross-app-dependencies.md) §6). Temporary grandfathering uses [`.service-layer-write-allowlist.json`](.service-layer-write-allowlist.json) plus a `# TODO(service-layer):` comment; do not add new allowlist rows without maintainer agreement—fix the code or extend the correct `services.py` instead.
 
 ### Why
 

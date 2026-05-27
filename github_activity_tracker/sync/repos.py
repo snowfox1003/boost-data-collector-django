@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from core.operations.github_ops import get_github_client
 from core.operations.github_ops.client import ConnectionException, RateLimitException
-from github_activity_tracker.sync.utils import parse_datetime
+from github_activity_tracker.services import update_repository_metadata_from_api
 
 if TYPE_CHECKING:  # pragma: no cover
     from github_activity_tracker.models import GitHubRepository
@@ -33,14 +33,8 @@ def sync_repos(repo: GitHubRepository) -> None:
         # Fetch repo metadata from GitHub
         repo_data = client.get_repository_info(owner, repo_name)
 
-        # Update repo fields (stars, forks, description, dates)
-        repo.stars = repo_data.get("stargazers_count") or 0
-        repo.forks = repo_data.get("forks_count") or 0
-        repo.description = repo_data.get("description") or ""
-        repo.repo_pushed_at = parse_datetime(repo_data.get("pushed_at"))
-        repo.repo_created_at = parse_datetime(repo_data.get("created_at"))
-        repo.repo_updated_at = parse_datetime(repo_data.get("updated_at"))
-        repo.save()
+        # Update repo fields (stars, forks, description, dates) via service layer
+        update_repository_metadata_from_api(repo, repo_data)
 
         logger.debug(f"Repo {repo_name}: metadata updated")
 

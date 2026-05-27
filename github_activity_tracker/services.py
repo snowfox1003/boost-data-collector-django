@@ -145,6 +145,44 @@ def ensure_repository_owner(
         repo.save(update_fields=["owner_account_id"])
 
 
+def update_repository_metadata_from_api(
+    repo: GitHubRepository, repo_data: dict[str, Any]
+) -> None:
+    """Apply GitHub repository JSON (``GET /repos/{owner}/{repo}`` shape) to *repo*."""
+    from core.utils.datetime_parsing import parse_iso_datetime_lenient as parse_dt
+
+    repo.stars = repo_data.get("stargazers_count") or 0
+    repo.forks = repo_data.get("forks_count") or 0
+    repo.description = repo_data.get("description") or ""
+    repo.repo_pushed_at = parse_dt(repo_data.get("pushed_at"))
+    repo.repo_created_at = parse_dt(repo_data.get("created_at"))
+    repo.repo_updated_at = parse_dt(repo_data.get("updated_at"))
+    repo.save(
+        update_fields=[
+            "stars",
+            "forks",
+            "description",
+            "repo_pushed_at",
+            "repo_created_at",
+            "repo_updated_at",
+        ]
+    )
+
+
+def bulk_update_repository_stars(pk_to_stars: dict[int, int]) -> int:
+    """Bulk-update ``GitHubRepository.stars`` for primary keys in *pk_to_stars*.
+
+    Returns the number of repository instances passed to ``bulk_update``.
+    """
+    if not pk_to_stars:
+        return 0
+    repos = list(GitHubRepository.objects.filter(pk__in=pk_to_stars.keys()))
+    for r in repos:
+        r.stars = pk_to_stars[r.pk]
+    GitHubRepository.objects.bulk_update(repos, ["stars"])
+    return len(repos)
+
+
 def add_repo_license(repo: GitHubRepository, license_obj: License) -> None:
     """Add a License to a repo (M2M). Idempotent."""
     repo.licenses.add(license_obj)
@@ -265,6 +303,15 @@ def add_commit_file_change(
         obj.patch = patch_val
         obj.save(update_fields=["status", "additions", "deletions", "patch"])
     return obj, created
+
+
+def clear_commit_file_changes_for_commit(commit: GitCommit) -> int:
+    """Delete all ``GitCommitFileChange`` rows for *commit*.
+
+    Returns Django's aggregate deleted object count (may include cascades).
+    """
+    deleted, _details = GitCommitFileChange.objects.filter(commit=commit).delete()
+    return int(deleted)
 
 
 def set_github_file_previous_filename(

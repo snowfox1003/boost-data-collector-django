@@ -19,6 +19,8 @@
 | `add_pull_request_label` | pr: PullRequest, label_name: str | tuple[PullRequestLabel, bool] | Add a label to a pull request. Returns (PullRequestLabel, created). |
 | `add_repo_language` | repo: GitHubRepository, language: Language, line_count: int = 0 | tuple[RepoLanguage, bool] | Add or update a repo–language link with line_count. If exists, updates line_count. Returns (RepoLanguage, created). |
 | `add_repo_license` | repo: GitHubRepository, license_obj: License | None | Add a License to a repo (M2M). Idempotent. |
+| `bulk_update_repository_stars` | pk_to_stars: dict[int, int] | int | Bulk-update ``GitHubRepository.stars`` for primary keys in *pk_to_stars*. |
+| `clear_commit_file_changes_for_commit` | commit: GitCommit | int | Delete all ``GitCommitFileChange`` rows for *commit*. |
 | `create_or_update_commit` | repo: GitHubRepository, account: GitHubAccount, commit_hash: str, comment: str = '', commit_at: Optional[datetime] = None | tuple[GitCommit, bool] | Create or update a GitCommit by repo + commit_hash. Returns (commit, created). |
 | `create_or_update_created_repos_by_language` | language: Language, year: int, all_repos: int, significant_repos: int | tuple[CreatedReposByLanguage, bool] | Create or update CreatedReposByLanguage for (language, year). |
 | `create_or_update_github_file` | repo: GitHubRepository, filename: str, is_deleted: bool = False | tuple[GitHubFile, bool] | Create or update a GitHubFile by repo + filename. Returns (file, created). |
@@ -38,6 +40,7 @@
 | `remove_repo_license` | repo: GitHubRepository, license_obj: License | None | Remove a License from a repo. |
 | `set_github_file_previous_filename` | github_file: GitHubFile, previous_file: GitHubFile | None | Set the previous_filename reference for a renamed file. |
 | `update_repo_language_line_count` | repo: GitHubRepository, language: Language, line_count: int | RepoLanguage | Update line_count for an existing repo–language link. |
+| `update_repository_metadata_from_api` | repo: GitHubRepository, repo_data: dict[str, Any] | None | Apply GitHub repository JSON (``GET /repos/{owner}/{repo}`` shape) to *repo*. |
 
 <!-- SERVICE_API:GENERATED:END -->
 
