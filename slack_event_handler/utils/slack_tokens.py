@@ -34,8 +34,8 @@ SLACK_TOKEN_PROBE_FILE_ID = "F00000000000"
 LOCAL_CONFIG_V2_KEY = b"_https://app.slack.com\x00\x01localConfig_v2"
 LOCAL_CONFIG_V2_MARKER = b"localConfig_v2"
 
-# Chrome profile path: absolute or relative path, no null bytes or control chars
-CHROME_PROFILE_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9/_. \-\\]+$")
+# Chrome profile path: validate normalized POSIX form (Windows drive letters via ":").
+CHROME_PROFILE_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9/_. \-:]+$")
 
 
 def _validate_chrome_profile_path(path: str) -> str:
@@ -45,9 +45,10 @@ def _validate_chrome_profile_path(path: str) -> str:
     path = path.strip()
     if "\x00" in path:
         raise ValueError("CHROME_PROFILE_PATH must not contain null bytes")
-    if not CHROME_PROFILE_PATH_PATTERN.match(path):
+    normalized = Path(path).as_posix()
+    if not CHROME_PROFILE_PATH_PATTERN.match(normalized):
         raise ValueError(
-            "CHROME_PROFILE_PATH must contain only path characters (letters, digits, /, _, ., -, space), got: %s"
+            "CHROME_PROFILE_PATH must contain only path characters (letters, digits, /, _, ., -, space, :), got: %s"
             % (path[:100],)
         )
     return path
@@ -88,7 +89,16 @@ def _parse_local_config_raw(raw: bytes) -> dict:
 
 def _read_leveldb_value(leveldb_dir: Path, key: bytes) -> bytes | None:
     """Read a single key from LevelDB; copy to temp dir if the database is locked."""
-    import plyvel
+    try:
+        import plyvel
+    except ImportError:
+        logger.warning(
+            "plyvel is not installed; cannot read Chrome LevelDB at %s. "
+            "Install libleveldb-dev and plyvel (Linux/macOS), or use WSL/Docker for "
+            "extract_slack_tokens.",
+            leveldb_dir,
+        )
+        return None
 
     try:
         db = plyvel.DB(str(leveldb_dir), create_if_missing=False)

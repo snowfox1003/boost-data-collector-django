@@ -14,6 +14,15 @@ For each protected branch (for example `main` or `develop`):
 
 Without step 4, owners may still appear as suggested reviewers, but merges are not blocked on owner review.
 
+**Status (`develop`):** Branch protection with **Require review from Code Owners** and **1** required approval was enabled on `cppalliance/boost-data-collector` (verified 2026-05-26). Re-check with:
+
+```bash
+gh api repos/cppalliance/boost-data-collector/branches/develop/protection \
+  --jq '.required_pull_request_reviews'
+```
+
+See also [BUS_FACTOR_DELIVERABLES.md](BUS_FACTOR_DELIVERABLES.md).
+
 ## 2. Verify after CODEOWNERS is on the default branch
 
 GitHub reads `CODEOWNERS` from the **default** branch for review assignment. After your PR that adds or updates `.github/CODEOWNERS` is **merged**:

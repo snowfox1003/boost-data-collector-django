@@ -7,8 +7,13 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | Topic | Doc | Purpose |
 |-------|-----|---------|
 | **Onboarding** | [Onboarding.md](Onboarding.md) | First-day orientation: mental model, app roles, data dependencies, where patterns differ. |
+| **Architecture overview** | [Architecture_overview.md](Architecture_overview.md) | **Start here for system design:** all 15 domain apps + `core`, persistence, coupling, links to app READMEs and service API. |
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
-| **Architecture** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
+| **Architecture (data flow)** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
+| **Cross-app dependencies** | [cross-app-dependencies.md](cross-app-dependencies.md) | FK/import matrix, import-linter contracts, regeneration via `list_cross_app_imports.py`. |
+| **CODEOWNERS / reviews** | [CODEOWNERS_and_branch_protection.md](CODEOWNERS_and_branch_protection.md) | CODEOWNERS behavior, enabling branch protection, verification checklist. |
+| **Onboarding walkthroughs** | [onboarding/](onboarding/README.md) | 1:1 session runbooks (Leo, Jonathan) and session logs. |
+| **Bus-factor checklist** | [BUS_FACTOR_DELIVERABLES.md](BUS_FACTOR_DELIVERABLES.md) | Ticket acceptance checklist, branch-protection verification, comment template. |
 | **Add a collector** | [How_to_add_a_collector.md](How_to_add_a_collector.md) | Checklist: new command, registration, tests, docs. |
 | **Core API** | [Core_public_API.md](Core_public_API.md) | Stable `core` imports: collectors, error classification. |
 | **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |

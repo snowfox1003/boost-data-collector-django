@@ -119,6 +119,8 @@ After this, the app is ready to use.
 
 Huddle flows may need internal Slack session tokens with `ALLOW_INTERNAL_SLACK_TOKENS=true`. Tokens are stored in `workspace/slack_event_handler/slack_internal_tokens.json` (not `.env`). Extraction reads a Chrome profile under `workspace/slack_event_handler/chrome_profile` (see `CHROME_PROFILE_PATH` in `.env.example`).
 
+**Windows (native venv):** `plyvel` is omitted from locked dependencies on Windows (LevelDB C++ headers required to build). Use Docker/WSL/Linux for `manage.py extract_slack_tokens` when LevelDB (`localConfig_v2`) must be read; cookie/SQLite paths may still work on Windows for xoxd only.
+
 **Headless server (no UI on the host):**
 
 1. Start the optional login container (persists Chrome data under `workspace/slack_event_handler/chrome_profile`):

@@ -138,16 +138,39 @@ This guide walks you from setup to merged code.
 
 ## Review process
 
-### Django app pull request review
+Pull requests target **`develop`** (see [Branching strategy](#branching-strategy)). Reviews are routed via [`.github/CODEOWNERS`](../.github/CODEOWNERS); enforcement requires **branch protection** with **Require review from Code Owners** (see [CODEOWNERS_and_branch_protection.md](CODEOWNERS_and_branch_protection.md)). When protection is enabled, at least **one approval from a listed code owner** (who is not the sole author) is required before merge.
+
+**Code owner handles (current file):** `@snowfox1003`, `@jonathanMLDev`, `@wpak-ai` (Leo’s GitHub handle for walkthroughs and manual review requests: `@leostar0412`).
+
+### Author checklist (before requesting review)
+
+1. Run tests for changed apps (`python -m pytest <app>/tests` or full suite as appropriate).
+2. Run **`uv run pyright`** when you change typed packages (see [Testing workflow](#testing-workflow)).
+3. **Writes** only through the owning app’s **`services.py`** ([CONTRIBUTING.md](../CONTRIBUTING.md)).
+4. Include **migrations** when models change; apply locally.
+5. If you add or change **cross-app imports or FKs**, update [cross-app-dependencies.md](cross-app-dependencies.md) and ensure **`lint-imports`** passes (see [cross-app-dependencies.md §5](cross-app-dependencies.md#5-import-linting--import-linter-enabled)).
+6. If you change **`services.py`** or `core/protocols.py`, run **`python scripts/generate_service_docs.py`** and commit `docs/service_api/` updates.
+7. Use **draft PRs** for work in progress; mark **Ready for review** when the checklist is done.
+8. Describe **how to test** in the PR body (use the [pull request template](../.github/pull_request_template.md) if present).
+
+### Django app pull request review (reviewers)
 
 Reviewers should check:
 
 1. Security and malicious code: Check for code that could expose internal information; review outbound requests; verify no sensitive data (credentials, URLs, tokens) is sent out; ensure no hardcoded credentials or secrets.
 2. Code quality: Developed using Python; follows Python and Django best practices; proper error handling.
-3. Database access: Uses Django ORM; only writes to own app's models; read-only access to other apps when needed; no tight coupling or circular imports; migrations included and applied.
+3. Database access: Uses Django ORM; only writes to own app's models; read-only access to other apps when needed; no tight coupling or circular imports; migrations included and applied; **import-linter** contracts respected.
 4. Integration: Uses Django settings and logging; has a management command in `management/commands/`; command is in the run order if it is a collector; implements restart logic where needed.
 5. Testing: Tests included and passing; app command runs successfully; no breaking changes.
-6. Documentation: README or docstrings updated if needed; code comments where appropriate.
+6. Documentation: README or docstrings updated if needed; [cross-app-dependencies.md](cross-app-dependencies.md) updated when coupling changes; code comments where appropriate.
+
+**Who reviews:** GitHub requests owners from `.github/CODEOWNERS` based on changed paths. For architecture questions, see [Architecture_overview.md](Architecture_overview.md).
+
+### Review etiquette
+
+- Respond to review requests within about **one business day** when possible.
+- Prefer **concrete** comments (file/line, suggested fix or question).
+- Authors should **re-request review** after addressing feedback.
 
 ## Merge process
 

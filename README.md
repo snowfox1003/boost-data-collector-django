@@ -246,7 +246,7 @@ Some Django apps include a **README.md** at the app package root when that helps
 ## How it works
 
 - Django project: One Django project with multiple Django apps; all apps share the same settings and database.
-- **Architecture / data flow:** See **[docs/Architecture_data_flow.md](docs/Architecture_data_flow.md)** for Mermaid diagrams (sources → collectors → PostgreSQL / workspace → Pinecone) and a per-app component map. Scheduling diagram: [docs/Development_guideline.md](docs/Development_guideline.md#architecture-high-level). For a **curated list of packages with their own README**, see [App-level READMEs](#app-level-readmes) above.
+- **Architecture:** Start with **[docs/Architecture_overview.md](docs/Architecture_overview.md)** (all apps, coupling, links). Data-flow Mermaid diagrams: **[docs/Architecture_data_flow.md](docs/Architecture_data_flow.md)**. Scheduling: [docs/Development_guideline.md](docs/Development_guideline.md#architecture-high-level). App package READMEs: [App-level READMEs](#app-level-readmes) above.
 - Workflow: **`boost_collector_runner`** runs app commands from **`config/boost_collector_schedule.yaml`** (via **`run_scheduled_collectors`** and Celery). You can also run individual `manage.py` commands by hand.
 - Database: One PostgreSQL database (e.g. `boost_dashboard`); Django ORM and migrations for all apps.
 - Configuration: Django settings (`settings.py`) and environment variables (e.g. via `django-environ` or `python-decouple`).
@@ -269,6 +269,7 @@ One folder, subfolders per app. For **github_activity_tracker**, sync uses `work
 
 Docs are organized **by topic** (one doc per concern: workflow, workspace, service API, etc.). See **[docs/README.md](docs/README.md)** for the full index.
 
+- [Architecture_overview.md](docs/Architecture_overview.md) – System design entry point (all Django apps, coupling, persistence).
 - [Onboarding.md](docs/Onboarding.md) – First-day orientation for contributors (mental model, app roles, data flow).
 - [docs/README.md](docs/README.md) – Per-topic index and how to find app-specific info.
 - [Running tests](#running-tests) – How to run the test suite (pytest, coverage) and **Pyright** (`uv run pyright`).
