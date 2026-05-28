@@ -27,11 +27,28 @@ Authoritative names, examples, and comments live in **[`.env.example`](.env.exam
 - Python 3.13.x (`requires-python` in `pyproject.toml`; CI and Docker use 3.13)
 - Django (version in `requirements.txt`)
 - PostgreSQL database access
-- **pandoc** — required by `boost_library_docs_tracker` for HTML→Markdown conversion (`pypandoc` calls the `pandoc` binary at runtime):
-  - macOS: `brew install pandoc`
-  - Debian/Ubuntu: `sudo apt-get install pandoc`
-  - Windows: `winget install JohnMacFarlane.Pandoc` or download from [pandoc.org](https://pandoc.org/installing.html)
+- **pandoc** (system binary) — required for `boost_library_docs_tracker` HTML→Markdown; `pip` installs `pypandoc` only. See [System dependencies](#system-dependencies).
 - Environment variables for database URL and API keys (e.g. via `.env`)
+
+### System dependencies
+
+Some tools must be installed with your **operating system** or package manager; they are not shipped as Python wheels in this repo’s requirements files.
+
+#### pandoc
+
+The **`pandoc`** executable must be on your **`PATH`** when you run **`run_boost_library_docs_tracker`** or otherwise exercise real HTML→Markdown conversion. The **`pypandoc`** package in **`requirements.txt`** is only a wrapper around that binary — **`pip install -r requirements.txt` does not install pandoc.**
+
+**Verify:** `pandoc --version`
+
+| Platform | Install |
+| --- | --- |
+| macOS | `brew install pandoc` |
+| Debian / Ubuntu | `sudo apt-get install -y pandoc` |
+| Windows | `winget install JohnMacFarlane.Pandoc`, or installers from [pandoc.org/installing.html](https://pandoc.org/installing.html) |
+
+**When you need it:** Running or debugging the Boost library docs collector without mocks. Many unit tests mock conversion and do not require pandoc on your machine.
+
+**CI:** The GitHub Actions **`test`** job installs pandoc on **`ubuntu-latest`**. The **`lint`** and **`pyright`** jobs do not install it. Developers on macOS or Windows should install pandoc locally if they run integration-style tests or the real collector.
 
 ### Initial setup
 
@@ -52,15 +69,17 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-3. Install dependencies:
+3. Install system dependencies for the parts of the project you use (see [System dependencies](#system-dependencies)). If you will run **`run_boost_library_docs_tracker`**, install **`pandoc`** for your OS and confirm **`pandoc --version`**.
+
+4. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Configure environment variables (e.g. copy `.env.example` to `.env` and set database URL and API credentials).
+5. Configure environment variables (e.g. copy `.env.example` to `.env` and set database URL and API credentials).
 
-5. Create and run migrations (required before any command that uses the database):
+6. Create and run migrations (required before any command that uses the database):
 
 ```bash
 python manage.py makemigrations
@@ -71,13 +90,13 @@ Each project app has a `migrations/` package; if you previously saw "No changes 
 
 If you see `relation "cppa_user_tracker_githubaccount" does not exist` (or similar), the database tables are missing — run the two commands above.
 
-6. Run a single app command or the full workflow to confirm the project works:
+7. Run a single app command or the full workflow to confirm the project works:
 
 ```bash
 python manage.py run_scheduled_collectors --schedule daily --group github
 ```
 
-7. To **add a new collector app**, follow **[docs/Tutorial_building_a_collector.md](docs/Tutorial_building_a_collector.md)** (walkthrough), then **`python manage.py startcollector <name>`** and **[CONTRIBUTING.md](CONTRIBUTING.md#creating-a-new-collector)** (checklist).
+8. To **add a new collector app**, follow **[docs/Tutorial_building_a_collector.md](docs/Tutorial_building_a_collector.md)** (walkthrough), then **`python manage.py startcollector <name>`** and **[CONTRIBUTING.md](CONTRIBUTING.md#creating-a-new-collector)** (checklist).
 
 For local development you can start the dev server: `python manage.py runserver`.
 
@@ -149,7 +168,7 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=9
 
 Coverage writes a local **`.coverage`** file (binary data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs three jobs on pushes/PRs (see the workflow for triggers): **`lint`** (pre-commit on all files), **`pyright`** (static analysis from `pyrightconfig.json`), and **`test`** (pytest with Postgres, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`).
+**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs three jobs on pushes/PRs (see the workflow for triggers): **`lint`** (pre-commit on all files), **`pyright`** (static analysis from `pyrightconfig.json`), and **`test`** (pytest with Postgres, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`). The **`test`** job installs **`pandoc`** via apt on Ubuntu; on macOS or Windows, install pandoc yourself if you run the full suite or docs-tracker paths that invoke real conversion (see [System dependencies](#system-dependencies)).
 
 6. Run a subset of tests (e.g. one app or one file):
 

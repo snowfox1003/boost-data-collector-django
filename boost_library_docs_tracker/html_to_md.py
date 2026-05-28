@@ -124,8 +124,9 @@ def _pandoc_convert(html: str) -> str:
             break
 
     raise RuntimeError(
-        "pandoc is not available. Install it with `brew install pandoc` "
-        "or `pip install pypandoc` followed by `pypandoc.download_pandoc()`."
+        "pandoc is not available. Install the pandoc binary for your OS (see README.md "
+        "#system-dependencies). `pip install pypandoc` does not install pandoc; you may "
+        "use `pypandoc.download_pandoc()` as a fallback if you cannot use a system package."
     )
 
 

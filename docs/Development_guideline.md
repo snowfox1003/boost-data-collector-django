@@ -90,10 +90,11 @@ Use these steps to get the Django project running on your machine.
 
 1. Clone the repository and open the project root (where `manage.py` lives).
 2. Create a virtual environment (e.g. `python -m venv .venv`) and activate it.
-3. Install dependencies (e.g. `pip install -r requirements.txt`).
-4. Copy the sample env file (e.g. `.env.example`) to `.env` and fill in values for database URL, credentials, and any API keys (e.g. via `django-environ` or `python-decouple`).
-5. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
-6. Run a single app command (e.g. `python manage.py run_boost_github_activity_tracker`) or a YAML batch (e.g. `python manage.py run_scheduled_collectors --schedule default --group <group_id>`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml` or the checked-in `config/boost_collector_schedule.yaml.example`).
+3. Install system dependencies you need. For **`boost_library_docs_tracker`** / **`run_boost_library_docs_tracker`**, install the **`pandoc`** binary for your OS (see [README — System dependencies](../README.md#system-dependencies)); `pip` only installs the `pypandoc` wrapper.
+4. Install dependencies (e.g. `pip install -r requirements.txt`).
+5. Copy the sample env file (e.g. `.env.example`) to `.env` and fill in values for database URL, credentials, and any API keys (e.g. via `django-environ` or `python-decouple`).
+6. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
+7. Run a single app command (e.g. `python manage.py run_boost_github_activity_tracker`) or a YAML batch (e.g. `python manage.py run_scheduled_collectors --schedule default --group <group_id>`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml` or the checked-in `config/boost_collector_schedule.yaml.example`).
 
 ## Testing workflow
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Document **`pandoc`** as a **system** dependency (not installed by `pip` / `pypandoc` alone); centralize install steps for macOS, Debian/Ubuntu, and Windows in the root README and link from contributor setup docs.
+
 ### Changed
 
 - **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).

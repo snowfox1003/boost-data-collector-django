@@ -22,6 +22,7 @@ gunicorn>=22.0,<24
 beautifulsoup4>=4.12,<5
 # CVE-2026-41066 / GHSA-vfmq-68hx-4jfw: fixed in lxml 6.1.0; prior 5.x and 6.0.x remain affected.
 lxml>=6.1.0,<7
+# Wraps the pandoc CLI; install the pandoc binary separately (see README.md#system-dependencies).
 pypandoc>=1.11,<2
 
 # --- cppa_pinecone_sync (vector index; chunking is in-tree) ---

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fetches and converts **Boost library documentation** (HTML and related sources) into Markdown for storage and downstream search (Pinecone, etc.). Requires a working **`pandoc`** binary on the host (see root [README](../README.md#quick-start)).
+Fetches and converts **Boost library documentation** (HTML and related sources) into Markdown for storage and downstream search (Pinecone, etc.). Requires a working **`pandoc`** binary on the host (see root [README](../README.md#system-dependencies)).
 
 ## Data workflow
 
@@ -41,7 +41,7 @@ After DB + workspace writes, the collector can call **`run_cppa_pinecone_sync`**
 
 - Run the tracker: `python manage.py run_boost_library_docs_tracker --help`.
 - Service-layer overview: [docs/service_api/boost_library_docs_tracker.md](../docs/service_api/boost_library_docs_tracker.md).
-- Confirm `pandoc` is on `PATH` before debugging conversion failures.
+- Confirm `pandoc` is on `PATH` before debugging conversion failures (see [README — System dependencies](../README.md#system-dependencies)).
 
 ## Main command: `run_boost_library_docs_tracker`
 
