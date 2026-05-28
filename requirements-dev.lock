@@ -108,8 +108,9 @@ httplib2==0.31.2
     #   google-auth-httplib2
 identify==2.6.19
     # via pre-commit
-idna==3.14
+idna==3.16
     # via
+    #   -r requirements.in
     #   requests
     #   yarl
 import-linter==2.11
@@ -209,7 +210,7 @@ pyparsing==3.3.2
     # via httplib2
 pyright==1.1.409
     # via -r requirements-dev.in
-pytest==8.4.2
+pytest==9.0.3
     # via
     #   -r requirements-dev.in
     #   pytest-benchmark

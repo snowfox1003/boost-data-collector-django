@@ -79,8 +79,9 @@ httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.14
+idna==3.16
     # via
+    #   -r requirements.in
     #   requests
     #   yarl
 jeepney==0.9.0

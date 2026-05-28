@@ -134,10 +134,36 @@ uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.
 
 **CI:** The [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) workflow runs on **`workflow_dispatch`** only, uploads `bench.json` as an artifact, and runs the compare step on success.
 
+## Dependency security audit
+
+Every pull request runs **[`.github/workflows/security-audit.yml`](.github/workflows/security-audit.yml)** (`pip-audit` against the pinned dependency trees). Unlike the main [CI workflow](.github/workflows/actions.yml), this workflow has **no `paths-ignore`**, so doc-only PRs still get a dependency scan.
+
+**What is scanned**
+
+- [`requirements.lock`](requirements.lock) — production / Docker image
+- [`requirements-dev.lock`](requirements-dev.lock) — dev and CI (includes `-r requirements.in`)
+
+**Run locally** (same command as CI, from the repo root):
+
+```bash
+uv venv
+uv pip install "pip-audit>=2.10,<3"
+uv run pip-audit --desc on -r requirements.lock -r requirements-dev.lock
+```
+
+If the audit reports a vulnerable package, bump the constraint in [`requirements.in`](requirements.in) or [`requirements-dev.in`](requirements-dev.in), then regenerate locks:
+
+```bash
+uv pip compile requirements.in -o requirements.lock --python-version 3.13 --python-platform linux
+uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13 --python-platform linux
+```
+
+Commit the updated `.in` and `.lock` files. Prefer fixing versions over long-lived `--ignore-vuln` entries.
+
 ## Other guidelines
 
 - **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [docs/Development_guideline.md](docs/Development_guideline.md).
-- **Code style:** Use Python 3.13 and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** jobs would pass.
+- **Code style:** Use Python 3.13 and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** / **Security audit** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
 - **Docs:** Update this file (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
 
