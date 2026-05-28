@@ -1,0 +1,41 @@
+{
+  "pr_info": {
+    "number": 17,
+    "id": 3847291002,
+    "title": "Contract test pull request",
+    "body": "PR body from recorded GitHub-style payload.",
+    "state": "open",
+    "user": {
+      "id": 583231,
+      "login": "octocat",
+      "name": "The Octocat",
+      "avatar_url": "https://avatars.githubusercontent.com/u/583231?v=4"
+    },
+    "head": {"sha": "feature-branch-sha-abc123def456"},
+    "base": {"sha": "main-branch-sha-789012345678"},
+    "created_at": "2024-02-01T08:00:00Z",
+    "updated_at": "2024-02-05T16:45:00Z",
+    "merged_at": null,
+    "assignees": [],
+    "labels": [{"name": "enhancement"}]
+  },
+  "comments": [
+    {
+      "id": 9002001,
+      "body": "PR discussion comment.",
+      "user": {"id": 583231, "login": "octocat"},
+      "created_at": "2024-02-02T11:00:00Z",
+      "updated_at": "2024-02-02T11:00:00Z"
+    }
+  ],
+  "reviews": [
+    {
+      "id": 8003001,
+      "body": "Looks good.",
+      "user": {"id": 991002, "login": "reviewer-one"},
+      "in_reply_to_id": null,
+      "created_at": "2024-02-03T10:00:00Z",
+      "updated_at": "2024-02-03T10:00:00Z"
+    }
+  ]
+}

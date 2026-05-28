@@ -1,0 +1,11 @@
+{
+  "id": "T0CONTRACT01",
+  "name": "Contract Test Workspace",
+  "domain": "contract-test",
+  "email_domain": "example.com",
+  "icon": {
+    "image_68": "https://example.com/team-icon-68.png"
+  },
+  "enterprise_id": null,
+  "enterprise_name": null
+}

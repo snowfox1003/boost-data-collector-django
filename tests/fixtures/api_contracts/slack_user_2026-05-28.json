@@ -1,0 +1,17 @@
+{
+  "id": "U0CONTRACT01",
+  "name": "contract.user",
+  "real_name": "Contract Test User",
+  "deleted": false,
+  "is_bot": false,
+  "is_app_user": false,
+  "updated": 1710000000,
+  "profile": {
+    "email": "contract.user@example.com",
+    "image_72": "https://example.com/avatar-72.png",
+    "display_name": "contractuser",
+    "real_name": "Contract Test User",
+    "title": "Engineer"
+  },
+  "team_id": "T0CONTRACT01"
+}

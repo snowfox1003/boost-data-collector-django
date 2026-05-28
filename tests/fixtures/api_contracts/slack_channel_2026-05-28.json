@@ -1,0 +1,23 @@
+{
+  "id": "C0CONTRACT01",
+  "name": "general",
+  "is_channel": true,
+  "is_private": false,
+  "is_im": false,
+  "is_mpim": false,
+  "is_archived": false,
+  "is_general": true,
+  "creator": "U0CONTRACT01",
+  "created": 1609459200,
+  "purpose": {
+    "value": "Company-wide announcements and work-based matters",
+    "creator": "U0CONTRACT01",
+    "last_set": 1609459200
+  },
+  "topic": {
+    "value": "General discussion",
+    "creator": "U0CONTRACT01",
+    "last_set": 1609459200
+  },
+  "num_members": 42
+}

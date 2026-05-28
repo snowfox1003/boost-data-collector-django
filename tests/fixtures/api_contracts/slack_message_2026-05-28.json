@@ -1,0 +1,19 @@
+{
+  "type": "message",
+  "subtype": null,
+  "user": "U0CONTRACT01",
+  "text": "Contract test message from recorded Slack-style payload.",
+  "ts": "1710000000.123456",
+  "thread_ts": null,
+  "edited": {
+    "user": "U0CONTRACT01",
+    "ts": "1710000100.654321"
+  },
+  "reactions": [
+    {
+      "name": "thumbsup",
+      "count": 2,
+      "users": ["U0CONTRACT01", "U0CONTRACT02"]
+    }
+  ]
+}

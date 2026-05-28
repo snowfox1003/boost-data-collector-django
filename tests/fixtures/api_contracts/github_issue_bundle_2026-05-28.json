@@ -1,0 +1,43 @@
+{
+  "issue_info": {
+    "number": 42,
+    "id": 2847291001,
+    "title": "Contract test issue",
+    "body": "Body from recorded GitHub-style payload.",
+    "state": "open",
+    "state_reason": "reopened",
+    "user": {
+      "id": 583231,
+      "login": "octocat",
+      "name": "The Octocat",
+      "avatar_url": "https://avatars.githubusercontent.com/u/583231?v=4"
+    },
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-20T14:30:00Z",
+    "closed_at": null,
+    "assignees": [
+      {
+        "id": 991001,
+        "login": "assignee-one",
+        "name": "Assignee One"
+      }
+    ],
+    "labels": [
+      {"name": "bug"},
+      {"name": "help wanted"}
+    ]
+  },
+  "comments": [
+    {
+      "id": 9001001,
+      "body": "First comment on issue.",
+      "user": {
+        "id": 583231,
+        "login": "octocat",
+        "name": "The Octocat"
+      },
+      "created_at": "2024-01-16T09:00:00Z",
+      "updated_at": "2024-01-16T09:00:00Z"
+    }
+  ]
+}
