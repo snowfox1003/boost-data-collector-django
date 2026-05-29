@@ -102,4 +102,5 @@ Historically, collectors evolved separately: some use plain **`BaseCommand`**, w
 |-------|-----|
 | Add / register a collector | [How_to_add_a_collector.md](How_to_add_a_collector.md) |
 | Stable `core` imports | [Core_public_API.md](Core_public_API.md) |
+| Stability policy | [STABILITY.md](../STABILITY.md) |
 | Full doc index | [README.md](README.md) (this folder) |

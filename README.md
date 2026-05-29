@@ -8,6 +8,10 @@ Boost Data Collector is a Django project that collects and manages data from var
 
 **Responsible disclosure:** do not open a public GitHub Issue for undisclosed security problems. Read **[`SECURITY.md`](SECURITY.md)** for supported versions, in-scope components, how to report privately (**GitHub Security**; email only when an address is published there), response timelines, and **credential rotation** guidance (GitHub tokens, Slack, Discord, Pinecone, YouTube, browser session material, Django `SECRET_KEY`, database URLs).
 
+## Stability
+
+Releases follow [Semantic Versioning](https://semver.org/). While the project is on **`0.x`**, tagged releases on **`main`** (e.g. `v0.1.0`) still define a practical stability contract for production: scheduled management commands, `/health/`, documented environment variable names, schedule YAML shape, and cross-app `sync_api` / `core` imports. Everything else may change without notice. See **[`STABILITY.md`](STABILITY.md)** for stable vs evolving vs unstable interfaces and release bump rules.
+
 ## Critical environment variables
 
 Authoritative names, examples, and comments live in **[`.env.example`](.env.example)**. Typical values you must set for a working local or deployed stack:
@@ -321,7 +325,7 @@ See **[docs/Deployment.md](docs/Deployment.md)** for:
 
 **GitHub’s configured default branch for this repository is `develop`.**
 
-- **main** – Default/production branch (stable, release-ready code).
-- **develop** – Development branch (active integration and feature work).
+- **develop** – GitHub default branch; integration and pull-request target; deploys to **staging** (see [docs/Deployment.md](docs/Deployment.md)).
+- **main** – **Production** branch; release tags and Tier A stability contract ([`STABILITY.md`](STABILITY.md)); deploys to **production**.
 - Feature branches: Create from `develop`. Do not branch from `main` for day-to-day work.
-- Pull requests: Open PRs against `develop`; merge to `main` for releases.
+- Pull requests: Open PRs against `develop`; promote to `main` for releases.

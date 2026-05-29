@@ -3,6 +3,8 @@ Cross-app Pinecone sync API.
 
 Other tracker apps must import orchestration from this module only — not
 ``sync``, ``ingestion``, or ``services`` directly.
+
+Stability: only symbols in ``__all__`` are Tier A; see STABILITY.md at the repo root.
 """
 
 from __future__ import annotations

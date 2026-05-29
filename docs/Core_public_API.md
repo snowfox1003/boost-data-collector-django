@@ -1,5 +1,7 @@
 # Core package: stable public surfaces
 
+Stability guarantees for these imports are defined in [STABILITY.md](../STABILITY.md) (Tier A).
+
 The `core` Django app holds shared infrastructure. Treat the following as the **supported internal API** for collectors and cross-app helpers. Other modules under `core/` may change without notice; prefer importing from the paths below.
 
 ## Collectors

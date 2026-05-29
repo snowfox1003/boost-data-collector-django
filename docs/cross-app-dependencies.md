@@ -6,6 +6,8 @@ ForeignKey from one tracker app into another's models" — visible and therefore
 For **typed data boundaries** (run results, activity rows, checkpoints) shared across apps,
 prefer :mod:`core.protocols` (see [Core_public_API.md](Core_public_API.md#tracker-protocols-dtos)).
 
+Stability tiers for imports and operational contracts: [STABILITY.md](../STABILITY.md).
+
 **Re-generate the import tables** after large refactors:
 
 ```bash

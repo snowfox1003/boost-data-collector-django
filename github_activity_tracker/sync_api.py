@@ -4,6 +4,8 @@ Cross-app GitHub sync and preprocess API.
 Other tracker apps (e.g. clang_github_tracker) must import orchestration helpers from
 this module only — not ``fetcher``, ``sync.*``, ``workspace``, or ``preprocessors``
 directly.
+
+Stability: only symbols in ``__all__`` are Tier A; see STABILITY.md at the repo root.
 """
 
 from __future__ import annotations

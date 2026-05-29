@@ -8,6 +8,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 |-------|-----|---------|
 | **Onboarding** | [Onboarding.md](Onboarding.md) | First-day orientation: mental model, app roles, data dependencies, where patterns differ. |
 | **Architecture overview** | [Architecture_overview.md](Architecture_overview.md) | **Start here for system design:** all 15 domain apps + `core`, persistence, coupling, links to app READMEs and service API. |
+| **Stability** | [STABILITY.md](../STABILITY.md) | Stable vs evolving vs unstable interfaces; semver and production release expectations. |
 | **Workflow** | [Workflow.md](Workflow.md) | Main application workflow, execution order, and project details. |
 | **Architecture (data flow)** | [Architecture_data_flow.md](Architecture_data_flow.md) | Data flow (sources → collectors → DB / workspace → Pinecone), orchestration diagram, per-app component map. |
 | **Tutorial: building a collector** | [Tutorial_building_a_collector.md](Tutorial_building_a_collector.md) | End-to-end walkthrough: `startcollector`, hooks, tests, YAML/Celery, deploy. |

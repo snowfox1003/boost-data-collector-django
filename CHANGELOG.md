@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Stability policy** ([`STABILITY.md`](STABILITY.md)): documents stable vs evolving vs unstable interfaces for production and contributors; README links to it.
+
 ### Documentation
 
 - Document **`pandoc`** as a **system** dependency (not installed by `pip` / `pypandoc` alone); centralize install steps for macOS, Debian/Ubuntu, and Windows in the root README and link from contributor setup docs.
@@ -20,12 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added **import-linter** contracts and pre-commit hook to prevent regressions.
 - Enforced **service-layer-only ORM writes** with `scripts/check_service_layer_writes.py` and pre-commit; moved remaining direct writes (repo metadata sync, star bulk-update, GitHub file backfill, BoostVersion import, commit file-change backfill) into `github_activity_tracker.services` / `boost_library_tracker.services`. Allowlist [`.service-layer-write-allowlist.json`](.service-layer-write-allowlist.json) is empty by default for new debt only.
 - **slack_event_handler:** Workspace under `workspace/slack_event_handler/`; replace Selenium with `plyvel` + `browser-cookie3` extraction from `CHROME_PROFILE_PATH` (optional Compose `slack-session` / `slack-chromium` noVNC on port 7900 and `manage.py extract_slack_tokens`), store xoxc/xoxd in `slack_internal_tokens.json` with runtime load and automatic re-extract when stale, and remove `slack_session_refresh`, `refresh_slack_tokens`, and the `slack-profile-refresh` compose service.
+- Pydantic boundary schemas at GitHub, Slack, and Discord ingestion (`api_schemas.py` per app; Discord ChatExporter uses `staging_schema.py`); fetchers validate with `model_validate()`; services accept typed payloads; `classify_failure` maps validation errors to `VALIDATION`.
 
 ## [0.1.0] - 2026-05-22
 
 ### Added
 
-- Pydantic boundary schemas at GitHub, Slack, and Discord ingestion (`api_schemas.py` per app; Discord ChatExporter uses `staging_schema.py`); fetchers validate with `model_validate()`; services accept typed payloads; `classify_failure` maps validation errors to `VALIDATION`.
 - `core` — shared utilities, collector base classes, and cross-cutting operations (e.g. GitHub, Slack, files, markdown).
 - `boost_collector_runner` — YAML-driven schedules, Celery tasks, and `run_scheduled_collectors` management command.
 - `github_activity_tracker` — GitHub repos, commits, issues, and related activity.
