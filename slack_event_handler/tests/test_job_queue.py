@@ -1,10 +1,14 @@
 """Tests for slack_event_handler.utils.job_queue."""
 
+import threading
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from slack_event_handler.utils import job_queue
+from slack_event_handler.utils.rate_limiter import record_posted
+from slack_event_handler.utils.state import load_state
 
 
 @pytest.fixture(autouse=True)
@@ -285,17 +289,22 @@ def test_worker_processes_job_then_exits_on_sleep(settings):
     loads = [
         {"queue": [job], "postedAt": []},
         {"queue": [], "postedAt": []},
-        {"queue": [], "postedAt": []},
     ]
 
-    def fake_load(team_id=None):
-        return loads.pop(0)
+    @contextmanager
+    def fake_modify(team_id=None):
+        state = loads.pop(0) if loads else {"queue": [], "postedAt": []}
+        yield state
 
     def sleep_side_effect(_sec):
         raise RuntimeError("stop_worker_loop")
 
-    with patch.object(job_queue, "load_state", side_effect=fake_load):
-        with patch.object(job_queue, "save_state"):
+    with patch.object(job_queue, "modify_state", fake_modify):
+        with patch.object(
+            job_queue,
+            "load_state",
+            return_value={"queue": [], "postedAt": []},
+        ):
             with patch.object(job_queue, "wait_for_slot"):
                 with patch.object(job_queue, "post_pr_comment"):
                     with patch.object(job_queue, "record_posted"):
@@ -327,17 +336,22 @@ def test_worker_process_job_failure_sends_error_reply(settings):
     loads = [
         {"queue": [job], "postedAt": []},
         {"queue": [], "postedAt": []},
-        {"queue": [], "postedAt": []},
     ]
 
-    def fake_load(team_id=None):
-        return loads.pop(0)
+    @contextmanager
+    def fake_modify(team_id=None):
+        state = loads.pop(0) if loads else {"queue": [], "postedAt": []}
+        yield state
 
     def sleep_side_effect(_sec):
         raise RuntimeError("stop_worker_loop")
 
-    with patch.object(job_queue, "load_state", side_effect=fake_load):
-        with patch.object(job_queue, "save_state"):
+    with patch.object(job_queue, "modify_state", fake_modify):
+        with patch.object(
+            job_queue,
+            "load_state",
+            return_value={"queue": [], "postedAt": []},
+        ):
             with patch.object(
                 job_queue, "post_pr_comment", side_effect=RuntimeError("gh")
             ):
@@ -354,3 +368,105 @@ def test_worker_process_job_failure_sends_error_reply(settings):
         for ca in mock_app.client.chat_postMessage.call_args_list
     ]
     assert any("Could not post" in t for t in texts)
+
+
+@pytest.mark.django_db
+def test_concurrent_enqueue_preserves_all_jobs(settings, tmp_path):
+    settings.SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = 5
+    path = tmp_path / "state_T9.json"
+    n = 30
+    barrier = threading.Barrier(n)
+    job_ids: list[str] = []
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def worker():
+        try:
+            barrier.wait(timeout=10)
+            job = job_queue.enqueue_job(
+                owner="o",
+                repo="r",
+                pull_number=1,
+                channel="C1",
+                message_ts="1.0",
+                user_id="U1",
+                is_dm=False,
+                team_id="T9",
+            )
+            with lock:
+                job_ids.append(job[job_queue.KEY_JOB_ID])
+        except BaseException as e:
+            with lock:
+                errors.append(e)
+
+    with patch(
+        "slack_event_handler.utils.state._get_state_file_path",
+        return_value=str(path),
+    ):
+        threads = [threading.Thread(target=worker) for _ in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        assert not errors
+        loaded = load_state("T9")
+        assert len(loaded["queue"]) == n
+        assert len(set(job_ids)) == n
+
+
+@pytest.mark.django_db
+def test_concurrent_enqueue_and_record_posted(settings, tmp_path):
+    settings.SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = 10
+    path = tmp_path / "state_T9.json"
+    n_enqueue = 15
+    n_posted = 15
+    n_total = n_enqueue + n_posted
+    barrier = threading.Barrier(n_total)
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def enqueue_worker():
+        try:
+            barrier.wait(timeout=10)
+            job_queue.enqueue_job(
+                owner="o",
+                repo="r",
+                pull_number=1,
+                channel="C1",
+                message_ts="1.0",
+                user_id="U1",
+                team_id="T9",
+            )
+        except BaseException as e:
+            with lock:
+                errors.append(e)
+
+    def posted_worker():
+        try:
+            barrier.wait(timeout=10)
+            record_posted("T9")
+        except BaseException as e:
+            with lock:
+                errors.append(e)
+
+    with patch(
+        "slack_event_handler.utils.state._get_state_file_path",
+        return_value=str(path),
+    ):
+        with patch(
+            "slack_event_handler.utils.rate_limiter.time.time", return_value=42.0
+        ):
+            threads = [
+                threading.Thread(target=enqueue_worker) for _ in range(n_enqueue)
+            ]
+            threads += [threading.Thread(target=posted_worker) for _ in range(n_posted)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=30)
+
+            assert not errors
+            loaded = load_state("T9")
+            assert len(loaded["queue"]) == n_enqueue
+            assert len(loaded["postedAt"]) == n_posted

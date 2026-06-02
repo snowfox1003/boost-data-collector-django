@@ -22,7 +22,7 @@ from slack_event_handler.utils.rate_limiter import (
     wait_for_slot,
 )
 from slack_event_handler.utils.github_pr_client import post_pr_comment
-from slack_event_handler.utils.state import load_state, save_state
+from slack_event_handler.utils.state import load_state, modify_state
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,6 @@ def enqueue_job(
     team_id: Optional[str] = None,
 ) -> dict:
     """Adds a new job to the persistent FIFO queue for this team and returns it."""
-    state = load_state(team_id)
     job = {
         KEY_JOB_ID: str(uuid.uuid4()),
         KEY_TEAM_ID: team_id,
@@ -74,8 +73,8 @@ def enqueue_job(
         KEY_IS_DM: is_dm,
         KEY_ENQUEUED_AT: time.time(),
     }
-    state["queue"].append(job)
-    save_state(state, team_id)
+    with modify_state(team_id) as state:
+        state["queue"].append(job)
     return job
 
 
@@ -194,15 +193,16 @@ def _worker(team_id: Optional[str]) -> None:
     """Long-running FIFO worker daemon thread for one team."""
     logger.debug("PR job queue worker started for team %s", team_id or "default")
     while True:
-        state = load_state(team_id)
+        with modify_state(team_id) as state:
+            if not state["queue"]:
+                job = None
+            else:
+                job, *remaining = state["queue"]
+                state["queue"] = remaining
 
-        if not state["queue"]:
+        if job is None:
             time.sleep(1)
             continue
-
-        job, *remaining = state["queue"]
-        state["queue"] = remaining
-        save_state(state, team_id)
 
         with _worker_busy_lock:
             _worker_busy_by_team[team_id] = True

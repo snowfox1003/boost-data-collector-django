@@ -10,7 +10,7 @@ from typing import Optional
 
 from django.conf import settings
 
-from slack_event_handler.utils.state import load_state, save_state
+from slack_event_handler.utils.state import load_state, modify_state
 
 SLOT_BUFFER_SEC = 0.05
 
@@ -64,7 +64,6 @@ def wait_for_slot(team_id: Optional[str] = None) -> None:
 
 def record_posted(team_id: Optional[str] = None) -> None:
     """Records a successful post timestamp and prunes expired entries for this team."""
-    state = load_state(team_id)
-    recent = recent_timestamps_at(state["postedAt"], time.time())
-    state["postedAt"] = recent + [time.time()]
-    save_state(state, team_id)
+    with modify_state(team_id) as state:
+        recent = recent_timestamps_at(state["postedAt"], time.time())
+        state["postedAt"] = recent + [time.time()]

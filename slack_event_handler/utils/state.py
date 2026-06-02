@@ -12,13 +12,36 @@ import logging
 import os
 import re
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Generator, Optional
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
+import portalocker
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_STATE: dict[str, Any] = {"postedAt": [], "queue": []}
+
+_team_thread_locks: dict[str, threading.Lock] = {}
+_team_thread_locks_guard = threading.Lock()
+
+
+def _thread_lock_for(team_id: Optional[str]) -> threading.Lock:
+    """In-process mutex paired with the file lock (required for reliable Windows locking)."""
+    key = team_id if team_id is not None else ""
+    with _team_thread_locks_guard:
+        lock = _team_thread_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _team_thread_locks[key] = lock
+        return lock
 
 
 def _sanitize_team_id_for_path(team_id: str) -> str:
@@ -37,6 +60,41 @@ def _get_state_file_path(team_id: Optional[str] = None) -> str:
         safe = _sanitize_team_id_for_path(team_id)
         return str(data_dir / f"state_{safe}.json")
     return str(data_dir / "state.json")
+
+
+def _get_lock_file_path(team_id: Optional[str] = None) -> str:
+    """Resolve the advisory lock file path (sibling of the state JSON file)."""
+    return f"{_get_state_file_path(team_id)}.lock"
+
+
+@contextmanager
+def state_file_lock(team_id: Optional[str] = None) -> Generator[None, None, None]:
+    """Exclusive advisory lock for per-team state read-modify-write critical sections."""
+    with _thread_lock_for(team_id):
+        lock_path = _get_lock_file_path(team_id)
+        _ensure_dir(lock_path)
+        if fcntl is not None:
+            fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
+        else:
+            with portalocker.Lock(lock_path, timeout=-1):
+                yield
+
+
+@contextmanager
+def modify_state(
+    team_id: Optional[str] = None,
+) -> Generator[dict[str, Any], None, None]:
+    """Load state under lock, yield for mutation, then save before releasing the lock."""
+    with state_file_lock(team_id):
+        state = load_state(team_id)
+        yield state
+        save_state(state, team_id)
 
 
 def _ensure_dir(path: str) -> None:

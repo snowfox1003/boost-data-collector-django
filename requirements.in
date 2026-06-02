@@ -48,3 +48,4 @@ yt-dlp>=2026.2.21,<2027
 
 # --- slack_event_handler (GitHub PR comments) ---
 PyGithub>=2.0,<3
+portalocker>=2.8,<3
