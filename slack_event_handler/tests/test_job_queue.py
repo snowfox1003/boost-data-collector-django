@@ -155,6 +155,30 @@ def test_process_job_reactions_other_error_raises(settings):
 
 
 @pytest.mark.django_db
+def test_process_job_clears_busy_after_slot_reserved(settings):
+    settings.SLACK_PR_BOT_GITHUB_TOKEN = "tok"
+    job_queue.set_slack_app(MagicMock(), "T1")
+    job = {
+        job_queue.KEY_JOB_ID: "jid",
+        job_queue.KEY_TEAM_ID: "T1",
+        job_queue.KEY_OWNER: "o",
+        job_queue.KEY_REPO: "r",
+        job_queue.KEY_PULL_NUMBER: 1,
+        job_queue.KEY_CHANNEL: "C1",
+        job_queue.KEY_MESSAGE_TS: "9.9",
+        job_queue.KEY_USER_ID: "U1",
+        job_queue.KEY_IS_DM: False,
+    }
+
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
+        with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
+            job_queue._process_job(job)
+
+    with job_queue._worker_busy_lock:
+        assert not job_queue._worker_busy_by_team.get("T1", False)
+
+
+@pytest.mark.django_db
 def test_estimated_delay_sec_nonzero_with_jobs_ahead(settings, tmp_path):
     settings.SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = 2
     settings.SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS = 100

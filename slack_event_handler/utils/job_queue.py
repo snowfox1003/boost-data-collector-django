@@ -39,6 +39,7 @@ KEY_ENQUEUED_AT = "enqueuedAt"
 # Per-team Slack app and worker busy flag for multi-workspace support
 _slack_app_by_team: dict[str, object] = {}
 _slack_app_by_team_lock = threading.Lock()
+# True while a dequeued job is waiting for a rate-limit slot (not yet in postedAt).
 _worker_busy_by_team: dict[str, bool] = {}
 _worker_busy_lock = threading.Lock()
 
@@ -160,11 +161,11 @@ def _process_job(job: dict) -> None:
         logger.debug("%s – rate limited, waiting %ds", label, int(delay + 0.999))
 
     wait_and_reserve_slot(team_id)
+    with _worker_busy_lock:
+        _worker_busy_by_team[team_id] = False
 
     logger.debug("%s – posting GitHub comment", label)
     post_pr_comment(owner, repo, pull_number)
-    with _worker_busy_lock:
-        _worker_busy_by_team[team_id] = False
     _send_reply(
         team_id,
         channel,
