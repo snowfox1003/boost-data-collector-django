@@ -106,6 +106,8 @@ pinecone-plugin-interface==0.0.7
     # via pinecone
 plyvel==1.5.1
     # via -r requirements.in
+portalocker==2.10.1
+    # via -r requirements.in
 prompt-toolkit==3.0.52
     # via click-repl
 propcache==0.5.2

@@ -18,11 +18,10 @@ from slack_event_handler.utils.rate_limiter import (
     compute_delay,
     compute_delay_at,
     recent_timestamps_at,
-    record_posted,
-    wait_for_slot,
+    wait_and_reserve_slot,
 )
 from slack_event_handler.utils.github_pr_client import post_pr_comment
-from slack_event_handler.utils.state import load_state, save_state
+from slack_event_handler.utils.state import load_state, modify_state
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,7 @@ KEY_ENQUEUED_AT = "enqueuedAt"
 # Per-team Slack app and worker busy flag for multi-workspace support
 _slack_app_by_team: dict[str, object] = {}
 _slack_app_by_team_lock = threading.Lock()
+# True while a dequeued job is waiting for a rate-limit slot (not yet in postedAt).
 _worker_busy_by_team: dict[str, bool] = {}
 _worker_busy_lock = threading.Lock()
 
@@ -61,7 +61,6 @@ def enqueue_job(
     team_id: Optional[str] = None,
 ) -> dict:
     """Adds a new job to the persistent FIFO queue for this team and returns it."""
-    state = load_state(team_id)
     job = {
         KEY_JOB_ID: str(uuid.uuid4()),
         KEY_TEAM_ID: team_id,
@@ -74,8 +73,8 @@ def enqueue_job(
         KEY_IS_DM: is_dm,
         KEY_ENQUEUED_AT: time.time(),
     }
-    state["queue"].append(job)
-    save_state(state, team_id)
+    with modify_state(team_id) as state:
+        state["queue"].append(job)
     return job
 
 
@@ -161,13 +160,12 @@ def _process_job(job: dict) -> None:
     if delay > 0:
         logger.debug("%s – rate limited, waiting %ds", label, int(delay + 0.999))
 
-    wait_for_slot(team_id)
+    wait_and_reserve_slot(team_id)
+    with _worker_busy_lock:
+        _worker_busy_by_team[team_id] = False
 
     logger.debug("%s – posting GitHub comment", label)
     post_pr_comment(owner, repo, pull_number)
-    record_posted(team_id)
-    with _worker_busy_lock:
-        _worker_busy_by_team[team_id] = False
     _send_reply(
         team_id,
         channel,
@@ -194,15 +192,20 @@ def _worker(team_id: Optional[str]) -> None:
     """Long-running FIFO worker daemon thread for one team."""
     logger.debug("PR job queue worker started for team %s", team_id or "default")
     while True:
-        state = load_state(team_id)
-
-        if not state["queue"]:
+        if not load_state(team_id)["queue"]:
             time.sleep(1)
             continue
 
-        job, *remaining = state["queue"]
-        state["queue"] = remaining
-        save_state(state, team_id)
+        with modify_state(team_id) as state:
+            if not state["queue"]:
+                job = None
+            else:
+                job, *remaining = state["queue"]
+                state["queue"] = remaining
+
+        if job is None:
+            time.sleep(1)
+            continue
 
         with _worker_busy_lock:
             _worker_busy_by_team[team_id] = True
