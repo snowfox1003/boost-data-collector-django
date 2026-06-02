@@ -162,9 +162,7 @@ def _extract_public_functions(source: str) -> list[ServiceFuncRow]:
 
 
 def _render_service_table(
-    rows: Iterable[ServiceFuncRow],
-    *,
-    section_title: str = "## Public API (generated)",
+    rows: Iterable[ServiceFuncRow], *, section_title: str = "## Public API (generated)"
 ) -> str:
     lines = [
         section_title,
@@ -203,9 +201,7 @@ class ProtocolRow:
     properties: tuple[ProtocolProperty, ...]
 
 
-def _extract_protocols(
-    source: str,
-) -> tuple[list[ProtocolRow], list[ServiceFuncRow]]:
+def _extract_protocols(source: str) -> tuple[list[ProtocolRow], list[ServiceFuncRow]]:
     tree = ast.parse(source)
     protocols: list[ProtocolRow] = []
     helpers: list[ServiceFuncRow] = []
@@ -328,9 +324,6 @@ def _discover_apps_with_services() -> list[tuple[str, Path]]:
             continue
         svc = child / "services.py"
         if svc.is_file():
-            content = _read_text(svc)
-            if "This service should be skipped for docs generation" in content:
-                continue
             found.append((child.name, svc))
     return found
 
