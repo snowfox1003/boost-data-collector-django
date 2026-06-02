@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Celery schedule:** Added `discord` group to `config/boost_collector_schedule.yaml` (`run_discord_activity_tracker` daily at 16:40 UTC).
 - **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).
 - Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.sync_api`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
 - Added **import-linter** contracts and pre-commit hook to prevent regressions.

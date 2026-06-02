@@ -13,8 +13,8 @@ requests>=2.31,<3
 urllib3>=2.0,<3
 # CVE-2026-45409: ensure patched idna (transitive via requests, etc.).
 idna>=3.15,<4
-# PYSEC-2026-175/177/178/179: fixed in PyJWT 2.13.0 (transitive via pygithub, redis).
-PyJWT>=2.13,<3
+# PYSEC-2026-175..179: ensure patched PyJWT (transitive via PyGithub, redis).
+PyJWT>=2.13.0,<3
 discord.py>=2.3.0,<3
 python-dateutil>=2.8.0,<3
 celery[redis]>=5.3,<6

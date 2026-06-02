@@ -13,6 +13,7 @@ from config.health import (
     _check_collector_groups,
     _check_database,
     _check_pinecone_sync,
+    _groups_with_daily_schedule,
     run_health_checks,
 )
 
@@ -27,7 +28,7 @@ def api_client():
 @override_settings(HEALTH_COLLECTOR_STALE_HOURS=26)
 def test_health_view_healthy_when_db_and_celery_ok(api_client):
     now = timezone.now()
-    for gid in ("github", "slack", "mailing_list", "boost_library_docs"):
+    for gid in _groups_with_daily_schedule():
         collector_services.record_group_success(gid, when=now)
     with patch("config.health._check_celery_workers") as mock_celery:
         mock_celery.return_value = {

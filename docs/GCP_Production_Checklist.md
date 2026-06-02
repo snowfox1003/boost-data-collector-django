@@ -41,9 +41,9 @@ Mirror [`.env.example`](../.env.example) groups; inject via Secret Manager → e
 
 ## Collectors in Beat schedule
 
-Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml): `github`, `boost_library_docs`, `slack`, `mailing_list`.
+Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml): `github`, `boost_library_docs`, `slack`, `discord`, `mailing_list`.
 
-**Not** on Beat yet (manual / future): Discord, WG21, YouTube, Clang — `/health/` shows `last_success_at: null` until scheduled or `record_group_success` is updated.
+**Not** on Beat yet (manual / future): WG21, YouTube, Clang — `/health/` shows `last_success_at: null` until scheduled or `record_group_success` is updated.
 
 ## Services layout
 
