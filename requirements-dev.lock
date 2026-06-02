@@ -159,6 +159,8 @@ pluggy==1.6.0
     #   pytest-cov
 plyvel==1.5.1
     # via -r requirements.in
+portalocker==2.10.1
+    # via -r requirements.in
 pre-commit==4.6.0
     # via -r requirements-dev.in
 prompt-toolkit==3.0.52
