@@ -84,6 +84,15 @@ def test_get_lock_file_path_team_id(data_dir):
         assert state_mod._get_lock_file_path("T9") == f"{state_path}.lock"
 
 
+def test_thread_lock_for_same_lock_file_path(tmp_path):
+    root = tmp_path / "slack_event_handler"
+    root.mkdir(parents=True)
+    with patch("slack_event_handler.workspace.get_workspace_root", return_value=root):
+        lock_a = state_mod._thread_lock_for("T/1")
+        lock_b = state_mod._thread_lock_for("T?1")
+    assert lock_a is lock_b
+
+
 def test_state_file_lock_blocks_until_released(data_dir):
     state_path = str(data_dir / "state.json")
     lock_path = f"{state_path}.lock"

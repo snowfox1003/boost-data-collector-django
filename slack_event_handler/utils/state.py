@@ -35,7 +35,7 @@ _team_thread_locks_guard = threading.Lock()
 
 def _thread_lock_for(team_id: Optional[str]) -> threading.Lock:
     """In-process mutex paired with the file lock (required for reliable Windows locking)."""
-    key = team_id if team_id is not None else ""
+    key = _get_lock_file_path(team_id)
     with _team_thread_locks_guard:
         lock = _team_thread_locks.get(key)
         if lock is None:

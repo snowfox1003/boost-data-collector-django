@@ -52,8 +52,31 @@ def compute_delay(posted_at: list[float]) -> float:
     return compute_delay_at(posted_at, time.time())
 
 
+def try_reserve_slot(team_id: Optional[str] = None) -> bool:
+    """
+    Atomically check availability and reserve a slot timestamp for this team.
+
+    Returns True if a slot was reserved, False if the rolling window is full.
+    """
+    now = time.time()
+    with modify_state(team_id) as state:
+        recent = recent_timestamps_at(state["postedAt"], now)
+        if len(recent) >= _max_per_window():
+            return False
+        state["postedAt"] = recent + [now]
+        return True
+
+
+def wait_and_reserve_slot(team_id: Optional[str] = None) -> None:
+    """Blocks until a rate-limit slot is atomically reserved for this team."""
+    while not try_reserve_slot(team_id):
+        delay = compute_delay(load_state(team_id)["postedAt"])
+        if delay > 0:
+            time.sleep(delay)
+
+
 def wait_for_slot(team_id: Optional[str] = None) -> None:
-    """Blocks synchronously until a rate-limit slot is available for this team."""
+    """Blocks until a slot appears available (does not reserve). Prefer wait_and_reserve_slot."""
     while True:
         state = load_state(team_id)
         delay = compute_delay(state["postedAt"])
@@ -63,7 +86,7 @@ def wait_for_slot(team_id: Optional[str] = None) -> None:
 
 
 def record_posted(team_id: Optional[str] = None) -> None:
-    """Records a successful post timestamp and prunes expired entries for this team."""
+    """Appends a post timestamp without checking the cap (legacy / test helper)."""
     with modify_state(team_id) as state:
         recent = recent_timestamps_at(state["postedAt"], time.time())
         state["postedAt"] = recent + [time.time()]

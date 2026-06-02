@@ -95,10 +95,9 @@ def test_process_job_posts_and_replies(settings):
         job_queue.KEY_IS_DM: False,
     }
 
-    with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-            with patch("slack_event_handler.utils.job_queue.record_posted"):
-                job_queue._process_job(job)
+            job_queue._process_job(job)
 
     mock_app.client.chat_postMessage.assert_called_once()
     mock_app.client.reactions_add.assert_called_once()
@@ -125,10 +124,9 @@ def test_process_job_reactions_already_reacted_swallows(settings):
         job_queue.KEY_IS_DM: False,
     }
 
-    with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-            with patch("slack_event_handler.utils.job_queue.record_posted"):
-                job_queue._process_job(job)
+            job_queue._process_job(job)
 
 
 @pytest.mark.django_db
@@ -150,11 +148,10 @@ def test_process_job_reactions_other_error_raises(settings):
         job_queue.KEY_IS_DM: False,
     }
 
-    with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-            with patch("slack_event_handler.utils.job_queue.record_posted"):
-                with pytest.raises(RuntimeError, match="boom"):
-                    job_queue._process_job(job)
+            with pytest.raises(RuntimeError, match="boom"):
+                job_queue._process_job(job)
 
 
 @pytest.mark.django_db
@@ -207,10 +204,9 @@ def test_process_job_dm_uses_chat_post_message_without_thread_ts(settings):
         job_queue.KEY_IS_DM: True,
     }
 
-    with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-            with patch("slack_event_handler.utils.job_queue.record_posted"):
-                job_queue._process_job(job)
+            job_queue._process_job(job)
 
     kwargs = mock_app.client.chat_postMessage.call_args.kwargs
     assert "thread_ts" not in kwargs
@@ -234,10 +230,9 @@ def test_process_job_skips_reaction_when_team_id_none(settings):
         job_queue.KEY_IS_DM: False,
     }
 
-    with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+    with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-            with patch("slack_event_handler.utils.job_queue.record_posted"):
-                job_queue._process_job(job)
+            job_queue._process_job(job)
 
     mock_app.client.reactions_add.assert_not_called()
 
@@ -261,11 +256,10 @@ def test_process_job_logs_when_rate_limited(settings):
     }
 
     with patch("slack_event_handler.utils.job_queue.compute_delay", return_value=5.0):
-        with patch("slack_event_handler.utils.job_queue.wait_for_slot"):
+        with patch("slack_event_handler.utils.job_queue.wait_and_reserve_slot"):
             with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
-                with patch("slack_event_handler.utils.job_queue.record_posted"):
-                    with patch("slack_event_handler.utils.job_queue.logger") as log:
-                        job_queue._process_job(job)
+                with patch("slack_event_handler.utils.job_queue.logger") as log:
+                    job_queue._process_job(job)
     assert log.debug.called
 
 
@@ -299,20 +293,25 @@ def test_worker_processes_job_then_exits_on_sleep(settings):
     def sleep_side_effect(_sec):
         raise RuntimeError("stop_worker_loop")
 
+    load_peeks = [
+        {"queue": [job], "postedAt": []},
+        {"queue": [], "postedAt": []},
+    ]
+
+    def load_side_effect(team_id=None):
+        if load_peeks:
+            return load_peeks.pop(0)
+        return {"queue": [], "postedAt": []}
+
     with patch.object(job_queue, "modify_state", fake_modify):
-        with patch.object(
-            job_queue,
-            "load_state",
-            return_value={"queue": [], "postedAt": []},
-        ):
-            with patch.object(job_queue, "wait_for_slot"):
+        with patch.object(job_queue, "load_state", side_effect=load_side_effect):
+            with patch.object(job_queue, "wait_and_reserve_slot"):
                 with patch.object(job_queue, "post_pr_comment"):
-                    with patch.object(job_queue, "record_posted"):
-                        with patch.object(
-                            job_queue.time, "sleep", side_effect=sleep_side_effect
-                        ):
-                            with pytest.raises(RuntimeError, match="stop_worker_loop"):
-                                job_queue._worker("T1")
+                    with patch.object(
+                        job_queue.time, "sleep", side_effect=sleep_side_effect
+                    ):
+                        with pytest.raises(RuntimeError, match="stop_worker_loop"):
+                            job_queue._worker("T1")
 
 
 @pytest.mark.django_db
@@ -346,22 +345,27 @@ def test_worker_process_job_failure_sends_error_reply(settings):
     def sleep_side_effect(_sec):
         raise RuntimeError("stop_worker_loop")
 
+    load_peeks = [
+        {"queue": [job], "postedAt": []},
+        {"queue": [], "postedAt": []},
+    ]
+
+    def load_side_effect(team_id=None):
+        if load_peeks:
+            return load_peeks.pop(0)
+        return {"queue": [], "postedAt": []}
+
     with patch.object(job_queue, "modify_state", fake_modify):
-        with patch.object(
-            job_queue,
-            "load_state",
-            return_value={"queue": [], "postedAt": []},
-        ):
+        with patch.object(job_queue, "load_state", side_effect=load_side_effect):
             with patch.object(
                 job_queue, "post_pr_comment", side_effect=RuntimeError("gh")
             ):
-                with patch.object(job_queue, "wait_for_slot"):
-                    with patch.object(job_queue, "record_posted"):
-                        with patch.object(
-                            job_queue.time, "sleep", side_effect=sleep_side_effect
-                        ):
-                            with pytest.raises(RuntimeError, match="stop_worker_loop"):
-                                job_queue._worker("T1")
+                with patch.object(job_queue, "wait_and_reserve_slot"):
+                    with patch.object(
+                        job_queue.time, "sleep", side_effect=sleep_side_effect
+                    ):
+                        with pytest.raises(RuntimeError, match="stop_worker_loop"):
+                            job_queue._worker("T1")
 
     texts = [
         (ca.kwargs.get("text") or "")
@@ -408,6 +412,7 @@ def test_concurrent_enqueue_preserves_all_jobs(settings, tmp_path):
             t.start()
         for t in threads:
             t.join(timeout=30)
+        assert all(not t.is_alive() for t in threads)
 
         assert not errors
         loaded = load_state("T9")
@@ -465,6 +470,7 @@ def test_concurrent_enqueue_and_record_posted(settings, tmp_path):
                 t.start()
             for t in threads:
                 t.join(timeout=30)
+            assert all(not t.is_alive() for t in threads)
 
             assert not errors
             loaded = load_state("T9")

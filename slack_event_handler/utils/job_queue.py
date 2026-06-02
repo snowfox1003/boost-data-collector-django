@@ -18,8 +18,7 @@ from slack_event_handler.utils.rate_limiter import (
     compute_delay,
     compute_delay_at,
     recent_timestamps_at,
-    record_posted,
-    wait_for_slot,
+    wait_and_reserve_slot,
 )
 from slack_event_handler.utils.github_pr_client import post_pr_comment
 from slack_event_handler.utils.state import load_state, modify_state
@@ -160,11 +159,10 @@ def _process_job(job: dict) -> None:
     if delay > 0:
         logger.debug("%s – rate limited, waiting %ds", label, int(delay + 0.999))
 
-    wait_for_slot(team_id)
+    wait_and_reserve_slot(team_id)
 
     logger.debug("%s – posting GitHub comment", label)
     post_pr_comment(owner, repo, pull_number)
-    record_posted(team_id)
     with _worker_busy_lock:
         _worker_busy_by_team[team_id] = False
     _send_reply(
@@ -193,6 +191,10 @@ def _worker(team_id: Optional[str]) -> None:
     """Long-running FIFO worker daemon thread for one team."""
     logger.debug("PR job queue worker started for team %s", team_id or "default")
     while True:
+        if not load_state(team_id)["queue"]:
+            time.sleep(1)
+            continue
+
         with modify_state(team_id) as state:
             if not state["queue"]:
                 job = None
