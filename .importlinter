@@ -48,3 +48,18 @@ forbidden_modules =
     github_activity_tracker.workspace
     github_activity_tracker.preprocessors
 allow_indirect_imports = true
+
+[importlinter:contract:forbid-mailing-list-user-models]
+name = boost_mailing_list_tracker production code must not import cppa_user_tracker.models
+type = forbidden
+source_modules =
+    boost_mailing_list_tracker.models
+    boost_mailing_list_tracker.services
+    boost_mailing_list_tracker.preprocessor
+    boost_mailing_list_tracker.admin
+    boost_mailing_list_tracker.management
+    boost_mailing_list_tracker.fetcher
+    boost_mailing_list_tracker.email_formatter
+forbidden_modules =
+    cppa_user_tracker.models
+allow_indirect_imports = true

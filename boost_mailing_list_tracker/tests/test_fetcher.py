@@ -238,7 +238,7 @@ def test_get_start_date_from_db_returns_iso_utc_format(
 
     dt = datetime(2025, 11, 13, 5, 25, 55, tzinfo=timezone.utc)
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<start-date-test@example.com>",
         sent_at=dt,
         list_name=default_list_name,
@@ -256,13 +256,13 @@ def test_get_start_date_from_db_uses_latest_sent_at(
     from boost_mailing_list_tracker import services
 
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<older@example.com>",
         sent_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
         list_name=default_list_name,
     )
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<newer@example.com>",
         sent_at=datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),
         list_name=default_list_name,
@@ -281,7 +281,7 @@ def test_get_start_date_from_db_utc_aware_sent_at_iso_format(
 
     dt_utc = datetime(2025, 3, 10, 12, 0, 0, tzinfo=timezone.utc)
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<utc@example.com>",
         sent_at=dt_utc,
         list_name=default_list_name,
@@ -657,7 +657,7 @@ def test_fetch_all_emails_inserts_start_date_from_database_when_blank(
 
     dt = datetime(2024, 3, 1, 12, 0, 0, tzinfo=timezone.utc)
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<db-start@example.com>",
         sent_at=dt,
         list_name=default_list_name,

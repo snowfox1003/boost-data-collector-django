@@ -47,10 +47,11 @@ document.  `core` is excluded because it is shared infrastructure, not a peer tr
 
 These are hard database-level dependencies.  They cannot be removed without migrations.
 
-> **Note on `cppa_user_tracker`:** This app acts as an identity hub.  All other
-> tracker apps that deal with people (GitHub accounts, Discord/Slack users, WG21
-> authors, mailing-list senders, YouTube speakers) hold a FK into it.  This is the
-> dominant coupling pattern and is considered **intentional architecture**.
+> **Note on `cppa_user_tracker`:** This app acts as an identity hub.  Most tracker
+> apps that deal with people still hold an ORM FK into it; **`boost_mailing_list_tracker`**
+> is the first app migrated to a **soft profile ID** (`sender_profile_id` / DB column
+> `sender_id`) plus service-layer lookup — see [adr/identity-hub-decoupling.md](adr/identity-hub-decoupling.md).
+> Remaining FK couplings are documented below and are being phased out in risk order.
 
 | Source app | Target app | Mechanism | Fields / models | Intent |
 | --- | --- | --- | --- | --- |
@@ -68,7 +69,7 @@ These are hard database-level dependencies.  They cannot be removed without migr
 | `boost_usage_tracker` | `github_activity_tracker` | MTI | `BoostExternalRepository` extends `GitHubRepository` | Intentional — external repos ARE GitHub repos |
 | `boost_usage_tracker` | `github_activity_tracker` | FK | `BoostUsage.file_path` → `GitHubFile` | Intentional — usage anchored to a specific file |
 | `boost_usage_tracker` | `boost_library_tracker` | FK | `BoostUsage.boost_header` → `BoostFile` | Intentional — usage anchored to a Boost header |
-| `boost_mailing_list_tracker` | `cppa_user_tracker` | FK | `MailingListMessage.sender` → `MailingListProfile` | Intentional — sender identity |
+| `boost_mailing_list_tracker` | `cppa_user_tracker` | Soft ID (`BigIntegerField`, `db_column=sender_id`) | `MailingListMessage.sender_profile_id` → `MailingListProfile.pk` via `cppa_user_tracker.services` | Decoupled (pilot) — no ORM FK; PG FK constraint dropped |
 | `wg21_paper_tracker` | `cppa_user_tracker` | FK | `WG21PaperAuthor.profile` → `WG21PaperAuthorProfile` | Intentional — paper author identity |
 | `cppa_youtube_script_tracker` | `cppa_user_tracker` | FK | `YouTubeVideoSpeaker.speaker` → `YoutubeSpeaker` | Intentional — speaker identity |
 | `cppa_slack_tracker` | `cppa_user_tracker` | Direct import + FK | `SlackChannel.creator`, `SlackMessage.user`, `SlackChannelMembership.user`, `SlackChannelMembershipChangeLog.user` → `SlackUser` | Intentional — channel/message author identity |
@@ -151,7 +152,7 @@ The **Kind** column classifies the imported symbol:
 | `boost_usage_tracker` | `…/update_git_account.py` | `cppa_user_tracker` | `GitHubAccountType`, `get_or_create_github_account` | model + service | Intentional — correctly delegates account upsert |
 | `boost_usage_tracker` | `…/update_githubfile_from_csv.py` | `github_activity_tracker` | `GitHubRepository`, `create_or_update_github_file` | model + service | Intentional — correctly delegates |
 | `boost_usage_tracker` | `…/update_created_repos_by_language.py` | `github_activity_tracker` | `Language`, `create_or_update_created_repos_by_language` | model + service | Intentional — correctly delegates |
-| `boost_mailing_list_tracker` | `…/services.py` | `cppa_user_tracker` | `MailingListProfile` | model | Intentional — service references FK target |
+| `boost_mailing_list_tracker` | `…/preprocessor.py` | `cppa_user_tracker` | `get_mailing_list_profiles_by_ids` | service | Intentional — bulk sender display names for Pinecone docs |
 | `boost_mailing_list_tracker` | `…/run_boost_mailing_list_tracker.py` | `cppa_user_tracker` | `get_or_create_mailing_list_profile` | service | Intentional — correctly delegates |
 | `clang_github_tracker` | `…/sync_raw.py` | `github_activity_tracker` | `fetcher`, `save_*_raw_source`, `normalize_*_json`, path helpers (via `sync_api`) | utility | Intentional — cross-app orchestration via `github_activity_tracker.sync_api` |
 | `clang_github_tracker` | `…/preprocessors/pr_preprocessor.py` | `github_activity_tracker` | `build_pr_document`, `get_raw_source_pr_path` (via `sync_api`) | utility | Intentional — same |

@@ -28,7 +28,7 @@ def test_preprocessor_first_sync_returns_all_messages(
     from boost_mailing_list_tracker import services
 
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<a@example.com>",
         sent_at=sample_sent_at,
         subject="Subject A",
@@ -36,7 +36,7 @@ def test_preprocessor_first_sync_returns_all_messages(
         list_name=default_list_name,
     )
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<b@example.com>",
         sent_at=sample_sent_at,
         subject="Subject B",
@@ -62,7 +62,7 @@ def test_preprocessor_incremental_by_created_at(
     from boost_mailing_list_tracker.models import MailingListMessage
 
     old_msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<old@example.com>",
         sent_at=sample_sent_at,
         subject="Old",
@@ -70,7 +70,7 @@ def test_preprocessor_incremental_by_created_at(
         list_name=default_list_name,
     )
     new_msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<new@example.com>",
         sent_at=sample_sent_at,
         subject="New",
@@ -102,7 +102,7 @@ def test_preprocessor_retries_failed_ids_even_if_old(
     from boost_mailing_list_tracker.models import MailingListMessage
 
     retry_msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<retry@example.com>",
         sent_at=sample_sent_at,
         subject="Retry",
@@ -134,7 +134,7 @@ def test_preprocessor_deduplicates_overlap_between_failed_and_incremental(
     from boost_mailing_list_tracker.models import MailingListMessage
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<dedupe@example.com>",
         sent_at=sample_sent_at,
         subject="Dedupe",
@@ -162,7 +162,7 @@ def test_preprocessor_document_shape_and_metadata_fields(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<shape@example.com>",
         sent_at=sample_sent_at,
         parent_id="<parent@example.com>",
@@ -207,7 +207,7 @@ def test_preprocessor_handles_empty_body_with_metadata_fallback_content(
     from boost_mailing_list_tracker import services
 
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<empty-body@example.com>",
         sent_at=sample_sent_at,
         subject="",
@@ -239,7 +239,7 @@ def test_preprocessor_author_falls_back_to_identity_display_name(
     mailing_list_profile.save()
 
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<identity-author@example.com>",
         sent_at=sample_sent_at,
         subject="Sub",
@@ -265,7 +265,7 @@ def test_preprocess_failed_ids_normalizes_whitespace_and_duplicates(
     from boost_mailing_list_tracker.models import MailingListMessage
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<norm-fail@example.com>",
         sent_at=sample_sent_at,
         subject="S",

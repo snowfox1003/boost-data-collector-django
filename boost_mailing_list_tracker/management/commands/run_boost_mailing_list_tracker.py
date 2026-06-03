@@ -117,7 +117,7 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
         )
 
         _, was_created = get_or_create_mailing_list_message(
-            sender=profile,
+            sender_profile_id=profile.pk,
             msg_id=msg_id,
             parent_id=_clean_text(email_data.get("parent_id", "")),
             thread_id=_clean_text(email_data.get("thread_id", "")),

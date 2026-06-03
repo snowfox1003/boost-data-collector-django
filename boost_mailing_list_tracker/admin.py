@@ -8,7 +8,7 @@ from .models import MailingListMessage
 class MailingListMessageAdmin(ModelAdmin):
     list_display = (
         "id",
-        "sender",
+        "sender_profile_id",
         "msg_id",
         "list_name",
         "subject",
@@ -16,6 +16,5 @@ class MailingListMessageAdmin(ModelAdmin):
         "created_at",
     )
     list_filter = ("list_name", "sent_at")
-    search_fields = ("msg_id", "subject", "sender__display_name")
-    raw_id_fields = ("sender",)
+    search_fields = ("msg_id", "subject")
     date_hierarchy = "sent_at"

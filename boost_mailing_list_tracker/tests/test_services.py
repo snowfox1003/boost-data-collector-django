@@ -23,14 +23,14 @@ def test_get_or_create_mailing_list_message_creates_new(
 ):
     """get_or_create_mailing_list_message creates new message and returns (message, True)."""
     msg, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<new-msg@example.com>",
         sent_at=sample_sent_at,
         subject="Hello",
         list_name=default_list_name,
     )
     assert created is True
-    assert msg.sender_id == mailing_list_profile.pk
+    assert msg.sender_profile_id == mailing_list_profile.pk
     assert msg.msg_id == "<new-msg@example.com>"
     assert msg.subject == "Hello"
     assert msg.list_name == default_list_name
@@ -45,14 +45,14 @@ def test_get_or_create_mailing_list_message_gets_existing(
 ):
     """get_or_create_mailing_list_message returns existing and (message, False)."""
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<existing@example.com>",
         sent_at=sample_sent_at,
         subject="Original",
         list_name=default_list_name,
     )
     msg2, created2 = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<existing@example.com>",
         sent_at=datetime(2024, 7, 1, tzinfo=timezone.utc),
         subject="Updated subject",
@@ -71,15 +71,32 @@ def test_get_or_create_mailing_list_message_empty_msg_id_raises(
     """get_or_create_mailing_list_message raises ValueError for empty msg_id."""
     with pytest.raises(ValueError, match="msg_id must not be empty"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="",
             sent_at=sample_sent_at,
             list_name=default_list_name,
         )
     with pytest.raises(ValueError, match="msg_id must not be empty"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="   ",
+            sent_at=sample_sent_at,
+            list_name=default_list_name,
+        )
+
+
+@pytest.mark.django_db
+def test_get_or_create_mailing_list_message_invalid_sender_profile_id_raises(
+    default_list_name,
+    sample_sent_at,
+):
+    """get_or_create_mailing_list_message raises ValueError for invalid sender_profile_id."""
+    with pytest.raises(
+        ValueError, match="sender_profile_id must be a positive integer"
+    ):
+        services.get_or_create_mailing_list_message(
+            0,
+            msg_id="<msg@example.com>",
             sent_at=sample_sent_at,
             list_name=default_list_name,
         )
@@ -93,14 +110,14 @@ def test_get_or_create_mailing_list_message_invalid_list_name_raises(
     """get_or_create_mailing_list_message raises ValueError for invalid list_name."""
     with pytest.raises(ValueError, match="list_name must be one of"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="<msg@example.com>",
             sent_at=sample_sent_at,
             list_name="invalid-list",
         )
     with pytest.raises(ValueError, match="list_name must be one of"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="<msg2@example.com>",
             sent_at=sample_sent_at,
             list_name="",
@@ -115,7 +132,7 @@ def test_get_or_create_mailing_list_message_strips_msg_id(
 ):
     """get_or_create_mailing_list_message strips whitespace from msg_id."""
     msg, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="  <trimmed@example.com>  ",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -132,7 +149,7 @@ def test_get_or_create_mailing_list_message_all_list_names(
     """get_or_create_mailing_list_message accepts all MailingListName values."""
     for i, list_value in enumerate(MailingListName):
         msg, created = services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id=f"<msg-{i}@example.com>",
             sent_at=sample_sent_at,
             list_name=list_value.value,
@@ -152,7 +169,7 @@ def test_delete_mailing_list_message_removes_from_db(
 ):
     """delete_mailing_list_message deletes the message from database."""
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<to-delete@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -170,7 +187,7 @@ def test_delete_mailing_list_message_returns_none(
 ):
     """delete_mailing_list_message returns None."""
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<return-none@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -187,13 +204,13 @@ def test_delete_mailing_list_message_leaves_others(
 ):
     """delete_mailing_list_message only removes the given message."""
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<keep@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
     )
     msg2, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<remove@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -214,7 +231,7 @@ def test_get_or_create_mailing_list_message_none_list_name_raises(
     """get_or_create_mailing_list_message raises ValueError for None list_name (invalid)."""
     with pytest.raises(ValueError, match="list_name must be one of"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="<msg@example.com>",
             sent_at=sample_sent_at,
             list_name=None,  # type: ignore[arg-type]
@@ -233,7 +250,7 @@ def test_get_or_create_mailing_list_message_msg_id_at_max_length(
     """get_or_create_mailing_list_message accepts msg_id of 255 chars (max_length)."""
     long_msg_id = "a" * 255
     msg, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id=long_msg_id,
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -252,7 +269,7 @@ def test_get_or_create_mailing_list_message_large_subject_and_content(
     subject_1024 = "s" * 1024
     content_large = "c" * 10000
     msg, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<large@example.com>",
         sent_at=sample_sent_at,
         subject=subject_1024,
@@ -275,7 +292,7 @@ def test_get_or_create_mailing_list_message_does_not_update_any_field(
 ):
     """get_or_create_mailing_list_message leaves all fields unchanged on existing msg."""
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<no-update@example.com>",
         sent_at=sample_sent_at,
         parent_id="old_parent",
@@ -285,7 +302,7 @@ def test_get_or_create_mailing_list_message_does_not_update_any_field(
         list_name=default_list_name,
     )
     msg2, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="  <no-update@example.com>  ",  # stripped to same
         sent_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
         parent_id="new_parent",

@@ -600,6 +600,47 @@ def test_get_or_create_mailing_list_profile_strips_display_name_and_email():
     assert profile.emails.filter(email="trimmed@example.com").exists()
 
 
+# --- get_mailing_list_profile_by_id / get_mailing_list_profiles_by_ids ---
+
+
+@pytest.mark.django_db
+def test_get_mailing_list_profile_by_id_returns_profile():
+    """get_mailing_list_profile_by_id returns the profile when it exists."""
+    profile, _ = services.get_or_create_mailing_list_profile(
+        display_name="Lookup Me",
+        email="lookup@example.com",
+    )
+    found = services.get_mailing_list_profile_by_id(profile.pk)
+    assert found is not None
+    assert found.pk == profile.pk
+    assert found.display_name == "Lookup Me"
+
+
+@pytest.mark.django_db
+def test_get_mailing_list_profile_by_id_missing_or_invalid():
+    """get_mailing_list_profile_by_id returns None for missing or invalid ids."""
+    assert services.get_mailing_list_profile_by_id(999_999_999) is None
+    assert services.get_mailing_list_profile_by_id(0) is None
+    assert services.get_mailing_list_profile_by_id(-1) is None
+
+
+@pytest.mark.django_db
+def test_get_mailing_list_profiles_by_ids_bulk():
+    """get_mailing_list_profiles_by_ids returns a map of existing profiles."""
+    p1, _ = services.get_or_create_mailing_list_profile(
+        display_name="Bulk One", email="one@example.com"
+    )
+    p2, _ = services.get_or_create_mailing_list_profile(
+        display_name="Bulk Two", email="two@example.com"
+    )
+    result = services.get_mailing_list_profiles_by_ids(
+        [p1.pk, p2.pk, 0, 999_999_999, p1.pk]
+    )
+    assert set(result.keys()) == {p1.pk, p2.pk}
+    assert result[p1.pk].display_name == "Bulk One"
+    assert result[p2.pk].display_name == "Bulk Two"
+
+
 # --- get_or_create_wg21_paper_author_profile ---
 
 

@@ -164,6 +164,30 @@ def get_or_create_mailing_list_profile(
     return profile, True
 
 
+def get_mailing_list_profile_by_id(profile_id: int) -> MailingListProfile | None:
+    """Return MailingListProfile for profile_id, or None if not found (read-only lookup)."""
+    if profile_id < 1:
+        return None
+    return (
+        MailingListProfile.objects.select_related("identity")
+        .filter(pk=profile_id)
+        .first()
+    )
+
+
+def get_mailing_list_profiles_by_ids(
+    profile_ids: list[int],
+) -> dict[int, MailingListProfile]:
+    """Return mailing-list profiles keyed by pk for the given ids (read-only bulk lookup)."""
+    unique_ids = sorted({i for i in profile_ids if i > 0})
+    if not unique_ids:
+        return {}
+    profiles = MailingListProfile.objects.select_related("identity").filter(
+        pk__in=unique_ids
+    )
+    return {profile.pk: profile for profile in profiles}
+
+
 def get_or_create_github_account(
     github_account_id: int,
     username: str = "",
