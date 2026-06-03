@@ -16,6 +16,7 @@ from typing import Any
 from django.db.models import Q
 
 from boost_mailing_list_tracker.models import MailingListMessage
+from cppa_user_tracker.services import get_mailing_list_profiles_by_ids
 
 
 def _normalize_failed_ids(failed_ids: list[str]) -> list[str]:
@@ -38,7 +39,7 @@ def _get_sender_display_name(sender: Any) -> str:
     ).strip()
 
 
-def _build_document_content(message: MailingListMessage) -> str:
+def _build_document_content(message: MailingListMessage, sender: Any) -> str:
     """
     Build plain-text content for embedding.
 
@@ -48,7 +49,7 @@ def _build_document_content(message: MailingListMessage) -> str:
     if message.subject:
         parts.append(f"Subject: {message.subject.strip()}")
 
-    sender_name = _get_sender_display_name(message.sender)
+    sender_name = _get_sender_display_name(sender)
     if sender_name:
         parts.append(f"Sender: {sender_name}")
 
@@ -83,9 +84,9 @@ def preprocess_mailing_list_for_pinecone(
     """
     normalized_failed = _normalize_failed_ids(failed_ids or [])
 
-    queryset = MailingListMessage._default_manager.select_related("sender__identity")
+    queryset = MailingListMessage._default_manager.all()
     if final_sync_at is None and not normalized_failed:
-        candidates = queryset.order_by("id")
+        candidates = list(queryset.order_by("id"))
     else:
         criteria = Q()
         if final_sync_at is not None:
@@ -94,7 +95,10 @@ def preprocess_mailing_list_for_pinecone(
             criteria |= Q(created_at__gt=final_sync_at)
         if normalized_failed:
             criteria |= Q(msg_id__in=normalized_failed)
-        candidates = queryset.filter(criteria).order_by("id")
+        candidates = list(queryset.filter(criteria).order_by("id"))
+
+    profile_ids = [m.sender_profile_id for m in candidates]
+    profiles_by_id = get_mailing_list_profiles_by_ids(profile_ids)
 
     docs: list[dict[str, Any]] = []
     seen_msg_ids: set[str] = set()
@@ -104,12 +108,13 @@ def preprocess_mailing_list_for_pinecone(
             continue
         seen_msg_ids.add(msg_id)
 
-        content = _build_document_content(message)
+        sender = profiles_by_id.get(message.sender_profile_id)
+        content = _build_document_content(message, sender)
         if not content:
             # Skip unusable empty docs; pipeline also validates chunks.
             continue
 
-        sender_name = _get_sender_display_name(message.sender)
+        sender_name = _get_sender_display_name(sender)
 
         safe_timestamp = int(message.sent_at.timestamp()) if message.sent_at else 0
         metadata: dict[str, Any] = {

@@ -8,21 +8,16 @@ See CONTRIBUTING.md.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from datetime import datetime
 
 from .models import MailingListMessage, MailingListName
-
-if TYPE_CHECKING:  # pragma: no cover
-    from datetime import datetime
-
-    from cppa_user_tracker.models import MailingListProfile
 
 logger = logging.getLogger(__name__)
 
 
 # --- MailingListMessage ---
 def get_or_create_mailing_list_message(
-    sender: MailingListProfile,
+    sender_profile_id: int,
     msg_id: str,
     sent_at: datetime,
     parent_id: str = "",
@@ -33,12 +28,23 @@ def get_or_create_mailing_list_message(
 ) -> tuple[MailingListMessage, bool]:
     """Get or create a MailingListMessage by msg_id (unique).
 
-    If the message already exists (same msg_id), no fields are updated.
-    Returns (message, created).
+      ``sender_profile_id`` is the primary key of a cppa_user_tracker.MailingListProfile
+    (resolve or create profiles via cppa_user_tracker.services).
 
-    Raises:
-        ValueError: If msg_id is empty or whitespace-only, or list_name is not a valid MailingListName.
+      If the message already exists (same msg_id), no fields are updated.
+      Returns (message, created).
+
+      Raises:
+          ValueError: If msg_id is empty or whitespace-only, list_name is invalid,
+              or sender_profile_id is not a positive integer.
     """
+    if (
+        not isinstance(sender_profile_id, int)
+        or isinstance(sender_profile_id, bool)
+        or sender_profile_id < 1
+    ):
+        raise ValueError("sender_profile_id must be a positive integer.")
+
     if not (msg_id and msg_id.strip()):
         raise ValueError("msg_id must not be empty.")
 
@@ -53,7 +59,7 @@ def get_or_create_mailing_list_message(
     return MailingListMessage.objects.get_or_create(
         msg_id=msg_id.strip(),
         defaults={
-            "sender": sender,
+            "sender_profile_id": sender_profile_id,
             "parent_id": parent_id,
             "thread_id": thread_id,
             "subject": subject,

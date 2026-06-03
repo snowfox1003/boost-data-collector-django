@@ -53,13 +53,16 @@ def test_mailing_list_message_links_sender(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<msg-001@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
     )
-    assert msg.sender_id == mailing_list_profile.pk
-    assert msg.sender == mailing_list_profile
+    assert msg.sender_profile_id == mailing_list_profile.pk
+    from cppa_user_tracker.services import get_mailing_list_profile_by_id
+
+    resolved = get_mailing_list_profile_by_id(msg.sender_profile_id)
+    assert resolved == mailing_list_profile
 
 
 @pytest.mark.django_db
@@ -72,7 +75,7 @@ def test_mailing_list_message_stores_msg_id_and_list_name(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<unique-msg@lists.boost.org>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -91,7 +94,7 @@ def test_mailing_list_message_stores_optional_fields(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<with-fields@example.com>",
         sent_at=sample_sent_at,
         parent_id="<parent@example.com>",
@@ -116,7 +119,7 @@ def test_mailing_list_message_has_created_at(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<created-at@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -140,7 +143,7 @@ def test_mailing_list_message_str_with_subject(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<str-subject@example.com>",
         sent_at=sample_sent_at,
         subject="A short subject",
@@ -160,7 +163,7 @@ def test_mailing_list_message_str_fallback_to_msg_id(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<no-subject@example.com>",
         sent_at=sample_sent_at,
         subject="",
@@ -179,7 +182,7 @@ def test_mailing_list_message_msg_id_unique(
     from boost_mailing_list_tracker import services
 
     services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<duplicate@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -187,7 +190,7 @@ def test_mailing_list_message_msg_id_unique(
     with pytest.raises(IntegrityError):
         baker.make(
             "boost_mailing_list_tracker.MailingListMessage",
-            sender=mailing_list_profile,
+            sender_profile_id=mailing_list_profile.pk,
             msg_id="<duplicate@example.com>",
             list_name=default_list_name,
             sent_at=sample_sent_at,
@@ -207,7 +210,7 @@ def test_mailing_list_message_optional_fields_can_be_blank(
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<minimal@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -230,7 +233,7 @@ def test_mailing_list_message_sent_at_null_allowed_at_db_level(
     """MailingListMessage.sent_at is nullable (model allows null)."""
     msg = baker.make(
         "boost_mailing_list_tracker.MailingListMessage",
-        sender=mailing_list_profile,
+        sender_profile_id=mailing_list_profile.pk,
         msg_id="<null-sent@example.com>",
         list_name=default_list_name,
         sent_at=None,
@@ -254,7 +257,7 @@ def test_mailing_list_message_msg_id_max_length(
 
     long_id = "x" * 255
     msg, created = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id=long_id,
         sent_at=sample_sent_at,
         list_name=default_list_name,
@@ -275,7 +278,7 @@ def test_mailing_list_message_subject_max_length(
 
     long_subject = "s" * 1024
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<long-subject@example.com>",
         sent_at=sample_sent_at,
         subject=long_subject,
@@ -295,7 +298,7 @@ def test_mailing_list_message_str_truncates_long_subject(
 
     long_subject = "A" * 70
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<long@example.com>",
         sent_at=sample_sent_at,
         subject=long_subject,
@@ -318,7 +321,7 @@ def test_mailing_list_message_str_exactly_60_char_subject(
 
     subject_60 = "x" * 60
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
+        mailing_list_profile.pk,
         msg_id="<sixty@example.com>",
         sent_at=sample_sent_at,
         subject=subject_60,
@@ -338,13 +341,45 @@ def test_mailing_list_message_invalid_list_name_validation(
     """MailingListMessage full_clean() raises ValidationError for invalid list_name."""
     msg = baker.make(
         "boost_mailing_list_tracker.MailingListMessage",
-        sender=mailing_list_profile,
+        sender_profile_id=mailing_list_profile.pk,
         msg_id="<invalid-list@example.com>",
         list_name="not-a-valid-choice",
         sent_at=sample_sent_at,
     )
     with pytest.raises(ValidationError):
         msg.full_clean()
+
+
+@pytest.mark.django_db
+def test_mailing_list_message_invalid_sender_profile_id_validation(
+    default_list_name,
+    sample_sent_at,
+):
+    """full_clean() rejects sender_profile_id below 1 (MinValueValidator)."""
+    msg = MailingListMessage(
+        sender_profile_id=0,
+        msg_id="<zero-sender@example.com>",
+        list_name=default_list_name,
+        sent_at=sample_sent_at,
+    )
+    with pytest.raises(ValidationError):
+        msg.full_clean()
+
+
+@pytest.mark.django_db
+def test_mailing_list_message_invalid_sender_profile_id_db_constraint(
+    default_list_name,
+    sample_sent_at,
+):
+    """Database CheckConstraint rejects sender_profile_id below 1 on save."""
+    msg = MailingListMessage(
+        sender_profile_id=-1,
+        msg_id="<negative-sender@example.com>",
+        list_name=default_list_name,
+        sent_at=sample_sent_at,
+    )
+    with pytest.raises(IntegrityError):
+        msg.save()
 
 
 @pytest.mark.django_db
@@ -358,7 +393,7 @@ def test_mailing_list_message_empty_msg_id_rejected_by_db(
 
     with pytest.raises(ValueError, match="msg_id must not be empty"):
         services.get_or_create_mailing_list_message(
-            mailing_list_profile,
+            mailing_list_profile.pk,
             msg_id="",
             sent_at=sample_sent_at,
             list_name=default_list_name,
@@ -380,26 +415,26 @@ def test_mailing_list_message_meta():
     assert MailingListMessage._meta.verbose_name_plural == "Mailing list messages"
 
 
-# --- Relations: CASCADE ---
+# --- Relations: soft sender reference ---
 
 
 @pytest.mark.django_db
-def test_mailing_list_message_cascade_when_sender_deleted(
+def test_mailing_list_message_retained_when_sender_profile_deleted(
     mailing_list_profile,
     default_list_name,
     sample_sent_at,
 ):
-    """Deleting sender (MailingListProfile) deletes related MailingListMessage (CASCADE)."""
+    """Deleting MailingListProfile does not delete messages (soft sender_profile_id)."""
     from boost_mailing_list_tracker import services
 
     msg, _ = services.get_or_create_mailing_list_message(
-        mailing_list_profile,
-        msg_id="<cascade@example.com>",
+        mailing_list_profile.pk,
+        msg_id="<soft-ref@example.com>",
         sent_at=sample_sent_at,
         list_name=default_list_name,
     )
     pk = msg.pk
     profile_pk = mailing_list_profile.pk
     mailing_list_profile.delete()
-    assert not MailingListMessage.objects.filter(pk=pk).exists()
-    assert not MailingListMessage.objects.filter(sender_id=profile_pk).exists()
+    assert MailingListMessage.objects.filter(pk=pk).exists()
+    assert MailingListMessage.objects.filter(sender_profile_id=profile_pk).exists()

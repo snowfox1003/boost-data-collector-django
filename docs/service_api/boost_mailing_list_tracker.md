@@ -13,7 +13,7 @@
 | Function | Parameters | Return type | Summary |
 | --- | --- | --- | --- |
 | `delete_mailing_list_message` | message: MailingListMessage | None | Delete a MailingListMessage. |
-| `get_or_create_mailing_list_message` | sender: MailingListProfile, msg_id: str, sent_at: datetime, parent_id: str = '', thread_id: str = '', subject: str = '', content: str = '', list_name: str = '' | tuple[MailingListMessage, bool] | Get or create a MailingListMessage by msg_id (unique). |
+| `get_or_create_mailing_list_message` | sender_profile_id: int, msg_id: str, sent_at: datetime, parent_id: str = '', thread_id: str = '', subject: str = '', content: str = '', list_name: str = '' | tuple[MailingListMessage, bool] | Get or create a MailingListMessage by msg_id (unique). |
 
 <!-- SERVICE_API:GENERATED:END -->
 

@@ -1,8 +1,11 @@
 """
 Models per docs/Schema.md section 5: Boost Mailing List Tracker.
-References cppa_user_tracker.MailingListProfile (section 1) as sender.
+
+Sender identity is stored as a soft reference to cppa_user_tracker.MailingListProfile.pk
+(column sender_id). Resolve profiles via cppa_user_tracker.services.
 """
 
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -15,13 +18,13 @@ class MailingListName(models.TextChoices):
 
 
 class MailingListMessage(models.Model):
-    """Mailing list message (sender -> MailingListProfile, msg_id, subject, content, list_name, sent_at)."""
+    """Mailing list message (sender_profile_id, msg_id, subject, content, list_name, sent_at)."""
 
-    sender = models.ForeignKey(
-        "cppa_user_tracker.MailingListProfile",
-        on_delete=models.CASCADE,
-        related_name="mailing_list_messages",
+    sender_profile_id = models.BigIntegerField(
         db_column="sender_id",
+        db_index=True,
+        validators=[MinValueValidator(1)],
+        help_text="cppa_user_tracker.MailingListProfile primary key (soft reference).",
     )
     msg_id = models.CharField(max_length=255, unique=True, db_index=True)
     parent_id = models.CharField(max_length=255, blank=True, db_index=True)
@@ -41,6 +44,12 @@ class MailingListMessage(models.Model):
         ordering = ["-sent_at"]
         verbose_name = "Mailing list message"
         verbose_name_plural = "Mailing list messages"
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(sender_profile_id__gte=1),
+                name="boost_mailing_list_tracker_sender_profile_id_gte_1",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.list_name}: {self.subject[:60]}" if self.subject else self.msg_id
