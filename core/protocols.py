@@ -17,7 +17,10 @@ compatible.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Mapping, Protocol, runtime_checkable
+
+from core.activity_types import ActivityType, ActorExternalId, SourceSystem
 
 
 @runtime_checkable
@@ -36,19 +39,19 @@ class ActivityRecord(Protocol):
     """Portable activity event (not a Django model)."""
 
     @property
-    def source_system(self) -> str: ...
+    def source_system(self) -> SourceSystem: ...
 
     @property
     def external_id(self) -> str: ...
 
     @property
-    def occurred_at(self) -> str: ...
+    def occurred_at(self) -> datetime | None: ...
 
     @property
-    def activity_type(self) -> str: ...
+    def activity_type(self) -> ActivityType: ...
 
     @property
-    def actor_external_id(self) -> str: ...
+    def actor_external_id(self) -> ActorExternalId: ...
 
     @property
     def source_url(self) -> str | None: ...

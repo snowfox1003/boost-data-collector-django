@@ -9,6 +9,12 @@ from pathlib import Path
 
 import pytest
 
+from core.activity_types import (
+    ActivityType,
+    SourceSystem,
+    actor_external_id,
+    parse_activity_occurred_at,
+)
 from core.protocols import (
     ActivityRecord,
     IncrementalState,
@@ -38,11 +44,11 @@ def test_tracker_result_isinstance_github_dataclass() -> None:
 
 def test_activity_record_isinstance_discord_dataclass() -> None:
     rec = DiscordActivityRecord(
-        source_system="discord",
+        source_system=SourceSystem.DISCORD,
         external_id="1:2:3",
-        occurred_at="2024-01-01T00:00:00Z",
-        activity_type="discord.Default",
-        actor_external_id="99",
+        occurred_at=parse_activity_occurred_at("2024-01-01T00:00:00Z"),
+        activity_type=ActivityType.discord_message("Default"),
+        actor_external_id=actor_external_id("99"),
         source_url="https://discord.com/channels/1/2/3",
         summary="hi",
     )
@@ -97,6 +103,45 @@ def test_pyright_positive_protocol_assignment_file() -> None:
     if proc.returncode != 0 and "No module named pyright" in (proc.stderr or ""):
         pytest.skip("pyright not installed (pip install -r requirements-dev.lock)")
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_pyright_negative_activity_record_assignment_file(tmp_path: Path) -> None:
+    src = _TYPING_DIR / "activity_record_assignment_negative.py"
+    dest = tmp_path / "activity_record_assignment_negative.py"
+    dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    cfg_path = tmp_path / "pyrightconfig.json"
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "include": ["activity_record_assignment_negative.py"],
+                "exclude": [],
+                "pythonVersion": "3.13",
+                "typeCheckingMode": "basic",
+                "reportMissingImports": True,
+                "executionEnvironments": [
+                    {
+                        "root": str(tmp_path.resolve()),
+                        "extraPaths": [str(_REPO_ROOT.resolve())],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, "-m", "pyright", "--project", str(tmp_path)],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    stderr = proc.stderr or ""
+    if "No module named pyright" in stderr:
+        pytest.skip("pyright not installed (pip install -r requirements-dev.lock)")
+    assert proc.returncode != 0, (
+        "expected pyright errors for activity_record_assignment_negative.py; "
+        f"stdout={proc.stdout!r} stderr={stderr!r}"
+    )
 
 
 def test_pyright_negative_protocol_assignment_file(tmp_path: Path) -> None:

@@ -14,11 +14,11 @@ Portable activity event (not a Django model).
 
 | Property | Type |
 | --- | --- |
-| `source_system` | str |
+| `source_system` | SourceSystem |
 | `external_id` | str |
-| `occurred_at` | str |
-| `activity_type` | str |
-| `actor_external_id` | str |
+| `occurred_at` | datetime \| None |
+| `activity_type` | ActivityType |
+| `actor_external_id` | ActorExternalId |
 | `source_url` | str \| None |
 | `summary` | str |
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from core.activity_types import ActivityType, SourceSystem
 from core.protocols import ActivityRecord, IncrementalState
 
 from discord_activity_tracker.protocol_impl import (
@@ -50,5 +51,6 @@ def test_discord_activity_record_from_converted_export_dict():
     rec = DiscordActivityRecord.from_converted_export_dict(
         converted, server_id=1, channel_id=2
     )
-    assert rec.actor_external_id == "7"
-    assert rec.activity_type == "discord.Reply"
+    assert str(rec.actor_external_id) == "7"
+    assert rec.activity_type == ActivityType.discord_message("Reply")
+    assert rec.source_system is SourceSystem.DISCORD

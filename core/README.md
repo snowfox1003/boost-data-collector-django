@@ -12,7 +12,7 @@
 | Tests | [`tests/`](tests/) | _(no README — run pytest below)_ |
 | Management commands | [`management/commands/`](management/commands/) | [Management commands](#management-commands) (this file) |
 
-**Top-level modules** (no subfolder): [`errors.py`](errors.py) (`classify_failure`), [`protocols.py`](protocols.py) (portable DTO protocols), [`workspace_orphans.py`](workspace_orphans.py) (workspace cleanup helpers). [`models.py`](models.py) is intentionally empty — **no domain tables** live in `core`.
+**Top-level modules** (no subfolder): [`errors.py`](errors.py) (`classify_failure`), [`protocols.py`](protocols.py) (portable DTO protocols), [`activity_types.py`](activity_types.py) (typed `ActivityRecord` fields and legacy migration helpers), [`workspace_orphans.py`](workspace_orphans.py) (workspace cleanup helpers). [`models.py`](models.py) is intentionally empty — **no domain tables** live in `core`.
 
 Other folders: [`migrations/`](migrations/) (no models today), [`pyright_samples/`](pyright_samples/) (protocol typing samples for Pyright, not runtime tests).
 

@@ -49,6 +49,7 @@ Structural contracts for **data** that crosses tracker layers (sync outcomes, ac
 |--------|---------|
 | `core.protocols.TrackerResult` | `@runtime_checkable` protocol: `success`, `counts` (`Mapping[str, int]`). |
 | `core.protocols.ActivityRecord` | `@runtime_checkable` protocol: portable activity row (`source_system`, `external_id`, `occurred_at`, …). |
+| `core.activity_types` | Typed `ActivityRecord` fields: `SourceSystem`, `ActivityType`, `ActorExternalId`, UTC `occurred_at` helpers, and `migrate_legacy_activity_fields` / `activity_record_to_legacy_dict` for string payloads. |
 | `core.protocols.IncrementalState` | `@runtime_checkable` protocol: `checkpoint_token`, `human_readable_marker`, `extras`. |
 | `core.protocols.require_tracker_result` / `require_activity_record` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
 
