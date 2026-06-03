@@ -1,5 +1,6 @@
 # Generated manually for identity-hub decoupling (soft sender_profile_id).
 
+import django.core.validators
 from django.db import migrations, models
 
 
@@ -55,11 +56,18 @@ class Migration(migrations.Migration):
                     field=models.BigIntegerField(
                         db_column="sender_id",
                         db_index=True,
-                        default=0,
+                        validators=[django.core.validators.MinValueValidator(1)],
                         help_text="cppa_user_tracker.MailingListProfile primary key (soft reference).",
                     ),
                     preserve_default=False,
                 ),
             ],
+        ),
+        migrations.AddConstraint(
+            model_name="mailinglistmessage",
+            constraint=models.CheckConstraint(
+                check=models.Q(("sender_profile_id__gte", 1)),
+                name="boost_mailing_list_tracker_sender_profile_id_gte_1",
+            ),
         ),
     ]

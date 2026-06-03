@@ -351,6 +351,38 @@ def test_mailing_list_message_invalid_list_name_validation(
 
 
 @pytest.mark.django_db
+def test_mailing_list_message_invalid_sender_profile_id_validation(
+    default_list_name,
+    sample_sent_at,
+):
+    """full_clean() rejects sender_profile_id below 1 (MinValueValidator)."""
+    msg = MailingListMessage(
+        sender_profile_id=0,
+        msg_id="<zero-sender@example.com>",
+        list_name=default_list_name,
+        sent_at=sample_sent_at,
+    )
+    with pytest.raises(ValidationError):
+        msg.full_clean()
+
+
+@pytest.mark.django_db
+def test_mailing_list_message_invalid_sender_profile_id_db_constraint(
+    default_list_name,
+    sample_sent_at,
+):
+    """Database CheckConstraint rejects sender_profile_id below 1 on save."""
+    msg = MailingListMessage(
+        sender_profile_id=-1,
+        msg_id="<negative-sender@example.com>",
+        list_name=default_list_name,
+        sent_at=sample_sent_at,
+    )
+    with pytest.raises(IntegrityError):
+        msg.save()
+
+
+@pytest.mark.django_db
 def test_mailing_list_message_empty_msg_id_rejected_by_db(
     mailing_list_profile,
     default_list_name,

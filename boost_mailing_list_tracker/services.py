@@ -38,7 +38,11 @@ def get_or_create_mailing_list_message(
           ValueError: If msg_id is empty or whitespace-only, list_name is invalid,
               or sender_profile_id is not a positive integer.
     """
-    if sender_profile_id < 1:
+    if (
+        not isinstance(sender_profile_id, int)
+        or isinstance(sender_profile_id, bool)
+        or sender_profile_id < 1
+    ):
         raise ValueError("sender_profile_id must be a positive integer.")
 
     if not (msg_id and msg_id.strip()):

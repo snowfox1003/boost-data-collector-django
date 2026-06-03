@@ -86,7 +86,12 @@ def test_get_or_create_mailing_list_message_empty_msg_id_raises(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "sender_profile_id",
+    [0, -1, True, "42", None],
+)
 def test_get_or_create_mailing_list_message_invalid_sender_profile_id_raises(
+    sender_profile_id,
     default_list_name,
     sample_sent_at,
 ):
@@ -95,7 +100,7 @@ def test_get_or_create_mailing_list_message_invalid_sender_profile_id_raises(
         ValueError, match="sender_profile_id must be a positive integer"
     ):
         services.get_or_create_mailing_list_message(
-            0,
+            sender_profile_id,
             msg_id="<msg@example.com>",
             sent_at=sample_sent_at,
             list_name=default_list_name,
