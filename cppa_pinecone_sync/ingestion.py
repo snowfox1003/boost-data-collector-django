@@ -48,12 +48,14 @@ class PineconeIngestion:
                 Default is public.
             client: Optional Pinecone client adapter (for tests). When omitted,
                 a production ``PineconeAdapter`` is created lazily on first use.
+                Injected clients skip API-key validation in ``_validate_config``.
         """
         if client is None:
             ensure_pinecone_available()
 
         self.instance = instance
         self._client: PineconeClientProtocol | None = client
+        self._injected_client = client is not None
         self._client_initialized = client is not None
         self._api_key: str = getattr(settings, "PINECONE_API_KEY", "")
         self._private_api_key: str = getattr(settings, "PINECONE_PRIVATE_API_KEY", "")
@@ -110,6 +112,8 @@ class PineconeIngestion:
                 "Set PINECONE_INDEX_NAME in .env (e.g. PINECONE_INDEX_NAME=boost-dashboard) "
                 "to enable Pinecone sync."
             )
+        if self._injected_client:
+            return
         active_key = self._active_api_key
         if not (active_key or "").strip():
             key_name = (

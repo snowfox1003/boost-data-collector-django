@@ -67,6 +67,7 @@ def test_validate_config_missing_public_key(pinecone_settings):
         ing = PineconeIngestion.__new__(PineconeIngestion)
         ing.index_name = "x"
         ing.instance = PineconeInstance.PUBLIC
+        ing._injected_client = False
         ing._api_key = ""
         ing._private_api_key = "priv"
         with pytest.raises(ValueError, match="PINECONE_API_KEY"):
@@ -78,10 +79,21 @@ def test_validate_config_missing_private_key(pinecone_settings):
         ing = PineconeIngestion.__new__(PineconeIngestion)
         ing.index_name = "x"
         ing.instance = PineconeInstance.PRIVATE
+        ing._injected_client = False
         ing._private_api_key = ""
         ing._api_key = "pub"
         with pytest.raises(ValueError, match="PINECONE_PRIVATE_API_KEY"):
             ing._validate_config()
+
+
+def test_injected_client_skips_api_key_validation(pinecone_settings, fake_client):
+    with override_settings(PINECONE_API_KEY="", PINECONE_PRIVATE_API_KEY=""):
+        ing = PineconeIngestion(client=fake_client)
+    ing._dense_index_initialized = False
+    ing._sparse_index_initialized = False
+    ing._get_or_create_indexes()
+    assert ing.dense_index is not None
+    assert ing.sparse_index is not None
 
 
 def test_is_valid_chunk_and_helpers(ingestion):
@@ -228,11 +240,14 @@ def test_format_single_index_stats():
 
 
 def test_ensure_pinecone_client_connection_error(pinecone_settings):
-    ing = PineconeIngestion()
-    with patch(
-        "cppa_pinecone_sync.ingestion.PineconeAdapter.from_api_key",
-        side_effect=RuntimeError("bad key"),
+    with (
+        patch("cppa_pinecone_sync.ingestion.ensure_pinecone_available"),
+        patch(
+            "cppa_pinecone_sync.ingestion.PineconeAdapter.from_api_key",
+            side_effect=RuntimeError("bad key"),
+        ),
     ):
+        ing = PineconeIngestion()
         ing._client_initialized = False
         ing._client = None
         with pytest.raises(ConnectionError, match="Cannot connect"):
