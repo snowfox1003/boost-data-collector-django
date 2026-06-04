@@ -320,7 +320,7 @@ class BoostMailingListTrackerCollector(AbstractCollector):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Done: {self._created_count} created, {self._skipped_count} skipped "
-                "(already existed or empty)."
+                "(already existed, missing msg_id, or invalid)."
             )
         )
         logger.info(
