@@ -1,21 +1,44 @@
 # Deployment
 
-This project uses a GitHub Actions CI/CD pipeline that automatically deploys to a remote server over SSH after the CI workflow passes.
+This project uses a GitHub Actions CI/CD pipeline that deploys to a remote server over SSH after the **CI** workflow succeeds on `push`, or when **Deploy** is run manually.
 
 ## Overview
 
 ```
 Push to main/develop
       ↓
-CI workflow (lint, Pyright, tests)
-      ↓ on success
-Deploy workflow
+CI workflow ("CI": lint, Pyright, tests)
+      ↓ on success (push only)
+Deploy workflow (workflow_run)
       ↓
-SSH into server → pull latest code → restart containers
+SSH into server → curl deploy.sh → bash on server
+      ↓
+git pull repo → make down / build / up / health
 ```
 
-- **`develop`** branch deploys to the **staging** environment.
-- **`main`** branch deploys to the **production** environment.
+Manual trigger:
+
+```
+Actions → Deploy → Run workflow (branch: develop|main)
+```
+
+- **`develop`** → GitHub Environment **`staging`** (staging server secrets).
+- **`main`** → GitHub Environment **`production`** (production server secrets).
+
+Workflow definition: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml).
+
+### Deploy workflow behavior
+
+| Trigger | When Deploy runs |
+| ------- | ---------------- |
+| **`workflow_run`** | After workflow **CI** completes with `conclusion: success` on `main` or `develop`, and the run was triggered by **`push`** (not PR-only CI). |
+| **`workflow_dispatch`** | Operator chooses **`develop`** or **`main`** in the Actions UI (`inputs.ref`). |
+
+- **Concurrency:** one deploy per branch (`deploy-${{ branch }}`); in-progress deploys are not cancelled.
+- **Job timeout:** 20 minutes.
+- **On the runner:** the job selects the environment from the branch, then uses [appleboy/ssh-action](https://github.com/appleboy/ssh-action) with environment secrets (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, optional `SSH_PORT`, `SSH_KEY_PASSPHRASE`).
+- **Deploy script URL:** `DEPLOY_SCRIPT_URL` if set; otherwise the default raw URL for [`.github/workflows/deploy-script/deploy.sh`](../.github/workflows/deploy-script/deploy.sh) at the triggering commit (`workflow_run.head_sha`) or at the dispatched branch ref (`workflow_dispatch` input).
+- **Script download:** `curl` with optional `Authorization: token` when `DEPLOY_SCRIPT_TOKEN` is set; then `bash` on the server with `REPO_URL`, `BRANCH`, and `SCRIPT_URL` passed from the workflow.
 
 ---
 
@@ -53,7 +76,7 @@ These can stay as **Repository secrets** (Settings → Secrets and variables →
 | Secret                | Description                                                                                                                   |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `DEPLOY_SCRIPT_TOKEN` | Token to authenticate downloading a custom `deploy.sh`. Required only if `DEPLOY_SCRIPT_URL` is set and needs authentication. |
-| `DEPLOY_SCRIPT_URL`   | Override the deploy script URL. Defaults to `deploy.sh` at the current commit SHA.                                            |
+| `DEPLOY_SCRIPT_URL`   | Override the deploy script URL. If unset, Deploy uses this repo’s [`.github/workflows/deploy-script/deploy.sh`](../.github/workflows/deploy-script/deploy.sh) at `workflow_run.head_sha` or the `workflow_dispatch` branch ref. |
 
 ---
 
@@ -424,7 +447,7 @@ Then open **http://localhost:7900**, sign in to Slack, stop `slack-chromium`, an
 
 ## Deploy Script Behavior
 
-The deploy script (`.github/workflows/deploy-script/deploy.sh`) runs on the remote server and does the following:
+The deploy script ([`.github/workflows/deploy-script/deploy.sh`](../.github/workflows/deploy-script/deploy.sh), or the URL from `DEPLOY_SCRIPT_URL`) runs on the remote server after the SSH step downloads it (see [Deploy workflow behavior](#deploy-workflow-behavior)). It does the following:
 
 1. Validates `REPO_URL` and `BRANCH` are set.
 2. Checks that `git` and `make` are installed.
@@ -437,7 +460,7 @@ The deploy script (`.github/workflows/deploy-script/deploy.sh`) runs on the remo
 
 ### Overriding the deploy directory
 
-By default the repo is cloned into `/opt/boost-data-collector`. To use a different path, set `DEPLOY_DIR` as an environment variable on the server or pass it via the `envs:` parameter in `deploy.yml`.
+By default the repo is cloned into `/opt/boost-data-collector`. To use a different path, set `DEPLOY_DIR` as an environment variable on the server. The [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) SSH step does not pass `DEPLOY_DIR`; configure it on the host if needed.
 
 ---
 
