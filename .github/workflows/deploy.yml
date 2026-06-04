@@ -5,24 +5,37 @@ on:
     workflows: ["CI"]
     branches: [main, develop]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to deploy (develop or main)
+        required: true
+        type: choice
+        options:
+          - develop
+          - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event.workflow_run.head_branch }}
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: >
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ github.event.workflow_run.head_branch == 'main' && 'production' || (github.event.workflow_run.head_branch == 'develop' && 'staging' || '')}}
+    environment: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.ref == 'main' || github.event.workflow_run.head_branch == 'main') && 'production' || ((github.event_name == 'workflow_dispatch' && github.event.inputs.ref == 'develop' || github.event.workflow_run.head_branch == 'develop') && 'staging' || '') }}
     env:
-      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.workflow_run.head_branch }}
       REPO_URL: https://github.com/${{ github.repository }}.git
-      SCRIPT_URL: ${{ secrets.DEPLOY_SCRIPT_URL || format('https://raw.githubusercontent.com/{0}/{1}/.github/workflows/deploy-script/deploy.sh', github.repository, github.event.workflow_run.head_sha) }}
+      SCRIPT_URL: ${{ secrets.DEPLOY_SCRIPT_URL || format('https://raw.githubusercontent.com/{0}/{1}/.github/workflows/deploy-script/deploy.sh', github.repository, github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.event.workflow_run.head_sha) }}
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
