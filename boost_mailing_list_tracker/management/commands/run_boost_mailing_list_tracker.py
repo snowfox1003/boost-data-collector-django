@@ -76,18 +76,20 @@ def _run_pinecone_sync(app_type: str, namespace: str) -> None:
         )
 
 
-def _persist_email(email_data: dict) -> tuple[bool, bool]:
-    """Persist one formatted email dict to DB. Returns (message_created, skipped).
+def _persist_email(email_data: dict) -> tuple[bool, bool, bool]:
+    """Persist one formatted email dict to DB.
 
-    Sender is identified by email (sender_address); display_name is used only when creating.
-    Skips rows with missing/invalid sender_address or sent_at.
+    Returns:
+        (message_created, skipped, persist_failed). ``skipped`` is True for
+        intentional no-ops (empty msg_id, duplicate). ``persist_failed`` is True
+        when a DB write raised; callers must keep workspace JSON for retry.
     """
     msg_id = _clean_text(email_data.get("msg_id", "")).strip()
     if not msg_id:
-        return False, True
+        return False, True, False
 
     if MailingListMessage.objects.filter(msg_id=msg_id).exists():
-        return False, True
+        return False, True, False
 
     list_name = _clean_text(email_data.get("list_name", "")).strip()
     sender_name = _clean_text(email_data.get("sender_name", "")).strip()
@@ -133,7 +135,7 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
             list_name,
             e,
         )
-        return False, True
+        return False, False, True
     if error_reason:
         logger.warning(
             "Incomplete email: msg_id=%s, list_name=%s, reason=%s",
@@ -141,7 +143,7 @@ def _persist_email(email_data: dict) -> tuple[bool, bool]:
             list_name,
             error_reason,
         )
-    return was_created, False
+    return was_created, False, False
 
 
 def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
@@ -155,7 +157,9 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
             fail_this_file = False
             for formatted_email in formatted_data:
                 try:
-                    _persist_email(formatted_email)
+                    _was_created, _skipped, persist_failed = _persist_email(
+                        formatted_email
+                    )
                 except Exception:
                     fail_this_file = True
                     logger.exception(
@@ -164,6 +168,10 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
                         formatted_email.get("msg_id", "?"),
                         formatted_email.get("subject", "?"),
                     )
+                    skipped += 1
+                    continue
+                if persist_failed:
+                    fail_this_file = True
                     skipped += 1
             if not fail_this_file:
                 path.unlink()
@@ -286,12 +294,13 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                     encoding="utf-8",
                 )
 
-                was_created, skipped = _persist_email(email_data)
+                was_created, skipped, persist_failed = _persist_email(email_data)
                 if was_created:
                     self._created_count += 1
                 elif skipped:
                     self._skipped_count += 1
-                json_path.unlink(missing_ok=True)
+                if not persist_failed:
+                    json_path.unlink(missing_ok=True)
             except (
                 json.JSONDecodeError,
                 TypeError,

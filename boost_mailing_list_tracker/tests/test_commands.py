@@ -38,9 +38,10 @@ def test_persist_email_creates_message():
     )
 
     email_data = _valid_email_data(msg_id="<create-me@example.com>")
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is True
     assert skipped is False
+    assert persist_failed is False
     assert MailingListMessage.objects.filter(msg_id="<create-me@example.com>").exists()
 
 
@@ -53,14 +54,16 @@ def test_persist_email_skips_when_msg_id_empty():
 
     email_data = _valid_email_data()
     email_data["msg_id"] = ""
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is False
     assert skipped is True
+    assert persist_failed is False
 
     email_data["msg_id"] = "   "
-    was_created2, skipped2 = _persist_email(email_data)
+    was_created2, skipped2, persist_failed2 = _persist_email(email_data)
     assert was_created2 is False
     assert skipped2 is True
+    assert persist_failed2 is False
 
 
 @pytest.mark.django_db
@@ -71,13 +74,15 @@ def test_persist_email_skips_duplicate_msg_id():
     )
 
     email_data = _valid_email_data(msg_id="<duplicate@example.com>")
-    was_created1, skipped1 = _persist_email(email_data)
+    was_created1, skipped1, persist_failed1 = _persist_email(email_data)
     assert was_created1 is True
     assert skipped1 is False
+    assert persist_failed1 is False
 
-    was_created2, skipped2 = _persist_email(email_data)
+    was_created2, skipped2, persist_failed2 = _persist_email(email_data)
     assert was_created2 is False
     assert skipped2 is True
+    assert persist_failed2 is False
     assert (
         MailingListMessage.objects.filter(msg_id="<duplicate@example.com>").count() == 1
     )
@@ -93,9 +98,10 @@ def test_persist_email_persists_with_invalid_sent_at():
     email_data = _valid_email_data(
         msg_id="<bad-date@example.com>", sent_at_str="not-a-date"
     )
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is True
     assert skipped is False
+    assert persist_failed is False
     msg = MailingListMessage.objects.get(msg_id="<bad-date@example.com>")
     assert msg.sent_at is None
 
@@ -115,9 +121,10 @@ def test_persist_email_creates_profile_and_message():
     )
     email_data["sender_name"] = "Brand New"
     email_data["sender_address"] = "brandnew@example.com"
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is True
     assert skipped is False
+    assert persist_failed is False
     assert MailingListProfile.objects.filter(display_name="Brand New").exists()
     assert MailingListProfile.objects.count() >= initial_profiles + 1
 
@@ -163,25 +170,27 @@ def test_persist_email_missing_sender_address_logs_incomplete(
     caplog.set_level(logging.WARNING)
     email_data = _valid_email_data(msg_id="<no-addr@example.com>")
     email_data["sender_address"] = ""
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is True
     assert skipped is False
+    assert persist_failed is False
     assert MailingListMessage.objects.filter(msg_id="<no-addr@example.com>").exists()
     assert any("Incomplete email" in r.message for r in caplog.records)
     assert any("missing sender_address" in r.message for r in caplog.records)
 
 
 @pytest.mark.django_db
-def test_persist_email_invalid_list_name_returns_skipped():
+def test_persist_email_invalid_list_name_returns_persist_failed():
     from boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker import (
         _persist_email,
     )
 
     email_data = _valid_email_data(msg_id="<bad-list@example.com>")
     email_data["list_name"] = ""
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is False
-    assert skipped is True
+    assert skipped is False
+    assert persist_failed is True
     assert not MailingListMessage.objects.filter(
         msg_id="<bad-list@example.com>"
     ).exists()
@@ -337,6 +346,41 @@ def test_collector_run_writes_raw_and_removes_message_json(tmp_path):
 
 
 @pytest.mark.django_db
+def test_collector_run_keeps_message_json_when_persist_fails(tmp_path):
+    from django.core.management import call_command
+
+    email_row = _valid_email_data(msg_id="<persist-fail@example.com>")
+    msg_json = tmp_path / "msg.json"
+    raw_json = tmp_path / "raw.json"
+
+    with patch(
+        "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker.fetch_all_emails",
+        return_value=[email_row],
+    ):
+        with patch(
+            "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker.get_message_json_path",
+            return_value=msg_json,
+        ):
+            with patch(
+                "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker.get_raw_json_path",
+                return_value=raw_json,
+            ):
+                with patch(
+                    "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker._persist_email",
+                    return_value=(False, False, True),
+                ):
+                    with patch(
+                        "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker._run_pinecone_sync"
+                    ):
+                        call_command("run_boost_mailing_list_tracker")
+
+    assert msg_json.is_file()
+    assert not MailingListMessage.objects.filter(
+        msg_id="<persist-fail@example.com>"
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_collector_run_skips_empty_msg_id_and_duplicate(tmp_path):
     from django.core.management import call_command
 
@@ -382,6 +426,32 @@ def test_collector_run_skips_empty_msg_id_and_duplicate(tmp_path):
         MailingListMessage.objects.filter(msg_id="<dup-collector@example.com>").count()
         == 1
     )
+
+
+@pytest.mark.django_db
+def test_process_existing_workspace_json_keeps_file_when_persist_failed(tmp_path):
+    from boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker import (
+        _process_existing_workspace_json,
+    )
+
+    list_name = MailingListName.BOOST_USERS.value
+    msg_path = (
+        tmp_path / "boost_mailing_list_tracker" / list_name / "messages" / "fail.json"
+    )
+    msg_path.parent.mkdir(parents=True)
+    msg_path.write_text('[{"msg_id": "<x@y>"}]', encoding="utf-8")
+    with patch(
+        "boost_mailing_list_tracker.workspace.get_workspace_path",
+        side_effect=lambda slug: tmp_path / slug,
+    ):
+        with patch(
+            "boost_mailing_list_tracker.management.commands.run_boost_mailing_list_tracker._persist_email",
+            return_value=(False, False, True),
+        ):
+            processed, skipped = _process_existing_workspace_json(list_name)
+    assert processed == 1
+    assert skipped == 1
+    assert msg_path.is_file()
 
 
 @pytest.mark.django_db
@@ -469,9 +539,10 @@ def test_persist_email_unknown_sender_display_from_email_local_part():
     email_data = _valid_email_data(msg_id="<localpart@example.com>")
     email_data["sender_name"] = ""
     email_data["sender_address"] = "someone@example.org"
-    was_created, skipped = _persist_email(email_data)
+    was_created, skipped, persist_failed = _persist_email(email_data)
     assert was_created is True
     assert skipped is False
+    assert persist_failed is False
     profile = MailingListProfile.objects.filter(
         emails__email="someone@example.org",
         display_name="someone",
