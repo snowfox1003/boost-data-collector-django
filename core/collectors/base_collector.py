@@ -2,8 +2,9 @@
 Structured collector contract: ``name``, ``validate_config``, ``collect``.
 
 :class:`AbstractCollector` uses :class:`_CollectorLifecycleMixin` for
-``handle_error`` / ``sync_pinecone`` so :class:`core.collectors.command_base.BaseCollectorCommand`
-can invoke ``run`` then ``sync_pinecone`` unchanged.
+``pre_collect`` / ``post_collect`` / ``on_error`` / ``handle_error`` / ``sync_pinecone``
+so :class:`core.collectors.command_base.BaseCollectorCommand` can invoke ``run`` then
+``sync_pinecone`` unchanged.
 """
 
 from __future__ import annotations
@@ -42,11 +43,11 @@ class CollectorRunnable(Protocol):
 
 class _CollectorLifecycleMixin:
     """
-    Shared ``handle_error`` / ``sync_pinecone`` for collector implementations.
+    Shared lifecycle hooks for collector implementations.
 
-    Uses :func:`core.errors.classify_failure` (not a method on
-    :class:`~core.errors.CollectorFailureCategory`) so log ``extra`` includes a stable
-    ``failure_category`` enum value.
+    Override points: :meth:`pre_collect`, :meth:`post_collect`, :meth:`on_error`,
+    :meth:`handle_error`, :meth:`sync_pinecone`. Defaults are no-ops except
+    :meth:`handle_error`, which logs via :func:`core.errors.classify_failure`.
 
     **``_error_phase``:** Set only by :class:`~core.collectors.command_base.BaseCollectorCommand`
     around each phase; used when logging. If :func:`~core.errors.classify_failure`
@@ -56,6 +57,42 @@ class _CollectorLifecycleMixin:
     **Intentional gaps:** Many domain or SDK exceptions map to ``unknown``. Override
     :meth:`handle_error` when you need a different category or extra context.
     """
+
+    def pre_collect(self) -> None:
+        """
+        Optional setup before :meth:`~AbstractCollector.validate_config`.
+
+        Use for incremental state checks, backlog processing, or startup logging.
+        Default is no-op.
+
+        Returns:
+            None
+        """
+        return None
+
+    def post_collect(self) -> None:
+        """
+        Optional teardown or reporting after :meth:`~AbstractCollector.collect` succeeds.
+
+        Default is no-op.
+
+        Returns:
+            None
+        """
+        return None
+
+    def on_error(self, exc: BaseException) -> None:
+        """
+        Optional collector-specific error hook when :meth:`~AbstractCollector.run` fails.
+
+        Args:
+            exc: The exception from a step inside :meth:`~AbstractCollector.run`.
+                Must not be swallowed — :meth:`run` always re-raises after this hook.
+
+        Returns:
+            None
+        """
+        return None
 
     def handle_error(self, exc: BaseException) -> None:
         """
@@ -98,13 +135,24 @@ class _CollectorLifecycleMixin:
 
 class AbstractCollector(_CollectorLifecycleMixin, ABC):
     """
-    Structured collector: stable ``name``, ``validate_config``, then ``collect``.
+    Structured collector: stable ``name``, lifecycle hooks, then ``collect``.
 
-    :meth:`run` calls ``validate_config`` then ``collect`` so management commands
-    keep using :class:`core.collectors.command_base.BaseCollectorCommand` unchanged.
+    :meth:`run` orchestrates ``pre_collect`` → ``validate_config`` → ``collect`` →
+    ``post_collect``. On failure, :meth:`on_error` runs then the exception propagates.
+    Management commands use :class:`core.collectors.command_base.BaseCollectorCommand`
+    to call :meth:`run` then :meth:`sync_pinecone`.
 
-    Override :meth:`handle_error` only when :func:`classify_failure` does not map your
-    domain errors cleanly; logs still use :class:`CollectorFailureCategory` values.
+    Hook responsibilities:
+
+    - ``validate_config()`` — light env/CLI checks only (no heavy I/O).
+    - ``pre_collect()`` — pre-fetch, incremental state, startup logging.
+    - ``collect()`` — main fetch/transform/persist work (via services).
+    - ``post_collect()`` — summary stdout, metrics, non-Pinecone teardown.
+    - ``on_error(exc)`` — partial-state cleanup; must not swallow *exc*.
+    - ``sync_pinecone()`` — vector sync after successful :meth:`run` (command layer).
+
+    Do not override :meth:`run`. Override :meth:`handle_error` only when
+    :func:`classify_failure` does not map your domain errors cleanly.
     """
 
     @property
@@ -128,7 +176,7 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
 
         Raises:
             Exception: Typically validation-related errors; should not perform
-                heavy I/O—keep that in :meth:`collect` via services.
+                heavy I/O—keep that in :meth:`pre_collect` or :meth:`collect` via services.
         """
 
     @abstractmethod
@@ -149,5 +197,20 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
         """
 
     def run(self) -> None:
-        self.validate_config()
-        self.collect()
+        try:
+            self.pre_collect()
+            self.validate_config()
+            self.collect()
+            self.post_collect()
+        except Exception as exc:
+            try:
+                self.on_error(exc)
+            except Exception:
+                collector_id = getattr(self, "name", None)
+                if not isinstance(collector_id, str) or not collector_id:
+                    collector_id = self.__class__.__name__
+                logger.exception(
+                    "Collector on_error hook failed: collector=%s",
+                    collector_id,
+                )
+            raise

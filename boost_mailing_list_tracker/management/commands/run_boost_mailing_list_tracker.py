@@ -207,21 +207,17 @@ class BoostMailingListTrackerCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
-        start_date = self.start_date
-        end_date = self.end_date
-        dry_run = self.dry_run
-
+    def pre_collect(self) -> None:
         logger.info(
             "run_boost_mailing_list_tracker: starting (start_date=%s, end_date=%s, dry_run=%s)",
-            start_date or "none",
-            end_date or "none",
-            dry_run,
+            self.start_date or "none",
+            self.end_date or "none",
+            self.dry_run,
         )
 
         list_names = [u.split("/")[-3] for u in BOOST_LIST_URLS]
 
-        if not dry_run:
+        if not self.dry_run:
             total_existing = 0
             total_skipped = 0
             for list_name in list_names:
@@ -237,13 +233,22 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                 total_existing,
             )
 
-        if not (start_date and start_date.strip()):
-            start_date = _get_start_date_from_db()
-            if start_date:
+        self._resolved_start_date = self.start_date
+        if not (self._resolved_start_date and self._resolved_start_date.strip()):
+            self._resolved_start_date = _get_start_date_from_db()
+            if self._resolved_start_date:
                 logger.info(
                     "run_boost_mailing_list_tracker: using start_date from DB (latest sent_at): %s",
-                    start_date,
+                    self._resolved_start_date,
                 )
+
+    def collect(self) -> None:
+        end_date = self.end_date
+        start_date = self._resolved_start_date
+
+        self._fetched_email_count = 0
+        self._created_count = 0
+        self._skipped_count = 0
 
         self.stdout.write("Fetching emails from Boost mailing list archives...")
         emails = fetch_all_emails(start_date=start_date, end_date=end_date)
@@ -254,23 +259,16 @@ class BoostMailingListTrackerCollector(AbstractCollector):
             emails = []
 
         self.stdout.write(f"Fetched {len(emails)} emails from API.")
+        self._fetched_email_count = len(emails)
 
-        if dry_run:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Dry run: would process {len(emails)} emails. No DB or workspace writes."
-                )
-            )
+        if self.dry_run:
             return
-
-        created_count = 0
-        skipped_count = 0
 
         for email_data in emails:
             msg_id = email_data.get("msg_id", "")
             list_name = email_data.get("list_name", "")
             if not msg_id:
-                skipped_count += 1
+                self._skipped_count += 1
                 continue
 
             json_path = get_message_json_path(list_name, msg_id)
@@ -290,9 +288,9 @@ class BoostMailingListTrackerCollector(AbstractCollector):
 
                 was_created, skipped = _persist_email(email_data)
                 if was_created:
-                    created_count += 1
+                    self._created_count += 1
                 elif skipped:
-                    skipped_count += 1
+                    self._skipped_count += 1
                 json_path.unlink(missing_ok=True)
             except (
                 json.JSONDecodeError,
@@ -301,7 +299,7 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                 KeyError,
                 AttributeError,
             ) as e:
-                skipped_count += 1
+                self._skipped_count += 1
                 logger.warning(
                     "Skipping malformed email list_name=%s msg_id=%s: %s",
                     list_name,
@@ -309,15 +307,26 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                     e,
                 )
 
+    def post_collect(self) -> None:
+        if self.dry_run:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Dry run: would process {self._fetched_email_count} emails. "
+                    "No DB or workspace writes."
+                )
+            )
+            return
+
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done: {created_count} created, {skipped_count} skipped (already existed or empty)."
+                f"Done: {self._created_count} created, {self._skipped_count} skipped "
+                "(already existed or empty)."
             )
         )
         logger.info(
             "run_boost_mailing_list_tracker: finished; created=%d, skipped=%d",
-            created_count,
-            skipped_count,
+            self._created_count,
+            self._skipped_count,
         )
 
     def sync_pinecone(self) -> None:

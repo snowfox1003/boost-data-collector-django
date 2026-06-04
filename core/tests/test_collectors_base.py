@@ -206,7 +206,7 @@ def test_base_collector_command_double_fault_clears_error_phase():
     assert not hasattr(held["c"], "_error_phase")
 
 
-def test_abstract_collector_run_calls_validate_then_collect():
+def test_abstract_collector_run_calls_hooks_in_order():
     order = []
 
     class AC(AbstractCollector):
@@ -214,14 +214,242 @@ def test_abstract_collector_run_calls_validate_then_collect():
         def name(self) -> str:
             return "ac_test"
 
+        def pre_collect(self) -> None:
+            order.append("pre_collect")
+
         def validate_config(self) -> None:
             order.append("validate")
 
         def collect(self) -> None:
             order.append("collect")
 
+        def post_collect(self) -> None:
+            order.append("post_collect")
+
     AC().run()
-    assert order == ["validate", "collect"]
+    assert order == ["pre_collect", "validate", "collect", "post_collect"]
+
+
+def test_abstract_collector_run_default_hooks_are_no_ops():
+    class Minimal(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "minimal"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            return None
+
+    Minimal().run()
+
+
+def test_abstract_collector_run_failure_in_pre_collect_skips_later_phases():
+    calls = []
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def pre_collect(self) -> None:
+            calls.append("pre_collect")
+            raise RuntimeError("pre failed")
+
+        def validate_config(self) -> None:
+            calls.append("validate")
+
+        def collect(self) -> None:
+            calls.append("collect")
+
+        def post_collect(self) -> None:
+            calls.append("post_collect")
+
+        def on_error(self, exc: BaseException) -> None:
+            calls.append(("on_error", exc))
+
+    with pytest.raises(RuntimeError, match="pre failed"):
+        AC().run()
+    assert calls == ["pre_collect", ("on_error", calls[1][1])]
+    assert isinstance(calls[1][1], RuntimeError)
+
+
+def test_abstract_collector_run_failure_in_validate_skips_collect_and_post():
+    calls = []
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            calls.append("validate")
+            raise ValueError("bad config")
+
+        def collect(self) -> None:
+            calls.append("collect")
+
+        def post_collect(self) -> None:
+            calls.append("post_collect")
+
+        def on_error(self, exc: BaseException) -> None:
+            calls.append(("on_error", type(exc).__name__))
+
+    with pytest.raises(ValueError, match="bad config"):
+        AC().run()
+    assert calls == ["validate", ("on_error", "ValueError")]
+
+
+def test_abstract_collector_run_failure_in_collect_skips_post_collect():
+    calls = []
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            calls.append("validate")
+
+        def collect(self) -> None:
+            calls.append("collect")
+            raise RuntimeError("collect failed")
+
+        def post_collect(self) -> None:
+            calls.append("post_collect")
+
+        def on_error(self, exc: BaseException) -> None:
+            calls.append("on_error")
+
+    with pytest.raises(RuntimeError, match="collect failed"):
+        AC().run()
+    assert calls == ["validate", "collect", "on_error"]
+
+
+def test_abstract_collector_run_failure_in_post_collect_calls_on_error():
+    calls = []
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            calls.append("collect")
+
+        def post_collect(self) -> None:
+            raise RuntimeError("post failed")
+
+        def on_error(self, exc: BaseException) -> None:
+            calls.append("on_error")
+
+    with pytest.raises(RuntimeError, match="post failed"):
+        AC().run()
+    assert calls == ["collect", "on_error"]
+
+
+def test_abstract_collector_run_on_error_does_not_swallow_exception():
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            raise RuntimeError("primary")
+
+        def on_error(self, exc: BaseException) -> None:
+            pass
+
+    with pytest.raises(RuntimeError, match="primary"):
+        AC().run()
+
+
+def test_abstract_collector_run_on_error_failure_still_reraises_original():
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            raise RuntimeError("primary")
+
+        def on_error(self, exc: BaseException) -> None:
+            raise AssertionError("hook failed")
+
+    with pytest.raises(RuntimeError, match="primary"):
+        AC().run()
+
+
+def test_abstract_collector_run_on_error_runs_before_command_handle_error():
+    order = []
+
+    class BadCollector(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "bad"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            raise RuntimeError("boom")
+
+        def on_error(self, exc: BaseException) -> None:
+            order.append("on_error")
+
+        def handle_error(self, exc: BaseException) -> None:
+            order.append("handle_error")
+
+    class Cmd(BaseCollectorCommand):
+        help = "test"
+
+        def get_collector(self, **options):
+            return BadCollector()
+
+    with pytest.raises(RuntimeError, match="boom"):
+        Cmd(stdout=StringIO(), stderr=StringIO()).handle()
+    assert order == ["on_error", "handle_error"]
+
+
+def test_base_collector_command_command_error_skips_handle_error_still_calls_on_error():
+    order = []
+
+    class BadCollector(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "bad"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> None:
+            raise CommandError("planned", returncode=3)
+
+        def on_error(self, exc: BaseException) -> None:
+            order.append("on_error")
+
+        def handle_error(self, exc: BaseException) -> None:
+            order.append("handle_error")
+
+    class Cmd(BaseCollectorCommand):
+        help = "test"
+
+        def get_collector(self, **options):
+            return BadCollector()
+
+    with pytest.raises(CommandError, match="planned"):
+        Cmd(stdout=StringIO(), stderr=StringIO()).handle()
+    assert order == ["on_error"]
 
 
 def test_abstract_collector_handle_error_uses_name_in_log_extra():
