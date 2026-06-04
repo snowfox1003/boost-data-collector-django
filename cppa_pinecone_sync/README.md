@@ -14,7 +14,7 @@ Each run targets exactly one logical source (**`--app-type`**), one **namespace*
 
 1. **Load sync bookkeeping** from this app’s models (`PineconeSyncStatus`, `PineconeFailList`) so runs can resume and retry safely.
 2. **Import and run the preprocessor** you pass in (`--preprocessor` dotted path). That callable reads **other apps’** rows and/or workspace files and returns document dicts for embedding.
-3. **Chunk, embed, and upsert** into Pinecone via [`ingestion.PineconeIngestion`](ingestion.py), using the API key for the chosen **`PineconeInstance`** (`PINECONE_API_KEY` vs `PINECONE_PRIVATE_API_KEY` and related settings).
+3. **Chunk, embed, and upsert** into Pinecone via [`ingestion.PineconeIngestion`](ingestion.py) (using [`core.adapters.PineconeAdapter`](../core/adapters/pinecone.py)), with the API key for the chosen **`PineconeInstance`** (`PINECONE_API_KEY` vs `PINECONE_PRIVATE_API_KEY` and related settings).
 4. **Update** `PineconeSyncStatus` / `PineconeFailList` only — domain tables stay owned by the source app.
 
 ## Pinecone instance (`public` vs `private`)
