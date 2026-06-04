@@ -34,7 +34,7 @@ class FakePineconeClient:
         create_error: Exception | None = None,
         connect_error: Exception | None = None,
     ) -> None:
-        self._index_names = index_names if index_names is not None else set()
+        self._index_names = set(index_names) if index_names is not None else set()
         self._indexes: dict[str, FakePineconeIndex] = {}
         self.create_index_for_model_mock = MagicMock(
             side_effect=self._create_index_for_model_impl

@@ -711,8 +711,8 @@ class PineconeIngestion:
         """Get statistics about the Pinecone indexes."""
         try:
             self._ensure_indexes_ready()
-            assert self.dense_index is not None
-            assert self.sparse_index is not None
+            if self.dense_index is None or self.sparse_index is None:
+                raise RuntimeError("Pinecone indexes not initialized")
             dense_stats = self.dense_index.describe_index_stats()
             sparse_stats = self.sparse_index.describe_index_stats()
             return {
