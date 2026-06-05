@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Stability policy** ([`STABILITY.md`](STABILITY.md)): documents stable vs evolving vs unstable interfaces for production and contributors; README links to it.
+- **`core.adapters`:** stable adapter protocols and implementations for Pinecone (`PineconeAdapter`), Slack Web API (`SlackWebApiAdapter`), and GitHub REST/GraphQL (`GitHubApiAdapter`). The `pinecone` SDK is imported only from `core/adapters/pinecone.py`; `cppa_pinecone_sync.ingestion` uses `PineconeClientProtocol` with injectable fakes for tests.
 
 ### Documentation
 

@@ -57,6 +57,23 @@ Implementations are frozen dataclasses in each tracker app (for example `github_
 
 **Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, and `discord_activity_tracker` and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
 
+## External adapters
+
+Stable protocols and thin wrappers for vendor SDKs and HTTP clients. Import from **`core.adapters`** (curated `__all__`).
+
+| Import | Purpose |
+|--------|---------|
+| `core.adapters.PineconeClientProtocol` | Pinecone control-plane + index handle factory (used by `cppa_pinecone_sync` ingestion). |
+| `core.adapters.PineconeIndexProtocol` | Vector upsert, metadata update, delete, and stats on one index. |
+| `core.adapters.PineconeAdapter` | Production Pinecone SDK wrapper; `PineconeAdapter.from_api_key(api_key)`. |
+| `core.adapters.ensure_pinecone_available` | Raise `ImportError` when the `pinecone` package is missing. |
+| `core.adapters.SlackWebApiProtocol` | Slack Web API methods used by collectors (`conversations.*`, `users.*`, etc.). |
+| `core.adapters.SlackWebApiAdapter` | Default Slack adapter; delegates to `core.operations.slack_ops.client.SlackAPIClient`. |
+| `core.adapters.GitHubApiProtocol` | GitHub REST/GraphQL methods used by `github_activity_tracker` and consumers. |
+| `core.adapters.GitHubApiAdapter` | Default GitHub adapter; delegates to `core.operations.github_ops.client.GitHubAPIClient`. |
+
+The **`pinecone`** package is imported only from [`core/adapters/pinecone.py`](../core/adapters/pinecone.py). See [core/adapters/README.md](../core/adapters/README.md).
+
 ## Reducing coupling
 
 - Prefer **no** `ForeignKey` from one tracker app into another's models (see Development guideline).

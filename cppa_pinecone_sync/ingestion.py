@@ -20,22 +20,14 @@ from typing import Any, Optional
 
 from django.conf import settings
 
+from core.adapters import (
+    PineconeAdapter,
+    PineconeClientProtocol,
+    PineconeIndexProtocol,
+    ensure_pinecone_available,
+)
+from cppa_pinecone_sync.text_chunking import Document, RecursiveCharacterTextSplitter
 from cppa_pinecone_sync.types import PineconeInstance
-
-try:
-    from pinecone import Pinecone
-
-    from cppa_pinecone_sync.text_chunking import (
-        Document,
-        RecursiveCharacterTextSplitter,
-    )
-except ImportError as e:
-    Pinecone = None  # type: ignore[assignment,misc]
-    RecursiveCharacterTextSplitter = None  # type: ignore[assignment,misc]
-    Document = None  # type: ignore[assignment,misc]
-    _IMPORT_ERROR = e
-else:
-    _IMPORT_ERROR = None
 
 logger = logging.getLogger(__name__)
 
@@ -43,16 +35,28 @@ logger = logging.getLogger(__name__)
 class PineconeIngestion:
     """Handles Pinecone index creation, document chunking, and vector operations."""
 
-    def __init__(self, instance: PineconeInstance = PineconeInstance.PUBLIC) -> None:
+    def __init__(
+        self,
+        instance: PineconeInstance = PineconeInstance.PUBLIC,
+        *,
+        client: PineconeClientProtocol | None = None,
+    ) -> None:
         """Initialize with configuration from Django settings.
 
         Args:
             instance: Which Pinecone API key to use (public or private).
                 Default is public.
+            client: Optional Pinecone client adapter (for tests). When omitted,
+                a production ``PineconeAdapter`` is created lazily on first use.
+                Injected clients skip API-key validation in ``_validate_config``.
         """
-        self._validate_imports()
+        if client is None:
+            ensure_pinecone_available()
 
         self.instance = instance
+        self._client: PineconeClientProtocol | None = client
+        self._injected_client = client is not None
+        self._client_initialized = client is not None
         self._api_key: str = getattr(settings, "PINECONE_API_KEY", "")
         self._private_api_key: str = getattr(settings, "PINECONE_PRIVATE_API_KEY", "")
         self.index_name: str = getattr(settings, "PINECONE_INDEX_NAME", "")
@@ -108,6 +112,8 @@ class PineconeIngestion:
                 "Set PINECONE_INDEX_NAME in .env (e.g. PINECONE_INDEX_NAME=boost-dashboard) "
                 "to enable Pinecone sync."
             )
+        if self._injected_client:
+            return
         active_key = self._active_api_key
         if not (active_key or "").strip():
             key_name = (
@@ -120,18 +126,8 @@ class PineconeIngestion:
                 f"Set {key_name}=pc-xxxx in .env to enable Pinecone sync."
             )
 
-    @staticmethod
-    def _validate_imports() -> None:
-        """Validate required imports are available."""
-        if _IMPORT_ERROR is not None:
-            raise ImportError(
-                "Missing dependencies for Pinecone ingestion. "
-                "Install with: pip install pinecone"
-            ) from _IMPORT_ERROR
-
     def _setup_client(self) -> None:
-        self.pc: Optional[Pinecone] = None
-        self._pc_initialized = False
+        pass
 
     def _initialize_text_splitter(self) -> None:
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -142,8 +138,8 @@ class PineconeIngestion:
         )
 
     def _setup_indexes(self) -> None:
-        self.dense_index: Optional[Any] = None
-        self.sparse_index: Optional[Any] = None
+        self.dense_index: PineconeIndexProtocol | None = None
+        self.sparse_index: PineconeIndexProtocol | None = None
         self._dense_index_initialized = False
         self._sparse_index_initialized = False
 
@@ -152,11 +148,11 @@ class PineconeIngestion:
     # ------------------------------------------------------------------
 
     def _ensure_pinecone_client(self) -> None:
-        """Initialize Pinecone client if needed."""
-        if not self._pc_initialized:
+        """Initialize Pinecone client adapter if needed."""
+        if not self._client_initialized:
             try:
-                self.pc = Pinecone(api_key=self._active_api_key)
-                self._pc_initialized = True
+                self._client = PineconeAdapter.from_api_key(self._active_api_key)
+                self._client_initialized = True
                 logger.info(
                     "Pinecone client initialized (instance: %s)",
                     self.instance.value,
@@ -175,10 +171,10 @@ class PineconeIngestion:
             return
 
         self._ensure_pinecone_client()
-        if self.pc is None:
+        if self._client is None:
             raise RuntimeError("Pinecone client not initialized")
 
-        existing_indexes = {idx.name for idx in self.pc.list_indexes()}
+        existing_indexes = self._client.list_index_names()
         dense_name = self.index_name
         sparse_name = f"{self.index_name}-sparse"
 
@@ -192,26 +188,28 @@ class PineconeIngestion:
 
     def _connect_to_existing_indexes(self, dense_name: str, sparse_name: str) -> None:
         logger.info("Using existing indexes: %s and %s", dense_name, sparse_name)
-        self.dense_index = self.pc.Index(dense_name)  # type: ignore[union-attr]
-        self.sparse_index = self.pc.Index(sparse_name)  # type: ignore[union-attr]
+        if self._client is None:
+            raise RuntimeError("Pinecone client not initialized")
+        self.dense_index = self._client.get_index(dense_name)
+        self.sparse_index = self._client.get_index(sparse_name)
 
     def _create_new_indexes(
-        self, existing_indexes: set, dense_name: str, sparse_name: str
+        self, existing_indexes: set[str], dense_name: str, sparse_name: str
     ) -> None:
         logger.info(
             "Creating indexes: %s (dense) and %s (sparse)",
             dense_name,
             sparse_name,
         )
-        if self.pc is None:
+        if self._client is None:
             raise RuntimeError("Pinecone client not initialized")
         try:
             if dense_name not in existing_indexes:
                 self._create_pinecone_index(dense_name, self.dense_model)
             if sparse_name not in existing_indexes:
                 self._create_pinecone_index(sparse_name, self.sparse_model)
-            self.dense_index = self.pc.Index(dense_name)
-            self.sparse_index = self.pc.Index(sparse_name)
+            self.dense_index = self._client.get_index(dense_name)
+            self.sparse_index = self._client.get_index(sparse_name)
         except Exception as e:
             error_msg = str(e)
             if "NOT_FOUND" in error_msg or "not found" in error_msg.lower():
@@ -222,9 +220,9 @@ class PineconeIngestion:
 
     def _create_pinecone_index(self, index_name: str, model_name: str) -> None:
         logger.info("Creating index '%s' with model: %s", index_name, model_name)
-        if self.pc is None:
+        if self._client is None:
             raise RuntimeError("Pinecone client not initialized")
-        self.pc.create_index_for_model(
+        self._client.create_index_for_model(
             name=index_name,
             cloud=self.cloud,
             region=self.environment,
@@ -583,12 +581,14 @@ class PineconeIngestion:
 
     @staticmethod
     def _update_index_record(
-        index: Any,
+        index: PineconeIndexProtocol | None,
         record_id: str,
         set_metadata: dict[str, Any],
         namespace: Optional[str],
         index_type: str,
     ) -> None:
+        if index is None:
+            raise RuntimeError(f"{index_type} index not initialized")
         try:
             index.update(id=record_id, set_metadata=set_metadata, namespace=namespace)
         except Exception as e:
@@ -602,12 +602,14 @@ class PineconeIngestion:
 
     @staticmethod
     def _upsert_to_index(
-        index: Any,
+        index: PineconeIndexProtocol | None,
         records: list[dict[str, Any]],
         namespace: Optional[str],
         batch_num: int,
         index_type: str,
     ) -> None:
+        if index is None:
+            raise RuntimeError(f"{index_type} index not initialized")
         try:
             index.upsert_records(records=records, namespace=namespace)
         except Exception as e:
@@ -674,12 +676,14 @@ class PineconeIngestion:
 
     @staticmethod
     def _delete_from_index(
-        index: Any,
+        index: PineconeIndexProtocol | None,
         ids: list[str],
         namespace: Optional[str],
         batch_num: int,
         index_type: str,
     ) -> None:
+        if index is None:
+            raise RuntimeError(f"{index_type} index not initialized")
         try:
             index.delete(ids=ids, namespace=namespace)
         except Exception as e:
@@ -711,8 +715,10 @@ class PineconeIngestion:
         """Get statistics about the Pinecone indexes."""
         try:
             self._ensure_indexes_ready()
-            dense_stats = self.dense_index.describe_index_stats()  # type: ignore[union-attr]
-            sparse_stats = self.sparse_index.describe_index_stats()  # type: ignore[union-attr]
+            if self.dense_index is None or self.sparse_index is None:
+                raise RuntimeError("Pinecone indexes not initialized")
+            dense_stats = self.dense_index.describe_index_stats()
+            sparse_stats = self.sparse_index.describe_index_stats()
             return {
                 "dense_index": self._format_single_index_stats(dense_stats),
                 "sparse_index": self._format_single_index_stats(sparse_stats),

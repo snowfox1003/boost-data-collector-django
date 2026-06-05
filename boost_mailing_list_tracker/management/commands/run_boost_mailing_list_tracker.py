@@ -157,9 +157,7 @@ def _process_existing_workspace_json(list_name: str) -> tuple[int, int]:
             fail_this_file = False
             for formatted_email in formatted_data:
                 try:
-                    _was_created, _skipped, persist_failed = _persist_email(
-                        formatted_email
-                    )
+                    _, _, persist_failed = _persist_email(formatted_email)
                 except Exception:
                     fail_this_file = True
                     logger.exception(

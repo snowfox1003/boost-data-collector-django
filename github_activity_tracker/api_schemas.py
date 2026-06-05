@@ -30,7 +30,7 @@ class GitHubComment(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int | None = None
-    body: str = ""
+    body: str | None = ""
     user: GitHubUser | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -40,7 +40,7 @@ class GitHubReview(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int | None = None
-    body: str = ""
+    body: str | None = ""
     user: GitHubUser | None = None
     in_reply_to_id: int | None = None
     created_at: str | None = None
@@ -50,7 +50,7 @@ class GitHubReview(BaseModel):
 class GitHubRef(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    sha: str = ""
+    sha: str | None = ""
 
 
 class GitHubIssue(BaseModel):
@@ -58,10 +58,10 @@ class GitHubIssue(BaseModel):
 
     number: int
     id: int | None = None
-    title: str = ""
+    title: str | None = ""
     body: str | None = ""
     state: str = "open"
-    state_reason: str = ""
+    state_reason: str | None = ""
     user: GitHubUser | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -76,12 +76,12 @@ class GitHubPullRequest(BaseModel):
 
     number: int
     id: int | None = None
-    title: str = ""
+    title: str | None = ""
     body: str | None = ""
     state: str = "open"
     user: GitHubUser | None = None
-    head: GitHubRef = Field(default_factory=GitHubRef)
-    base: GitHubRef = Field(default_factory=GitHubRef)
+    head: GitHubRef | None = None
+    base: GitHubRef | None = None
     created_at: str | None = None
     updated_at: str | None = None
     merged_at: str | None = None

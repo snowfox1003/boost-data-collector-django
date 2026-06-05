@@ -7,6 +7,7 @@
 | Area | Path | Documentation |
 | --- | --- | --- |
 | Collector bases | [`collectors/`](collectors/) | [collectors/README.md](collectors/README.md) |
+| External adapters | [`adapters/`](adapters/) | [adapters/README.md](adapters/README.md) |
 | External I/O | [`operations/`](operations/) | [operations/README.md](operations/README.md) — see also [github_ops](operations/github_ops/README.md), [slack_ops](operations/slack_ops/README.md), [md_ops](operations/md_ops/README.md), [file_ops](operations/file_ops/README.md) |
 | Helpers | [`utils/`](utils/) | [utils/README.md](utils/README.md) |
 | Tests | [`tests/`](tests/) | _(no README — run pytest below)_ |
@@ -75,6 +76,7 @@ Test layout under [`tests/`](tests/):
 
 | Path | Covers |
 | --- | --- |
+| [`tests/adapters/`](tests/adapters/) | `core.adapters` |
 | [`tests/github_ops/`](tests/github_ops/) | `core.operations.github_ops` |
 | [`tests/operations/`](tests/operations/) | Slack, markdown, GitHub export ops |
 | `tests/test_*.py` | `errors`, `protocols`, `utils`, workspace orphans, admin, collectors |
