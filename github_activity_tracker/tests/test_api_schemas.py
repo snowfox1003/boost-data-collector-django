@@ -45,6 +45,21 @@ def test_parse_issue_bundle_missing_number_raises():
         parse_issue_bundle({"id": 100, "title": "t", "comments": []})
 
 
+def test_parse_issue_bundle_accepts_null_state_reason_and_title():
+    bundle = parse_issue_bundle(
+        {
+            "number": 1,
+            "id": 100,
+            "title": None,
+            "state_reason": None,
+            "user": {"id": 1, "login": "u"},
+            "comments": [],
+        }
+    )
+    assert bundle.issue.title is None
+    assert bundle.issue.state_reason is None
+
+
 def test_parse_pr_bundle():
     bundle = parse_pr_bundle(
         {
@@ -70,6 +85,26 @@ def test_parse_pr_bundle_missing_number_raises():
                 "reviews": [],
             }
         )
+
+
+def test_parse_pr_bundle_accepts_null_title_head_base_and_review_body():
+    bundle = parse_pr_bundle(
+        {
+            "number": 3,
+            "id": 300,
+            "title": None,
+            "head": None,
+            "base": None,
+            "user": {"id": 3, "login": "p"},
+            "comments": [{"id": 1, "body": None, "user": {"id": 3, "login": "p"}}],
+            "reviews": [{"id": 2, "body": None, "user": {"id": 4, "login": "r"}}],
+        }
+    )
+    assert bundle.pr.title is None
+    assert bundle.pr.head is None
+    assert bundle.pr.base is None
+    assert bundle.pr.comments[0].body is None
+    assert bundle.pr.reviews[0].body is None
 
 
 def test_parse_commit_requires_sha():
