@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import CommandError
 
 from core.errors import (
+    AuthenticationError,
     CollectorFailureCategory,
     _classify_os_error,
     classify_failure,
@@ -56,6 +57,13 @@ def _make_httpx_exc(name: str):
 
 def test_classify_command_error():
     assert classify_failure(CommandError("bad")) is CollectorFailureCategory.COMMAND
+
+
+def test_classify_authentication_error():
+    assert (
+        classify_failure(AuthenticationError("bad creds"))
+        is CollectorFailureCategory.AUTH
+    )
 
 
 def test_classify_django_db_error_unknown():

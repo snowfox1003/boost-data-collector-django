@@ -11,6 +11,10 @@ import errno
 from enum import Enum
 
 
+class AuthenticationError(RuntimeError):
+    """Raised when collector credentials are rejected (HTTP 401/403 or equivalent)."""
+
+
 class CollectorFailureCategory(str, Enum):
     """High-level failure bucket for collector runs."""
 
@@ -183,6 +187,8 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
         return CollectorFailureCategory.COMMAND
     if ValidationError and isinstance(exc, ValidationError):
         return CollectorFailureCategory.VALIDATION
+    if isinstance(exc, AuthenticationError):
+        return CollectorFailureCategory.AUTH
 
     try:
         from django.db import Error as DjangoDBError
