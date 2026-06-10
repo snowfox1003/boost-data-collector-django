@@ -104,6 +104,35 @@ def test_run_keeps_file_on_invalid_json(monkeypatch, tmp_path, settings):
     c.run()
 
     assert bad.exists()
+    result = c.last_result
+    assert result is not None
+    assert result.success is False
+    assert result.counts["failed_files"] == 1
+    assert len(result.errors) == 1
+    assert "bad.json" in result.errors[0]
+
+
+def test_run_result_success_when_all_files_import(monkeypatch, tmp_path, settings):
+    monkeypatch.setattr(settings, "WORKSPACE_DIR", str(tmp_path))
+    drop = tmp_path / "discord_activity_tracker" / "Discussion - c-cpp-discussion"
+    drop.mkdir(parents=True)
+    j = drop / "batch.json"
+    j.write_text(json.dumps(_minimal_export_payload()), encoding="utf-8")
+
+    c = _collector(skip_pinecone=True)
+    with patch.object(
+        DiscordBackfillCollector,
+        "_persist_channel",
+        new_callable=AsyncMock,
+        return_value=1,
+    ):
+        c.run()
+
+    result = c.last_result
+    assert result is not None
+    assert result.success is True
+    assert result.counts["failed_files"] == 0
+    assert result.errors == ()
 
 
 def test_dry_run_lists_files_no_delete(monkeypatch, tmp_path, settings):

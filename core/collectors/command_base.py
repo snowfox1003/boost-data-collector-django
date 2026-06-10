@@ -17,8 +17,41 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 
 from core.collectors.base_collector import CollectorRunnable
+from core.protocols import TrackerResult
 
 logger = logging.getLogger(__name__)
+
+
+def _records_collected(result: TrackerResult) -> int:
+    """Sum count values, excluding meta keys like ``errors``."""
+    return sum(
+        v for k, v in result.counts.items() if k not in ("errors", "failed_count")
+    )
+
+
+def _log_collector_result(collector: CollectorRunnable, result: TrackerResult) -> None:
+    collector_id = getattr(collector, "name", None)
+    if not isinstance(collector_id, str) or not collector_id:
+        collector_id = collector.__class__.__name__
+    records = _records_collected(result)
+    logger.info(
+        "Collector finished: collector=%s success=%s records_collected=%s "
+        "error_count=%s duration_seconds=%s counts=%s",
+        collector_id,
+        result.success,
+        records,
+        len(result.errors),
+        result.duration_seconds,
+        dict(result.counts),
+        extra={
+            "collector": collector_id,
+            "success": result.success,
+            "records_collected": records,
+            "error_count": len(result.errors),
+            "duration_seconds": result.duration_seconds,
+            "counts": dict(result.counts),
+        },
+    )
 
 
 class BaseCollectorCommand(ABC, BaseCommand):
@@ -61,6 +94,9 @@ class BaseCollectorCommand(ABC, BaseCommand):
     def handle(self, *args: Any, **options: Any) -> None:
         collector = self.get_collector(**options)
         self._run_collector_phase(collector, collector.run)
+        result = getattr(collector, "last_result", None)
+        if result is not None and isinstance(result, TrackerResult):
+            _log_collector_result(collector, result)
         self._run_collector_phase(collector, collector.sync_pinecone)
 
     def _run_collector_phase(

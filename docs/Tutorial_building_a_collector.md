@@ -115,6 +115,8 @@ flowchart TB
 The generated collector follows this shape (abbreviated):
 
 ```python
+from core.collectors import AbstractCollector, GenericTrackerResult
+
 class HeartbeatDemoCollector(AbstractCollector):
   @property
   def name(self) -> str:
@@ -124,9 +126,9 @@ class HeartbeatDemoCollector(AbstractCollector):
     if not self.source_key or not self.source_key.strip():
       raise ValueError("source_key must not be empty")
 
-  def collect(self) -> None:
+  def collect(self) -> GenericTrackerResult:
     _, created = services.record_run(source_key=self.source_key.strip())
-    # ...
+    return GenericTrackerResult.ok(runs=1, created=int(created))
 
 class Command(BaseCollectorCommand):
   def get_collector(self, **_options: Any) -> AbstractCollector:
@@ -156,7 +158,9 @@ sequenceDiagram
   Cmd->>Col: get_collector(options)
   Cmd->>Col: run()
   Col->>Col: validate_config()
-  Col->>Col: collect()
+  Col->>Col: load_incremental_state()
+  Col->>Col: collect() -> TrackerResult
+  Cmd->>Cmd: log TrackerResult counts/errors
   Cmd->>Col: sync_pinecone()
 ```
 
@@ -170,7 +174,7 @@ Implementation: [core/collectors/command_base.py](../core/collectors/command_bas
 |------|----------------|----------------|------------------|
 | `name` | `handle_error` logging | Stable slug for metrics/alerts | `"heartbeat_demo"` |
 | `validate_config()` | `run()` before I/O | Fast checks: env, CLI, empty keys | Reject empty `source_key` |
-| `collect()` | `run()` | Orchestration; delegate DB to `services.py` | `services.record_run(...)` |
+| `collect()` | `run()` | Orchestration; delegate DB to `services.py`; return `TrackerResult` | `GenericTrackerResult.ok(...)` after `services.record_run(...)` |
 | `run()` | Command | Template: validate → collect | Do not override |
 | `handle_error(exc)` | Command on non-`CommandError` | Log with `classify_failure` | Default is enough for most apps |
 | `sync_pinecone()` | Command after `run` | Post-run vector sync; default no-op | See §2.4 |

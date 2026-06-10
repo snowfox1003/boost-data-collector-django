@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **core.collectors:** `AbstractCollector.last_result` is set only after `post_collect()` completes successfully (including default incremental checkpoint persistence), matching the documented “most recent successful run” semantics.
+- **discord_activity_tracker:** `backfill_discord_activity_tracker` reports per-file import failures on `DiscordCollectionTrackerResult` (`success=False`, `errors`, `failed_files` count) instead of always returning `success=True`.
 - **core.protocols / ActivityRecord:** `occurred_at` is timezone-aware UTC `datetime | None`; `source_system` is `SourceSystem` (`StrEnum`); `activity_type` is branded `ActivityType`; `actor_external_id` is `ActorExternalId` (`NewType`). Legacy string payloads use `core.activity_types.migrate_legacy_activity_fields` and `activity_record_to_legacy_dict` on GitHub/Discord `protocol_impl` dataclasses.
 - **Celery schedule:** Added `discord` group to `config/boost_collector_schedule.yaml` (`run_discord_activity_tracker` daily at 16:40 UTC).
 - **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).

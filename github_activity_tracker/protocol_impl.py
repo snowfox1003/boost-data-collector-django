@@ -24,6 +24,8 @@ class GitHubSyncTrackerResult:
 
     success: bool
     counts: Mapping[str, int]
+    errors: tuple[str, ...] = field(default_factory=tuple)
+    duration_seconds: float | None = None
 
     @classmethod
     def from_sync_dict(cls, d: dict[str, list[int]]) -> GitHubSyncTrackerResult:
@@ -33,6 +35,22 @@ class GitHubSyncTrackerResult:
             success=True,
             counts={"issues": len(issues), "pull_requests": len(prs)},
         )
+
+    @classmethod
+    def merge(cls, *results: GitHubSyncTrackerResult) -> GitHubSyncTrackerResult:
+        """Combine per-repo results into one aggregate."""
+        if not results:
+            return cls(success=True, counts={})
+        counts: dict[str, int] = {}
+        errors: list[str] = []
+        success = True
+        for r in results:
+            if not r.success:
+                success = False
+            for k, v in r.counts.items():
+                counts[k] = counts.get(k, 0) + v
+            errors.extend(r.errors)
+        return cls(success=success, counts=counts, errors=tuple(errors))
 
 
 def sync_github_tracker_result(

@@ -443,8 +443,16 @@ def test_call_command_dry_run_skips_pinecone(boost_library_version):
     ver.version = "boost-1.81.0"
     ver.save()
     buf = StringIO()
+    from boost_library_docs_tracker.protocol_impl import LibraryDocsTrackerResult
+
     with (
-        patch.object(Command, "_run") as run_mock,
+        patch.object(
+            Command,
+            "_run",
+            return_value=LibraryDocsTrackerResult.from_run(
+                versions=1, pages=0, dry_run=True
+            ),
+        ) as run_mock,
         patch.object(Command, "_sync_pinecone") as sync_mock,
     ):
         call_command(

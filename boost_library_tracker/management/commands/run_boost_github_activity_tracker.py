@@ -28,6 +28,8 @@ from github_activity_tracker.services import (
     ensure_repository_owner,
     get_or_create_repository,
 )
+from core.protocols import TrackerResult
+from github_activity_tracker.protocol_impl import GitHubSyncTrackerResult
 from github_activity_tracker.sync import sync_github
 
 from boost_library_tracker.services import get_or_create_boost_library_repo
@@ -374,8 +376,8 @@ class BoostGithubActivityCollector(AbstractCollector):
             except ValueError as e:
                 raise CommandError(str(e)) from e
 
-    def collect(self) -> None:
-        self.cmd._handle_core(self.options)
+    def collect(self) -> TrackerResult:
+        return self.cmd._handle_core(self.options)
 
     def sync_pinecone(self) -> None:
         o = self.options
@@ -454,7 +456,7 @@ class Command(BaseCollectorCommand):
     def get_collector(self, **options):
         return BoostGithubActivityCollector(cmd=self, options=dict(options))
 
-    def _handle_core(self, options):
+    def _handle_core(self, options) -> GitHubSyncTrackerResult:
         dry_run = options["dry_run"]
         skip_github_sync = options["skip_github_sync"]
         skip_markdown_export = options["skip_markdown_export"]
@@ -511,7 +513,7 @@ class Command(BaseCollectorCommand):
                 if not skip_pinecone:
                     logger.info("dry-run would run Pinecone upsert for issues and PRs")
                 logger.info("finished successfully")
-                return
+                return GitHubSyncTrackerResult(success=True, counts={})
 
             synced_repos: list = []
             if not skip_github_sync:
@@ -555,6 +557,11 @@ class Command(BaseCollectorCommand):
                 logger.info("skipping Pinecone (--skip-pinecone)")
 
             logger.info("finished successfully")
+            repo_results = [
+                GitHubSyncTrackerResult.from_sync_dict(sr)
+                for _own, _repo, _boost_repo, sr in synced_repos
+            ]
+            return GitHubSyncTrackerResult.merge(*repo_results)
         except Exception as e:
             logger.exception("command failed: %s", e)
             raise

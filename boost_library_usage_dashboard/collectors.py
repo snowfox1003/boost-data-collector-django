@@ -6,6 +6,8 @@ from django.conf import settings
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector
+from core.protocols import TrackerResult
+from boost_library_usage_dashboard.protocol_impl import UsageDashboardTrackerResult
 from boost_library_usage_dashboard.analyzer import BoostUsageDashboardAnalyzer
 from boost_library_usage_dashboard.publisher import publish_dashboard
 from boost_library_usage_dashboard.renderer import render_dashboard_html
@@ -42,9 +44,10 @@ class BoostLibraryUsageDashboardCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         output_dir = get_workspace_path("boost_library_usage_dashboard").resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
+        stats = None
 
         if not self.skip_collect:
             logger.info("Step 1: Collecting dashboard data from PostgreSQL...")
@@ -105,3 +108,4 @@ class BoostLibraryUsageDashboardCollector(AbstractCollector):
                     repo=repo,
                     branch=branch,
                 )
+        return UsageDashboardTrackerResult.from_stats(stats)

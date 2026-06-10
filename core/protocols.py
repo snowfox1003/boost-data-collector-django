@@ -17,6 +17,7 @@ compatible.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Mapping, Protocol, runtime_checkable
 
@@ -32,6 +33,12 @@ class TrackerResult(Protocol):
 
     @property
     def counts(self) -> Mapping[str, int]: ...
+
+    @property
+    def errors(self) -> Sequence[str]: ...
+
+    @property
+    def duration_seconds(self) -> float | None: ...
 
 
 @runtime_checkable
@@ -85,4 +92,11 @@ def require_activity_record(obj: object) -> ActivityRecord:
     """Return *obj* if it satisfies :class:`ActivityRecord`; else raise ``TypeError``."""
     if not isinstance(obj, ActivityRecord):
         raise TypeError(f"expected ActivityRecord, got {type(obj).__name__!r}")
+    return obj
+
+
+def require_incremental_state(obj: object) -> IncrementalState:
+    """Return *obj* if it satisfies :class:`IncrementalState`; else raise ``TypeError``."""
+    if not isinstance(obj, IncrementalState):
+        raise TypeError(f"expected IncrementalState, got {type(obj).__name__!r}")
     return obj

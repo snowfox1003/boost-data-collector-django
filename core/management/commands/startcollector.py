@@ -172,7 +172,7 @@ def _run_command_py(app_label: str, pascal: str) -> str:
         import logging
         from typing import Any
 
-        from core.collectors import AbstractCollector, BaseCollectorCommand
+        from core.collectors import AbstractCollector, BaseCollectorCommand, GenericTrackerResult
 
         import {app_label}.services as services
 
@@ -195,7 +195,7 @@ def _run_command_py(app_label: str, pascal: str) -> str:
                 if not self.source_key or not self.source_key.strip():
                     raise ValueError("source_key must not be empty")
 
-            def collect(self) -> None:
+            def collect(self) -> GenericTrackerResult:
                 logger.info("run_{app_label}: starting")
                 _, created = services.record_run(source_key=self.source_key.strip())
                 self.stdout.write(
@@ -204,6 +204,7 @@ def _run_command_py(app_label: str, pascal: str) -> str:
                     )
                 )
                 logger.info("run_{app_label}: finished successfully")
+                return GenericTrackerResult.ok(runs=1)
 
 
         class Command(BaseCollectorCommand):

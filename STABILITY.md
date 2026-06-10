@@ -139,6 +139,7 @@ Supported in production with **forward migrations** and **CHANGELOG** notes. Not
 | --- | --- |
 | **PostgreSQL schema** | Changed only via Django migrations; every deploy runs `python manage.py migrate` |
 | **`services.py` functions** | Per-app write API; signatures may change in minor `0.x` releases when [docs/service_api/](docs/service_api/) and all callers are updated together. Cross-app reads should use **`services`** or **`sync_api`**, not foreign models (see [CONTRIBUTING.md](CONTRIBUTING.md)) |
+| **Collector run outcomes** | `TrackerResult.success` and `errors` must reflect the real outcome (e.g. batch backfills must not report `success=True` when individual files fail). `AbstractCollector.last_result` is the most recent **fully** successful `run()` — after `collect()` **and** `post_collect()` (including checkpoint persistence) complete without error. |
 
 ### Tier C — Unstable
 

@@ -33,6 +33,8 @@ from typing import Any
 from asgiref.sync import sync_to_async
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import TrackerResult
+from discord_activity_tracker.protocol_impl import DiscordCollectionTrackerResult
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
 from discord_activity_tracker.services import (
     get_or_create_discord_channel,
@@ -89,7 +91,7 @@ class DiscordBackfillCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         import_dir = get_cpp_discussion_import_dir()
         json_files = sorted(
             filter_discord_export_json_paths(import_dir.rglob("*.json"))
@@ -105,13 +107,17 @@ class DiscordBackfillCollector(AbstractCollector):
                     f"    (dry-run) would import {_json_display_path(import_dir, p)}"
                 )
             self.stdout.write(self.style.WARNING("DRY RUN — no writes or deletes"))
-            return
+            return DiscordCollectionTrackerResult(
+                success=True, counts={"files": len(json_files), "dry_run": 1}
+            )
 
         processed_total = 0
+        failed_files = 0
+        errors: list[str] = []
         for i, json_path in enumerate(json_files, 1):
+            rel = _json_display_path(import_dir, json_path)
             try:
                 data = parse_exported_json(json_path)
-                rel = _json_display_path(import_dir, json_path)
                 envelope = validate_envelope(data, source=rel)
                 guild_info = envelope.guild.model_dump(by_alias=True)
                 channel_info = envelope.channel.model_dump(by_alias=True)
@@ -130,15 +136,30 @@ class DiscordBackfillCollector(AbstractCollector):
                     self.style.SUCCESS(f"    Imported {count}; removed {rel}")
                 )
             except Exception as exc:
-                rel = _json_display_path(import_dir, json_path)
+                failed_files += 1
+                err_msg = f"{rel}: {exc}"
+                errors.append(err_msg)
                 logger.error("Failed to process %s: %s", rel, exc)
                 self.stdout.write(self.style.ERROR(f"    Failed {rel}: {exc}"))
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Import complete: {processed_total} messages from "
-                f"{len(json_files)} file(s)"
-            )
+        summary = (
+            f"Import complete: {processed_total} messages from "
+            f"{len(json_files)} file(s)"
+        )
+        if failed_files:
+            summary += f" ({failed_files} failed)"
+            self.stdout.write(self.style.WARNING(summary))
+        else:
+            self.stdout.write(self.style.SUCCESS(summary))
+
+        return DiscordCollectionTrackerResult(
+            success=failed_files == 0,
+            counts={
+                "messages": processed_total,
+                "files": len(json_files),
+                "failed_files": failed_files,
+            },
+            errors=tuple(errors),
         )
 
     async def _persist_channel(

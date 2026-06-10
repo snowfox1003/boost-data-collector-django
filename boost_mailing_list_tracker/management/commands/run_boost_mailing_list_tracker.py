@@ -16,6 +16,11 @@ from django.core.management import call_command
 from django.utils.dateparse import parse_datetime
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import IncrementalState, TrackerResult
+from boost_mailing_list_tracker.protocol_impl import (
+    MailingListIncrementalState,
+    MailingListTrackerResult,
+)
 
 from boost_mailing_list_tracker.email_formatter import format_email
 from boost_mailing_list_tracker.fetcher import (
@@ -248,7 +253,13 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                     self._resolved_start_date,
                 )
 
-    def collect(self) -> None:
+    def load_incremental_state(self) -> IncrementalState | None:
+        marker = getattr(self, "_resolved_start_date", None) or self.start_date
+        if marker and str(marker).strip():
+            return MailingListIncrementalState.from_start_date(str(marker).strip())
+        return None
+
+    def collect(self) -> TrackerResult:
         end_date = self.end_date
         start_date = self._resolved_start_date
 
@@ -263,12 +274,22 @@ class BoostMailingListTrackerCollector(AbstractCollector):
             self.stdout.write(self.style.WARNING("No emails fetched from API."))
             logger.info("run_boost_mailing_list_tracker: no emails fetched")
             emails = []
+            if self.dry_run:
+                return MailingListTrackerResult.from_run(
+                    fetched=0, created=0, skipped=0, dry_run=True
+                )
+            return MailingListTrackerResult.from_run(fetched=0, created=0, skipped=0)
 
         self.stdout.write(f"Fetched {len(emails)} emails from API.")
         self._fetched_email_count = len(emails)
 
         if self.dry_run:
-            return
+            return MailingListTrackerResult.from_run(
+                fetched=self._fetched_email_count,
+                created=0,
+                skipped=0,
+                dry_run=True,
+            )
 
         for email_data in emails:
             msg_id = email_data.get("msg_id", "")
@@ -313,6 +334,12 @@ class BoostMailingListTrackerCollector(AbstractCollector):
                     msg_id,
                     e,
                 )
+
+        return MailingListTrackerResult.from_run(
+            fetched=self._fetched_email_count,
+            created=self._created_count,
+            skipped=self._skipped_count,
+        )
 
     def post_collect(self) -> None:
         if self.dry_run:

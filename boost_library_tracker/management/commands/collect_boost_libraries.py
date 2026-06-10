@@ -17,8 +17,13 @@ Creates:
 
 import logging
 import re
+from collections.abc import Sequence
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
+
+from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import TrackerResult
+from boost_library_tracker.protocol_impl import CollectBoostLibrariesResult
 from django.db import transaction
 
 from boost_library_tracker.models import (
@@ -174,7 +179,7 @@ def _collect_libraries_for_version(
     boost_version,
     ref: str,
     *,
-    client: GitHubAPIClient = None,
+    client: GitHubAPIClient | None = None,
     dry_run: bool = False,
 ) -> tuple[int, int]:
     """
@@ -238,7 +243,53 @@ def _collect_libraries_for_version(
     return created_total, len(lib_submodules)
 
 
-class Command(BaseCommand):
+class CollectBoostLibrariesCollector(AbstractCollector):
+    """Collect Boost versions and library metadata from boostorg/boost."""
+
+    def __init__(self, cmd: "Command", options: dict) -> None:
+        self.cmd = cmd
+        self.options = options
+
+    @property
+    def name(self) -> str:
+        return "collect_boost_libraries"
+
+    def validate_config(self) -> None:
+        return None
+
+    def collect(self) -> TrackerResult:
+        dry_run = self.options.get("dry_run", False)
+        limit = self.options.get("limit")
+
+        try:
+            boost_versions_list = _parse_boost_version_option(
+                self.options.get("boost_version")
+            )
+        except CommandError as e:
+            logger.error("Error parsing --boost-version: %s", e)
+            raise
+
+        target_releases: Sequence[tuple[str, str | None]] = []
+
+        if boost_versions_list and "all" == boost_versions_list[0]:
+            target_releases = all_boost_versions_from_api() or []
+        elif boost_versions_list and "new" not in boost_versions_list:
+            target_releases = [(ref, None) for ref in boost_versions_list]
+        elif not boost_versions_list or "new" in boost_versions_list:
+            target_releases = new_boost_versions_from_api()
+
+        if not target_releases:
+            logger.warning("No releases to process")
+            return CollectBoostLibrariesResult.empty(dry_run=dry_run)
+
+        if limit:
+            target_releases = target_releases[:limit]
+            logger.info("Processing first %s releases", limit)
+
+        return self.cmd._process_refs(target_releases, dry_run=dry_run)
+
+
+class Command(BaseCollectorCommand):
     """Management command: collect Boost versions and library metadata."""
 
     help = (
@@ -268,44 +319,15 @@ class Command(BaseCommand):
             help="Fetch and report what would be done; no DB writes.",
         )
 
-    def handle(self, *_args, **options):
-
-        dry_run = options.get("dry_run", False)
-        limit = options.get("limit")
-
-        try:
-            boost_versions_list = _parse_boost_version_option(
-                options.get("boost_version")
-            )
-        except CommandError as e:
-            logger.error("Error parsing --boost-version: %s", e)
-            return
-
-        target_releases: list[tuple[str, str]] = []
-
-        if boost_versions_list and "all" == boost_versions_list[0]:
-            target_releases = all_boost_versions_from_api()
-        elif boost_versions_list and "new" not in boost_versions_list:
-            target_releases = [(ref, None) for ref in boost_versions_list]
-        elif not boost_versions_list or "new" in boost_versions_list:
-            target_releases = new_boost_versions_from_api()
-
-        if not target_releases:
-            logger.warning("No releases to process")
-            return
-
-        if limit:
-            target_releases = target_releases[:limit]
-            logger.info("Processing first %s releases", limit)
-
-        self._process_refs(target_releases, dry_run=dry_run)
+    def get_collector(self, **options) -> AbstractCollector:
+        return CollectBoostLibrariesCollector(cmd=self, options=dict(options))
 
     def _process_refs(
         self,
-        target_releases: list[tuple[str, str | None]],
+        target_releases: Sequence[tuple[str, str | None]],
         *,
         dry_run: bool = False,
-    ) -> None:
+    ) -> CollectBoostLibrariesResult:
         """Process (ref, published_at) pairs; each ref in its own transaction.
 
         ``published_at`` is set when refs came from the GitHub releases API; use None
@@ -315,14 +337,18 @@ class Command(BaseCommand):
         if dry_run:
             logger.info("Dry run: no DB writes.")
             logger.info("Would process %s releases", len(target_releases))
-            return
+            return CollectBoostLibrariesResult.from_totals(
+                versions_created=0,
+                library_versions_created=0,
+                dry_run=True,
+            )
         total_versions_created = 0
         total_lib_versions_created = 0
 
         client = get_github_client(use="scraping")
         if not client:
             logger.error("Could not create GitHub Client")
-            return
+            return CollectBoostLibrariesResult.empty()
 
         for tag, sha in target_releases:
             if not sha:
@@ -362,4 +388,8 @@ class Command(BaseCommand):
             "Done: %s versions, %s library versions created.",
             total_versions_created,
             total_lib_versions_created,
+        )
+        return CollectBoostLibrariesResult.from_totals(
+            versions_created=total_versions_created,
+            library_versions_created=total_lib_versions_created,
         )

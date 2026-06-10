@@ -20,8 +20,10 @@ from core.protocols import (
     IncrementalState,
     TrackerResult,
     require_activity_record,
+    require_incremental_state,
     require_tracker_result,
 )
+from core.tracker_result import GenericTrackerResult
 from discord_activity_tracker.protocol_impl import (
     DiscordActivityRecord,
     DiscordCollectionTrackerResult,
@@ -40,6 +42,22 @@ def test_tracker_result_isinstance_github_dataclass() -> None:
     r = GitHubSyncTrackerResult(success=True, counts={"issues": 2, "pull_requests": 1})
     assert isinstance(r, TrackerResult)
     assert r.counts["issues"] == 2
+    assert r.errors == ()
+    assert r.duration_seconds is None
+
+
+def test_tracker_result_isinstance_generic_dataclass() -> None:
+    r = GenericTrackerResult.ok(items=1)
+    assert isinstance(r, TrackerResult)
+    assert r.errors == ()
+
+
+def test_require_incremental_state_raises_type_error_on_bad_object() -> None:
+    class NotState:
+        checkpoint_token = "x"
+
+    with pytest.raises(TypeError, match="IncrementalState"):
+        require_incremental_state(NotState())
 
 
 def test_activity_record_isinstance_discord_dataclass() -> None:

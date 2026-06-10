@@ -12,7 +12,6 @@ from django.core.management import CommandError, call_command
 from model_bakery import baker
 
 from boost_library_tracker.management.commands.collect_boost_libraries import (
-    Command as CollectCmd,
     _collect_libraries_for_version,
     _normalize_ref,
     _parse_boost_version_option,
@@ -52,7 +51,10 @@ def test_parse_boost_version_option_errors():
 @pytest.mark.django_db
 def test_collect_handle_parse_error_logs(caplog):
     caplog.set_level(logging.ERROR)
-    CollectCmd().handle(boost_version="badtag", dry_run=False)
+    with pytest.raises(CommandError, match="Invalid release ref"):
+        call_command(
+            "collect_boost_libraries", boost_version="badtag", stdout=StringIO()
+        )
     assert any("Error parsing" in r.message for r in caplog.records)
 
 

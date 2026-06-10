@@ -8,9 +8,11 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 
 | Import | Purpose |
 |--------|---------|
-| `core.collectors.AbstractCollector` | Collector contract: `name`, `validate_config()`, `collect()`; concrete `run()` runs validate then collect; optional `sync_pinecone()`, `handle_error()` with structured logging. |
-| `core.collectors.CollectorRunnable` | `Protocol` for objects returned from `get_collector()` (`run`, `sync_pinecone`, `handle_error`). |
-| `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()` then `sync_pinecone()`. |
+| `core.collectors.AbstractCollector` | Collector contract: `name`, `validate_config()`, `collect() -> TrackerResult`; concrete `run()` runs validate → `load_incremental_state()` → collect (validates result, backfills `duration_seconds`) → `post_collect()`; optional `sync_pinecone()`, `handle_error()` with structured logging. |
+| `core.collectors.CollectorRunnable` | `Protocol` for objects returned from `get_collector()` (`run() -> TrackerResult`, `sync_pinecone`, `handle_error`, `last_result`). |
+| `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()`, logs structured `TrackerResult` fields, then `sync_pinecone()`. |
+| `core.collectors.GenericTrackerResult` | Default frozen `TrackerResult` DTO (`ok()`, `failed()`); used by stubs and simple collectors. |
+| `core.collectors.GenericIncrementalState` | Default frozen `IncrementalState` DTO for checkpoint hooks. |
 
 ### Application collectors
 
@@ -20,6 +22,7 @@ All **application** collectors listed below subclass **`AbstractCollector`** (`n
 |--------|-----------------|----------------|
 | `run_boost_usage_tracker` | `BoostUsageTrackerCollector` | `boost_usage_tracker.management.commands.run_boost_usage_tracker` |
 | `run_boost_github_activity_tracker` | `BoostGithubActivityCollector` | `boost_library_tracker.management.commands.run_boost_github_activity_tracker` |
+| `collect_boost_libraries` | `CollectBoostLibrariesCollector` | `boost_library_tracker.management.commands.collect_boost_libraries` |
 | `run_clang_github_tracker` | `ClangGithubTrackerCollector` | `clang_github_tracker.collectors` |
 | `run_boost_library_usage_dashboard` | `BoostLibraryUsageDashboardCollector` | `boost_library_usage_dashboard.collectors` |
 | `run_boost_library_docs_tracker` | `BoostLibraryDocsTrackerCollector` | `boost_library_docs_tracker.management.commands.run_boost_library_docs_tracker` |
@@ -47,13 +50,15 @@ Structural contracts for **data** that crosses tracker layers (sync outcomes, ac
 
 | Import | Purpose |
 |--------|---------|
-| `core.protocols.TrackerResult` | `@runtime_checkable` protocol: `success`, `counts` (`Mapping[str, int]`). |
+| `core.protocols.TrackerResult` | `@runtime_checkable` protocol: `success`, `counts` (`Mapping[str, int]`), `errors` (`Sequence[str]`), `duration_seconds` (`float \| None`). |
 | `core.protocols.ActivityRecord` | `@runtime_checkable` protocol: portable activity row (`source_system`, `external_id`, `occurred_at`, …). |
 | `core.activity_types` | Typed `ActivityRecord` fields: `SourceSystem`, `ActivityType`, `ActorExternalId`, UTC `occurred_at` helpers, and `migrate_legacy_activity_fields` / `activity_record_to_legacy_dict` for string payloads. |
 | `core.protocols.IncrementalState` | `@runtime_checkable` protocol: `checkpoint_token`, `human_readable_marker`, `extras`. |
-| `core.protocols.require_tracker_result` / `require_activity_record` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
+| `core.protocols.require_tracker_result` / `require_activity_record` / `require_incremental_state` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
 
-Implementations are frozen dataclasses in each tracker app (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`). Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+Implementations are frozen dataclasses in each tracker app's `protocol_impl.py` (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`, `boost_library_tracker.protocol_impl`). Simple collectors may return `GenericTrackerResult` directly. Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+
+`AbstractCollector.collect()` must return a `TrackerResult`. Override `load_incremental_state()` / `persist_incremental_state()` when a collector needs checkpoint read/write between runs (default hooks are no-ops).
 
 **Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, and `discord_activity_tracker` and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
 

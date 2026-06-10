@@ -23,6 +23,8 @@ class DiscordCollectionTrackerResult:
 
     success: bool
     counts: Mapping[str, int]
+    errors: tuple[str, ...] = field(default_factory=tuple)
+    duration_seconds: float | None = None
 
 
 @dataclass(frozen=True)

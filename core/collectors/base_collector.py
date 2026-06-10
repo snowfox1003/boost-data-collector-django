@@ -10,10 +10,18 @@ so :class:`core.collectors.command_base.BaseCollectorCommand` can invoke ``run``
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Protocol, runtime_checkable
 
 from core.errors import classify_failure
+from core.protocols import (
+    IncrementalState,
+    TrackerResult,
+    require_incremental_state,
+    require_tracker_result,
+)
+from core.tracker_result import with_duration_if_missing
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +36,7 @@ class CollectorRunnable(Protocol):
     routes failures through :meth:`handle_error` (except :class:`~django.core.management.base.CommandError`).
     """
 
-    def run(self) -> None:
+    def run(self) -> TrackerResult:
         """Main collection phase; see :class:`AbstractCollector`."""
         ...
 
@@ -38,6 +46,11 @@ class CollectorRunnable(Protocol):
 
     def handle_error(self, exc: BaseException) -> None:
         """Log *exc* with structured ``failure_category``; must not swallow *exc*."""
+        ...
+
+    @property
+    def last_result(self) -> TrackerResult | None:
+        """Outcome of the most recent successful :meth:`run`, if any."""
         ...
 
 
@@ -58,6 +71,10 @@ class _CollectorLifecycleMixin:
     :meth:`handle_error` when you need a different category or extra context.
     """
 
+    _last_result: TrackerResult | None
+    _incremental_state_in: IncrementalState | None
+    _incremental_state_out: IncrementalState | None
+
     def pre_collect(self) -> None:
         """
         Optional setup before :meth:`~AbstractCollector.validate_config`.
@@ -74,11 +91,22 @@ class _CollectorLifecycleMixin:
         """
         Optional teardown or reporting after :meth:`~AbstractCollector.collect` succeeds.
 
-        Default is no-op.
+        Default persists :attr:`_incremental_state_out` when set.
 
         Returns:
             None
         """
+        state_out = getattr(self, "_incremental_state_out", None)
+        if state_out is not None:
+            self.persist_incremental_state(require_incremental_state(state_out))
+        return None
+
+    def load_incremental_state(self) -> IncrementalState | None:
+        """Load checkpoint from DB/workspace; override in incremental collectors."""
+        return None
+
+    def persist_incremental_state(self, state: IncrementalState) -> None:
+        """Persist checkpoint after a successful run; override in incremental collectors."""
         return None
 
     def on_error(self, exc: BaseException) -> None:
@@ -132,6 +160,11 @@ class _CollectorLifecycleMixin:
         """
         return None
 
+    @property
+    def last_result(self) -> TrackerResult | None:
+        """Outcome of the most recent successful :meth:`run`, if any."""
+        return getattr(self, "_last_result", None)
+
 
 class AbstractCollector(_CollectorLifecycleMixin, ABC):
     """
@@ -154,6 +187,9 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
     Do not override :meth:`run`. Override :meth:`handle_error` only when
     :func:`classify_failure` does not map your domain errors cleanly.
     """
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
 
     @property
     @abstractmethod
@@ -180,12 +216,12 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
         """
 
     @abstractmethod
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         """
         Main collection work (fetch, transform, persist).
 
         Returns:
-            None
+            A :class:`~core.protocols.TrackerResult` describing the run outcome.
 
         Raises:
             Exception: Domain failures; propagate after logging when run under
@@ -196,12 +232,26 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
             conventions.
         """
 
-    def run(self) -> None:
+    def run(self) -> TrackerResult:
+        self._incremental_state_in = None
+        self._incremental_state_out = None
+        started = time.monotonic()
         try:
             self.pre_collect()
             self.validate_config()
-            self.collect()
+            loaded_state = self.load_incremental_state()
+            self._incremental_state_in = (
+                require_incremental_state(loaded_state)
+                if loaded_state is not None
+                else None
+            )
+            raw_result = self.collect()
+            result = require_tracker_result(raw_result)
+            elapsed = time.monotonic() - started
+            result = with_duration_if_missing(result, elapsed)
             self.post_collect()
+            self._last_result = result
+            return result
         except Exception as exc:
             try:
                 self.on_error(exc)

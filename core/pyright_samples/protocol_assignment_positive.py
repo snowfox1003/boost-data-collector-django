@@ -12,6 +12,8 @@ from core.protocols import TrackerResult
 class _LocalTrackerResult:
     success: bool
     counts: Mapping[str, int]
+    errors: tuple[str, ...] = ()
+    duration_seconds: float | None = None
 
 
 def sample_tracker_result() -> TrackerResult:

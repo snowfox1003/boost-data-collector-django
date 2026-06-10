@@ -10,6 +10,11 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from core.collectors.base_collector import AbstractCollector
+from core.protocols import IncrementalState, TrackerResult
+from clang_github_tracker.protocol_impl import (
+    ClangGithubIncrementalState,
+    ClangGithubTrackerResult,
+)
 from core.utils.datetime_parsing import parse_iso_datetime
 from clang_github_tracker import state_manager as clang_state
 from clang_github_tracker.sync_raw import sync_clang_github_activity
@@ -92,7 +97,16 @@ class ClangGithubTrackerCollector(AbstractCollector):
         except ValueError as e:
             raise CommandError(str(e)) from e
 
-    def collect(self) -> None:
+    def load_incremental_state(self) -> IncrementalState | None:
+        start_commit, start_item, _end = clang_state.resolve_start_end_dates(
+            self._since_dt, self._until_dt
+        )
+        return ClangGithubIncrementalState.from_watermarks(
+            start_commit=start_commit,
+            start_item=start_item,
+        )
+
+    def collect(self) -> TrackerResult:
         start_commit, start_item, end_date = clang_state.resolve_start_end_dates(
             self._since_dt, self._until_dt
         )
@@ -115,10 +129,11 @@ class ClangGithubTrackerCollector(AbstractCollector):
             if not self.skip_pinecone:
                 logger.info("dry-run: would run Pinecone upsert for issues and PRs")
             logger.info("dry-run finished")
-            return
+            return ClangGithubTrackerResult.dry_run()
 
         issue_numbers: list[int] = []
         pr_numbers: list[int] = []
+        commits_saved = 0
 
         if not self.skip_github_sync:
             commits_saved, issue_numbers, pr_numbers = sync_clang_github_activity(
@@ -176,6 +191,12 @@ class ClangGithubTrackerCollector(AbstractCollector):
             logger.info("skipping remote push (--skip-remote-push)")
 
         logger.info("run_clang_github_tracker finished successfully")
+        return ClangGithubTrackerResult.from_sync(
+            commits_saved=commits_saved,
+            issue_count=len(issue_numbers),
+            pr_count=len(pr_numbers),
+            md_files=len(new_files),
+        )
 
     def sync_pinecone(self) -> None:
         if self.dry_run or self.skip_pinecone:

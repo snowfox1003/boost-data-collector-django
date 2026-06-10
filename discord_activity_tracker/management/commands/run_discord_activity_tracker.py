@@ -44,6 +44,11 @@ from django.conf import settings
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import IncrementalState, TrackerResult
+from discord_activity_tracker.protocol_impl import (
+    DiscordCollectionTrackerResult,
+    DiscordIncrementalState,
+)
 from core.utils.datetime_parsing import parse_iso_datetime
 from discord_activity_tracker.models import DiscordServer
 from discord_activity_tracker.pinecone_runner import task_discord_pinecone_sync
@@ -172,17 +177,17 @@ def task_discord_sync(
     after_date: datetime | None,
     before_date: datetime | None,
     collector: "DiscordActivityCollector",
-) -> None:
+) -> int:
     """DiscordChatExporter → parse → db_sync → archive JSON per channel."""
     if skip_discord_sync:
         logger.info("skipping Discord fetch / DB / raw (--skip-discord-sync)")
-        return
+        return 0
 
     if dry_run:
         logger.info(
             "dry-run would run DiscordChatExporter and persist messages + raw JSON"
         )
-        return
+        return 0
 
     raw_root = get_raw_dir()
     staging = get_exporter_staging_dir()
@@ -269,6 +274,7 @@ def task_discord_sync(
         )
     )
     logger.debug("raw archive root: %s", raw_root)
+    return processed_total
 
 
 def task_markdown_export_and_push(
@@ -365,8 +371,19 @@ class DiscordActivityCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
-        self.cmd._handle_core(self.options, collector=self)
+    def load_incremental_state(self) -> IncrementalState | None:
+        guild_id: int | None = getattr(settings, "DISCORD_SERVER_ID", None)
+        if not guild_id:
+            return None
+        after_date, _before = _resolve_exporter_date_bounds(
+            self.options,
+            guild_snowflake=guild_id,
+            channel_ids=self.channel_ids,
+        )
+        return DiscordIncrementalState.from_after_date(after=after_date)
+
+    def collect(self) -> TrackerResult:
+        return self.cmd._handle_core(self.options, collector=self)
 
     def sync_pinecone(self) -> None:
         if self.options.get("dry_run") or self.options.get("skip_pinecone"):
@@ -524,7 +541,9 @@ class Command(BaseCollectorCommand):
             opts["skip_pinecone"] = False
         return DiscordActivityCollector(cmd=self, options=opts)
 
-    def _handle_core(self, options: dict, collector: DiscordActivityCollector) -> None:
+    def _handle_core(
+        self, options: dict, collector: DiscordActivityCollector
+    ) -> DiscordCollectionTrackerResult:
         dry_run = options["dry_run"]
         skip_discord_sync = options["skip_discord_sync"]
         skip_markdown_export = options["skip_markdown_export"]
@@ -615,9 +634,11 @@ class Command(BaseCollectorCommand):
                         "  Upper bound (--before): none (through present)"
                     )
                 logger.info("finished successfully (dry-run)")
-                return
+                return DiscordCollectionTrackerResult(
+                    success=True, counts={"dry_run": 1}
+                )
 
-            task_discord_sync(
+            messages_synced = task_discord_sync(
                 dry_run=False,
                 skip_discord_sync=skip_discord_sync,
                 user_token=user_token,
@@ -640,6 +661,15 @@ class Command(BaseCollectorCommand):
                 logger.info("skipping Pinecone (--skip-pinecone)")
 
             logger.info("finished successfully")
+            return DiscordCollectionTrackerResult(
+                success=True,
+                counts={
+                    "messages": messages_synced,
+                    "channels": (
+                        len(collector.channel_ids) if collector.channel_ids else 0
+                    ),
+                },
+            )
         except Exception as e:
             logger.exception("command failed: %s", e)
             raise

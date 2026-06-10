@@ -20,6 +20,8 @@ from django.conf import settings
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import IncrementalState, TrackerResult
+from cppa_slack_tracker.protocol_impl import SlackIncrementalState, SlackTrackerResult
 
 from cppa_slack_tracker.models import SlackTeam
 from cppa_slack_tracker.services import save_slack_message
@@ -63,6 +65,7 @@ class CppaSlackTrackerCollector(AbstractCollector):
         self.team_id = team_id
         self.options = options
         self._team: SlackTeam | None = None
+        self._counts: dict[str, int] = {}
 
     @property
     def name(self) -> str:
@@ -71,13 +74,18 @@ class CppaSlackTrackerCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
+    def load_incremental_state(self) -> IncrementalState | None:
+        start = (self.options.get("start_date") or "").strip() or None
+        return SlackIncrementalState.from_team(team_id=self.team_id, start_date=start)
+
+    def collect(self) -> TrackerResult:
         dry_run = self.options.get("dry_run", False)
         if dry_run:
             self._print_dry_run()
-            return
+            return SlackTrackerResult.dry_run()
 
         self._team = sync_team(self.team_id)
+        self._counts = {}
 
         if self.options.get("sync_users"):
             self._sync_users(self._team)
@@ -97,6 +105,8 @@ class CppaSlackTrackerCollector(AbstractCollector):
             self._sync_users(self._team)
             self._sync_channels(self._team)
             self._sync_messages(self._team)
+
+        return SlackTrackerResult.from_counts(**self._counts)
 
     def sync_pinecone(self) -> None:
         if self.options.get("dry_run"):
@@ -179,6 +189,8 @@ class CppaSlackTrackerCollector(AbstractCollector):
             team_id=team.team_id,
             include_bots=True,
         )
+        self._counts["users"] = self._counts.get("users", 0) + success_count
+        self._counts["user_errors"] = self._counts.get("user_errors", 0) + error_count
         logger.info(
             "Synced %s users, %s errors",
             success_count,
@@ -194,6 +206,10 @@ class CppaSlackTrackerCollector(AbstractCollector):
             channel_id=channel_id,
             team_id=team.team_id,
         )
+        self._counts["channels"] = self._counts.get("channels", 0) + success_count
+        self._counts["channel_errors"] = (
+            self._counts.get("channel_errors", 0) + error_count
+        )
         logger.info(
             "Synced %s channels, %s errors",
             success_count,
@@ -207,6 +223,9 @@ class CppaSlackTrackerCollector(AbstractCollector):
         success_count, error_count = sync_channel_users(
             team,
             channel_id=channel_id,
+        )
+        self._counts["channel_memberships"] = (
+            self._counts.get("channel_memberships", 0) + success_count
         )
         logger.info(
             "Synced %s channel member lists, %s errors",
@@ -315,6 +334,8 @@ class CppaSlackTrackerCollector(AbstractCollector):
         logger.info("Syncing messages per channel...")
         for channel in channels:
             s, e = sync_messages(channel, start_date=start_d, end_date=end_d)
+            self._counts["messages"] = self._counts.get("messages", 0) + s
+            self._counts["message_errors"] = self._counts.get("message_errors", 0) + e
             logger.info(
                 "  #%s: %s saved, %s errors",
                 channel.channel_name,

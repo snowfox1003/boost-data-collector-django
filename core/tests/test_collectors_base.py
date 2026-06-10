@@ -9,6 +9,9 @@ from django.core.management.base import CommandError
 import core.collectors.base_collector as collector_lifecycle
 from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
+from core.tracker_result import GenericTrackerResult
+
+_OK = GenericTrackerResult.ok()
 
 
 class _CallCommandCollector(AbstractCollector):
@@ -26,10 +29,11 @@ class _CallCommandCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
+    def collect(self) -> GenericTrackerResult:
         from django.core.management import call_command as _call_command
 
         _call_command(self._command_name)
+        return _OK
 
 
 def test_call_command_collector_collect_invokes_call_command():
@@ -55,8 +59,9 @@ def test_base_collector_command_runs_then_sync_pinecone():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             phases.append("run")
+            return _OK
 
         def sync_pinecone(self) -> None:
             phases.append("sync")
@@ -80,7 +85,7 @@ def test_base_collector_command_propagates_command_error():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise CommandError("planned", returncode=3)
 
     class Cmd(BaseCollectorCommand):
@@ -102,8 +107,8 @@ def test_abstract_collector_handle_error_logs_failure_category():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
-            return None
+        def collect(self) -> GenericTrackerResult:
+            return _OK
 
     collector = PhaseCollector()
     collector._error_phase = "fetch"
@@ -124,7 +129,7 @@ def test_base_collector_command_logs_and_reraises_generic_exception():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise RuntimeError("boom")
 
     class Cmd(BaseCollectorCommand):
@@ -157,7 +162,7 @@ def test_base_collector_command_failure_classifies_in_handle_error():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise ValueError("bad input")
 
     class Cmd(BaseCollectorCommand):
@@ -182,7 +187,7 @@ def test_base_collector_command_double_fault_clears_error_phase():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise RuntimeError("primary")
 
     held: dict[str, AbstractCollector] = {}
@@ -220,8 +225,9 @@ def test_abstract_collector_run_calls_hooks_in_order():
         def validate_config(self) -> None:
             order.append("validate")
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             order.append("collect")
+            return _OK
 
         def post_collect(self) -> None:
             order.append("post_collect")
@@ -239,8 +245,8 @@ def test_abstract_collector_run_default_hooks_are_no_ops():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
-            return None
+        def collect(self) -> GenericTrackerResult:
+            return _OK
 
     Minimal().run()
 
@@ -260,8 +266,9 @@ def test_abstract_collector_run_failure_in_pre_collect_skips_later_phases():
         def validate_config(self) -> None:
             calls.append("validate")
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             calls.append("collect")
+            return _OK
 
         def post_collect(self) -> None:
             calls.append("post_collect")
@@ -287,8 +294,9 @@ def test_abstract_collector_run_failure_in_validate_skips_collect_and_post():
             calls.append("validate")
             raise ValueError("bad config")
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             calls.append("collect")
+            return _OK
 
         def post_collect(self) -> None:
             calls.append("post_collect")
@@ -312,7 +320,7 @@ def test_abstract_collector_run_failure_in_collect_skips_post_collect():
         def validate_config(self) -> None:
             calls.append("validate")
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             calls.append("collect")
             raise RuntimeError("collect failed")
 
@@ -338,8 +346,9 @@ def test_abstract_collector_run_failure_in_post_collect_calls_on_error():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             calls.append("collect")
+            return _OK
 
         def post_collect(self) -> None:
             raise RuntimeError("post failed")
@@ -347,9 +356,38 @@ def test_abstract_collector_run_failure_in_post_collect_calls_on_error():
         def on_error(self, exc: BaseException) -> None:
             calls.append("on_error")
 
+    collector = AC()
     with pytest.raises(RuntimeError, match="post failed"):
-        AC().run()
+        collector.run()
     assert calls == ["collect", "on_error"]
+    assert collector.last_result is None
+
+
+def test_abstract_collector_run_failure_in_persist_incremental_state_does_not_set_last_result():
+    from core.incremental_state import GenericIncrementalState
+
+    state_out = GenericIncrementalState(checkpoint_token="t", human_readable_marker="m")
+
+    class AC(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "ac"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> GenericTrackerResult:
+            self._incremental_state_out = state_out
+            return _OK
+
+        def persist_incremental_state(self, state) -> None:
+            raise RuntimeError("persist failed")
+
+    collector = AC()
+    with pytest.raises(RuntimeError, match="persist failed"):
+        collector.run()
+
+    assert collector.last_result is None
 
 
 def test_abstract_collector_run_on_error_does_not_swallow_exception():
@@ -361,7 +399,7 @@ def test_abstract_collector_run_on_error_does_not_swallow_exception():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise RuntimeError("primary")
 
         def on_error(self, exc: BaseException) -> None:
@@ -380,7 +418,7 @@ def test_abstract_collector_run_on_error_failure_still_reraises_original():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise RuntimeError("primary")
 
         def on_error(self, exc: BaseException) -> None:
@@ -401,7 +439,7 @@ def test_abstract_collector_run_on_error_runs_before_command_handle_error():
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise RuntimeError("boom")
 
         def on_error(self, exc: BaseException) -> None:
@@ -432,7 +470,7 @@ def test_base_collector_command_command_error_skips_handle_error_still_calls_on_
         def validate_config(self) -> None:
             return None
 
-        def collect(self) -> None:
+        def collect(self) -> GenericTrackerResult:
             raise CommandError("planned", returncode=3)
 
         def on_error(self, exc: BaseException) -> None:
@@ -461,8 +499,8 @@ def test_abstract_collector_handle_error_uses_name_in_log_extra():
         def validate_config(self) -> None:
             pass
 
-        def collect(self) -> None:
-            pass
+        def collect(self) -> GenericTrackerResult:
+            return _OK
 
     c = Named()
     c._error_phase = "collect"
@@ -470,3 +508,69 @@ def test_abstract_collector_handle_error_uses_name_in_log_extra():
         c.handle_error(RuntimeError("x"))
     mock_exc.assert_called_once()
     assert "named_slug" in str(mock_exc.call_args)
+
+
+def test_abstract_collector_run_rejects_non_protocol_return():
+    class BadReturn(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "bad_return"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self):
+            return {"success": True, "counts": {}}
+
+    with pytest.raises(TypeError, match="TrackerResult"):
+        BadReturn().run()
+
+
+def test_abstract_collector_run_sets_duration_and_last_result():
+    class Counting(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "counting"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> GenericTrackerResult:
+            return GenericTrackerResult.ok(items=3)
+
+    collector = Counting()
+    result = collector.run()
+    assert result.counts["items"] == 3
+    assert result.duration_seconds is not None
+    assert collector.last_result is result
+
+
+def test_base_collector_command_logs_tracker_result_fields():
+    class OkCollector(AbstractCollector):
+        @property
+        def name(self) -> str:
+            return "logged_collector"
+
+        def validate_config(self) -> None:
+            return None
+
+        def collect(self) -> GenericTrackerResult:
+            return GenericTrackerResult.ok(messages=2)
+
+    class Cmd(BaseCollectorCommand):
+        help = "test"
+
+        def get_collector(self, **options):
+            return OkCollector()
+
+    import core.collectors.command_base as cmd_mod
+
+    with patch.object(cmd_mod.logger, "info") as mock_info:
+        Cmd(stdout=StringIO(), stderr=StringIO()).handle()
+    finished = [
+        c
+        for c in mock_info.call_args_list
+        if c.args and "Collector finished" in str(c.args[0])
+    ]
+    assert finished
+    assert finished[0].kwargs["extra"]["records_collected"] == 2

@@ -40,12 +40,15 @@ Outcome of one logical collection or sync cycle.
 | --- | --- |
 | `success` | bool |
 | `counts` | Mapping[str, int] |
+| `errors` | Sequence[str] |
+| `duration_seconds` | float \| None |
 
 ## Module functions (generated)
 
 | Function | Parameters | Return type | Summary |
 | --- | --- | --- | --- |
 | `require_activity_record` | obj: object | ActivityRecord | Return *obj* if it satisfies :class:`ActivityRecord`; else raise ``TypeError``. |
+| `require_incremental_state` | obj: object | IncrementalState | Return *obj* if it satisfies :class:`IncrementalState`; else raise ``TypeError``. |
 | `require_tracker_result` | obj: object | TrackerResult | Return *obj* if it satisfies :class:`TrackerResult`; else raise ``TypeError``. |
 
 <!-- SERVICE_API:GENERATED:END -->

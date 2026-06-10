@@ -9,7 +9,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.collectors import (
+    AbstractCollector,
+    BaseCollectorCommand,
+    GenericTrackerResult,
+)
+from core.protocols import TrackerResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +33,12 @@ class CppaUserTrackerCollector(AbstractCollector):
     def validate_config(self) -> None:
         return None
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         logger.info("run_cppa_user_tracker: starting")
         # Stub: add logic (stage relations, merge into Identity/BaseProfile, etc.)
         self.stdout.write(self.style.SUCCESS("CPPA User Tracker completed (stub)."))
         logger.info("run_cppa_user_tracker: finished successfully")
+        return GenericTrackerResult.ok()
 
 
 class Command(BaseCollectorCommand):

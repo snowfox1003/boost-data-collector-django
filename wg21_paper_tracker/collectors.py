@@ -9,6 +9,8 @@ from django.conf import settings
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector
+from core.protocols import TrackerResult
+from wg21_paper_tracker.protocol_impl import Wg21PaperTrackerResult
 from wg21_paper_tracker.pipeline import (
     _normalize_mailing_date_label,
     run_tracker_pipeline,
@@ -107,7 +109,7 @@ class Wg21PaperTrackerCollector(AbstractCollector):
                 f"--to-date {self.to_date!r}."
             )
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         if self.dry_run:
             if self.from_date or self.to_date:
                 logger.info(
@@ -118,21 +120,22 @@ class Wg21PaperTrackerCollector(AbstractCollector):
                 )
             else:
                 logger.info("Dry run: skipping pipeline and GitHub dispatch.")
-            return
+            return Wg21PaperTrackerResult.dry_run()
 
         logger.info("Starting WG21 Paper Tracker...")
 
         try:
-            result = run_tracker_pipeline(
+            pipeline_result = run_tracker_pipeline(
                 from_mailing_date=self.from_date,
                 to_mailing_date=self.to_date,
             )
-            n = result.new_paper_count
+            tracker_result = Wg21PaperTrackerResult.from_pipeline(pipeline_result)
+            n = pipeline_result.new_paper_count
             logger.info("Recorded %d new paper(s); %d URL(s) for dispatch.", n, n)
 
             if not n:
                 logger.info("No new papers in this run. Skipping GitHub dispatch.")
-                return
+                return tracker_result
 
             repo = getattr(settings, "WG21_GITHUB_DISPATCH_REPO", "") or ""
             token = getattr(settings, "WG21_GITHUB_DISPATCH_TOKEN", "") or ""
@@ -149,14 +152,15 @@ class Wg21PaperTrackerCollector(AbstractCollector):
                     "and configure WG21_GITHUB_DISPATCH_REPO and "
                     "WG21_GITHUB_DISPATCH_TOKEN."
                 )
-                return
+                return tracker_result
             trigger_github_repository_dispatch(
                 repo,
                 event_type,
                 token,
-                list(result.new_paper_urls),
+                list(pipeline_result.new_paper_urls),
             )
             logger.info("repository_dispatch sent successfully.")
+            return tracker_result
 
         except ValueError as e:
             raise CommandError(str(e)) from e

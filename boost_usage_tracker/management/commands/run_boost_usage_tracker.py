@@ -20,8 +20,12 @@ from datetime import datetime, timedelta, timezone
 from django.utils.dateparse import parse_datetime
 from django.core.management.base import CommandError
 
-from core.collectors.base_collector import AbstractCollector
-from core.collectors.command_base import BaseCollectorCommand
+from core.collectors import (
+    AbstractCollector,
+    BaseCollectorCommand,
+    GenericTrackerResult,
+)
+from core.protocols import TrackerResult
 
 from boost_usage_tracker.models import BoostExternalRepository
 from boost_usage_tracker.boost_searcher import (
@@ -40,10 +44,23 @@ from github_activity_tracker.services import (
     get_or_create_repository,
 )
 from core.operations.github_ops import get_github_client
-from core.operations.github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops.client import (
+    ConnectionException,
+    GitHubAPIClient,
+    RateLimitException,
+)
 from core.operations.github_ops.tokens import validate_github_token_for_use
 
 logger = logging.getLogger(__name__)
+
+
+def _require_github_client() -> GitHubAPIClient:
+    """Return a scraping GitHub client or raise if credentials are unavailable."""
+    client = get_github_client(use="scraping")
+    if client is None:
+        raise RuntimeError("GitHub client unavailable for boost_usage_tracker")
+    return client
+
 
 # ---------------------------------------------------------------------------
 # Ensure GitHubRepository from a search result
@@ -196,7 +213,7 @@ def task_monitor_content(
         until.date(),
         min_stars,
     )
-    client = get_github_client(use="scraping")
+    client = _require_github_client()
 
     repo_results = search_repos_with_date_splitting(
         client,
@@ -236,7 +253,7 @@ def task_monitor_stars(
 ) -> None:
     """Monthly task: find all C++ repos with 10+ stars, process new ones."""
     now = datetime.now(timezone.utc)
-    client = get_github_client(use="scraping")
+    client = _require_github_client()
 
     # Load all already-tracked repos with their current star counts.
     # full_name is "owner/repo_name"; map to (repo_pk, current_stars) so we can
@@ -344,22 +361,26 @@ class BoostUsageTrackerCollector(AbstractCollector):
         except ValueError as e:
             raise CommandError(str(e)) from e
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         logger.info(
             "run_boost_usage_tracker: starting (task=%s, dry_run=%s)",
             self.task_filter or "all",
             self.dry_run,
         )
         try:
+            tasks_run = 0
             if not self.task_filter or self.task_filter == "monitor_content":
                 task_monitor_content(
                     self.since, self.until, self.min_stars, self.dry_run
                 )
+                tasks_run += 1
 
             if not self.task_filter or self.task_filter == "monitor_stars":
                 task_monitor_stars(self.min_stars, self.dry_run)
+                tasks_run += 1
 
             logger.info("run_boost_usage_tracker: finished successfully")
+            return GenericTrackerResult.ok(tasks=tasks_run, dry_run=int(self.dry_run))
         except (ConnectionException, RateLimitException) as e:
             logger.exception(
                 "run_boost_usage_tracker failed (rate limit / connection): %s",

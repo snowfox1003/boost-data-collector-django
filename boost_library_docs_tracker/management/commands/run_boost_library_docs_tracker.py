@@ -44,6 +44,8 @@ from pathlib import Path
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import TrackerResult
+from boost_library_docs_tracker.protocol_impl import LibraryDocsTrackerResult
 
 from boost_library_docs_tracker import fetcher, services, workspace
 from boost_library_docs_tracker.preprocessor import preprocess_for_pinecone
@@ -72,10 +74,10 @@ class BoostLibraryDocsTrackerCollector(AbstractCollector):
         if max_pages is not None and max_pages < 1:
             raise CommandError("--max-pages must be at least 1.")
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         o = self.options
         try:
-            self.cmd._run(
+            return self.cmd._run(
                 versions_arg=o["versions"],
                 library_filter=o["library"],
                 dry_run=o["dry_run"],
@@ -169,7 +171,7 @@ class Command(BaseCollectorCommand):
         max_pages,
         use_local,
         cleanup_extract,
-    ):
+    ) -> LibraryDocsTrackerResult:
         versions = self._resolve_versions(versions_arg)
         self.stdout.write(
             f"Processing {len(versions)} version(s): {', '.join(versions)}"
@@ -177,8 +179,9 @@ class Command(BaseCollectorCommand):
         mode = "local-zip" if use_local else "HTTP crawl"
         self.stdout.write(f"Scrape mode: {mode}")
 
+        total_pages = 0
         for version in versions:
-            self._process_version(
+            total_pages += self._process_version(
                 version=version,
                 library_filter=library_filter,
                 dry_run=dry_run,
@@ -190,6 +193,12 @@ class Command(BaseCollectorCommand):
         if dry_run or skip_pinecone:
             reason = "dry run" if dry_run else "--skip-pinecone set"
             self.stdout.write(f"Skipping Pinecone sync ({reason}).")
+
+        return LibraryDocsTrackerResult.from_run(
+            versions=len(versions),
+            pages=total_pages,
+            dry_run=dry_run,
+        )
 
     def _process_version(
         self, *, version, library_filter, dry_run, max_pages, use_local, cleanup_extract
@@ -247,6 +256,7 @@ class Command(BaseCollectorCommand):
                     )
 
         self.stdout.write(f"[{version}] Done — {total_pages} pages total.")
+        return total_pages
 
     def _prepare_local_source(self, *, version: str) -> tuple[Path, Path]:
         """Download and extract the Boost source zip for a version.

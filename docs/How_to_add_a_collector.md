@@ -21,7 +21,7 @@ Add a task under the right group in `config/boost_collector_schedule.yaml` (see 
 
 Stable imports live under **`core.collectors`** (re-exported in [`core/collectors/__init__.py`](../core/collectors/__init__.py)); see the **Collectors** table in [Core_public_API.md](Core_public_API.md#collectors) for `AbstractCollector`, `CollectorRunnable`, and `BaseCollectorCommand`.
 
-- Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect()`. The base provides concrete `run()` as `validate_config()` then `collect()`, plus `handle_error()` / `sync_pinecone()` from the shared lifecycle mixin. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`).
+- Subclass **`AbstractCollector`** and implement a stable `name` property, `validate_config()`, and `collect() -> TrackerResult`. Return a frozen dataclass from your app's `protocol_impl.py`, or **`GenericTrackerResult`** for simple collectors. The base provides concrete `run()` (validate → `load_incremental_state()` → collect → `post_collect()`), plus `handle_error()` / `sync_pinecone()` from the shared lifecycle mixin. Use **`BaseCollectorCommand`** so the management command stays thin (`get_collector()` returns any **`CollectorRunnable`**: `run`, `sync_pinecone`, `handle_error`, `last_result`).
 
 ### Collector contracts (source of truth)
 
@@ -51,6 +51,7 @@ my_skeleton_tracker/
   __init__.py
   apps.py
   collectors.py
+  protocol_impl.py   # optional at first; add when you outgrow GenericTrackerResult
   models.py
   services.py
   management/
@@ -135,7 +136,7 @@ from __future__ import annotations
 
 import logging
 
-from core.collectors import AbstractCollector
+from core.collectors import AbstractCollector, GenericTrackerResult
 from my_skeleton_tracker.services import record_skeleton_run
 
 # If you override handle_error, you can log or map errors explicitly, e.g.:
@@ -162,7 +163,7 @@ class MySkeletonCollector(AbstractCollector):
         if not self.source_key or not self.source_key.strip():
             raise ValueError("source_key must not be empty")
 
-    def collect(self) -> None:
+    def collect(self) -> GenericTrackerResult:
         obj, created = record_skeleton_run(source_key=self.source_key.strip())
         logger.info(
             "skeleton run recorded source_key=%s run_count=%s created=%s",
@@ -170,6 +171,7 @@ class MySkeletonCollector(AbstractCollector):
             obj.run_count,
             created,
         )
+        return GenericTrackerResult.ok(runs=1, created=int(created))
 
     # STANDARD: omit sync_pinecone unless you post-process (e.g. Pinecone); default is no-op.
 ```

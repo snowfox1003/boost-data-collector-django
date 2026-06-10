@@ -30,3 +30,11 @@ def test_github_sync_tracker_result_from_sync_dict():
     r = GitHubSyncTrackerResult.from_sync_dict({"issues": [], "pull_requests": [1]})
     assert r.counts["issues"] == 0
     assert r.counts["pull_requests"] == 1
+
+
+def test_github_sync_tracker_result_merge():
+    a = GitHubSyncTrackerResult.from_sync_dict({"issues": [1], "pull_requests": []})
+    b = GitHubSyncTrackerResult.from_sync_dict({"issues": [2], "pull_requests": [3]})
+    merged = GitHubSyncTrackerResult.merge(a, b)
+    assert isinstance(merged, TrackerResult)
+    assert merged.counts == {"issues": 2, "pull_requests": 1}

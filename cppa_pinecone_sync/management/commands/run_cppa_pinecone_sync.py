@@ -18,7 +18,9 @@ from typing import Any
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import TrackerResult
 
+from cppa_pinecone_sync.protocol_impl import PineconeSyncTrackerResult
 from cppa_pinecone_sync.sync import sync_to_pinecone
 from cppa_pinecone_sync.types import PineconeInstance
 
@@ -68,7 +70,7 @@ class CppaPineconeSyncCollector(AbstractCollector):
         except (ValueError, ImportError) as e:
             raise CommandError(str(e)) from e
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         logger.info(
             "run_cppa_pinecone_sync: starting app_type=%s namespace=%s preprocessor=%s",
             self.app_type,
@@ -76,22 +78,23 @@ class CppaPineconeSyncCollector(AbstractCollector):
             self.preprocessor_path,
         )
 
-        result = sync_to_pinecone(
+        raw = sync_to_pinecone(
             self.app_type,
             self.namespace,
             self._preprocess_fn,
             instance=self.instance,
         )
+        result = PineconeSyncTrackerResult.from_sync_dict(raw)
         logger.info(
             "CPPA Pinecone Sync completed: upserted=%s, total=%s, failed_count=%s",
-            result["upserted"],
-            result["total"],
-            result["failed_count"],
+            result.counts.get("upserted", 0),
+            result.counts.get("total", 0),
+            result.counts.get("failed_count", 0),
         )
-        if result.get("errors"):
-            for err in result["errors"]:
-                logger.warning("Sync error: %s", err)
+        for err in result.errors:
+            logger.warning("Sync error: %s", err)
         logger.info("run_cppa_pinecone_sync: finished successfully")
+        return result
 
 
 class Command(BaseCollectorCommand):
@@ -153,7 +156,7 @@ class Command(BaseCollectorCommand):
 
         return CppaPineconeSyncCollector(
             app_type=app_type,
-            namespace=namespace,
-            preprocessor_path=preprocessor_path,
+            namespace=namespace or "",
+            preprocessor_path=preprocessor_path or "",
             instance=instance,
         )

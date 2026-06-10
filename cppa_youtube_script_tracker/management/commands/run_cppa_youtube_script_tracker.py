@@ -27,6 +27,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from core.collectors import AbstractCollector, BaseCollectorCommand
+from core.protocols import TrackerResult
+from cppa_youtube_script_tracker.protocol_impl import YoutubeScriptTrackerResult
 from django.utils.dateparse import parse_datetime
 
 from cppa_user_tracker.services import get_or_create_youtube_speaker
@@ -461,7 +463,7 @@ class CppaYoutubeScriptTrackerCollector(AbstractCollector):
                     "(when --end-time is omitted, the end is the current UTC time)."
                 )
 
-    def collect(self) -> None:
+    def collect(self) -> TrackerResult:
         o = self.options
         start_time_arg = (o.get("start_time") or "").strip()
         end_time_arg = (o.get("end_time") or "").strip()
@@ -495,10 +497,11 @@ class CppaYoutubeScriptTrackerCollector(AbstractCollector):
                         f"{end_time.isoformat()}. No API calls or DB writes."
                     )
                 )
-                return
+                return YoutubeScriptTrackerResult.from_run(dry_run=True)
 
-            self.cmd._phase_2(start_time, end_time, channel_title)
+            videos = self.cmd._phase_2(start_time, end_time, channel_title)
             self.cmd._phase_3(skip_transcript)
+            return YoutubeScriptTrackerResult.from_run(videos=videos or 0)
 
         except Exception:
             logger.exception("run_cppa_youtube_script_tracker: unhandled error")
@@ -583,7 +586,7 @@ class Command(BaseCollectorCommand):
 
     def _phase_2(
         self, start_time: datetime, end_time: datetime, channel_title: str
-    ) -> None:
+    ) -> int:
         created_count, skipped_count = _run_phase_2(start_time, end_time, channel_title)
         if created_count == 0 and skipped_count == 0:
             self.stdout.write(self.style.WARNING("Phase 2: no new videos fetched."))
@@ -599,6 +602,7 @@ class Command(BaseCollectorCommand):
                 created_count,
                 skipped_count,
             )
+        return created_count
 
     def _phase_3(self, skip_transcript: bool) -> None:
         if skip_transcript:
