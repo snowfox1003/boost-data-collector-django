@@ -211,7 +211,7 @@ def test_start_channel_join_background_loop_invokes_join_check(monkeypatch):
     """Exercise _run_loop body with a synchronous Thread replacement."""
     import core.operations.slack_ops.channels as ch
 
-    ch._stop_event.clear()
+    ch._coordinator.clear_stop()
     monkeypatch.setenv("CHANNEL_JOIN_INTERVAL_MINUTES", "1")
     monkeypatch.setenv("CHANNEL_JOIN_PUBLIC_ONLY", "true")
     monkeypatch.setenv("CHANNEL_ALLOWLIST", "")
@@ -226,8 +226,10 @@ def test_start_channel_join_background_loop_invokes_join_check(monkeypatch):
             self._target = target
 
         def start(self):
-            with patch.object(ch._stop_event, "wait", return_value=False):
-                with patch.object(ch._stop_event, "is_set", lambda: ran["done"]):
+            with patch.object(ch._coordinator._stop_event, "wait", return_value=False):
+                with patch.object(
+                    ch._coordinator._stop_event, "is_set", lambda: ran["done"]
+                ):
                     with patch.object(
                         ch, "run_channel_join_check", side_effect=fake_join
                     ):
@@ -241,7 +243,7 @@ def test_start_channel_join_background_loop_invokes_join_check(monkeypatch):
 def test_start_channel_join_background_starts_named_thread():
     import core.operations.slack_ops.channels as ch
 
-    ch._stop_event.clear()
+    ch._coordinator.clear_stop()
     with patch.object(ch.threading, "Thread") as MT:
         inst = MagicMock()
         MT.return_value = inst
@@ -420,6 +422,6 @@ def test_run_channel_join_check_outer_exception():
 def test_stop_channel_join_background_sets_event():
     import core.operations.slack_ops.channels as ch
 
-    ch._stop_event.clear()
+    ch._coordinator.clear_stop()
     stop_channel_join_background()
-    assert ch._stop_event.is_set()
+    assert ch._coordinator.is_stopped()

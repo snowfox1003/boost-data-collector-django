@@ -34,26 +34,56 @@ _UPLOAD_FOLDER_BLOB_MAX_CONCURRENT = 3
 # Max seconds to sleep in one wait after 403 (avoid unbounded sleeps from bad headers)
 _UPLOAD_FOLDER_403_MAX_SLEEP_SEC = 900
 
-_blob_post_semaphore = threading.BoundedSemaphore(_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT)
-_thread_local = threading.local()
+
+class _BlobUploadLimiter:
+    """Caps concurrent GitHub blob POSTs across all upload-folder executor threads.
+
+    Standalone semaphore — no ordering constraints with other locks.
+    """
+
+    def __init__(self, max_concurrent: int) -> None:
+        self._semaphore = threading.BoundedSemaphore(max_concurrent)
+
+    def acquire_blob_slot(self):
+        return self._semaphore
+
+
+class _WorkerSessionStore:
+    """Per-thread ``requests.Session`` keyed by token (not a lock).
+
+    Each thread gets its own session; safe without cross-thread sharing.
+    """
+
+    def __init__(self) -> None:
+        self._thread_local = threading.local()
+
+    def get_session(self, token: str) -> requests.Session:
+        if (
+            not hasattr(self._thread_local, "session")
+            or getattr(self._thread_local, "_token", None) != token
+        ):
+            s = requests.Session()
+            s.headers.update(
+                {
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github.v3+json",
+                }
+            )
+            self._thread_local.session = s
+            self._thread_local._token = token
+        return self._thread_local.session
+
+    def reset_for_tests(self) -> None:
+        self._thread_local = threading.local()
+
+
+_blob_limiter = _BlobUploadLimiter(_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT)
+_session_store = _WorkerSessionStore()
 
 
 def _get_worker_session(token: str) -> requests.Session:
-    """One session per thread for parallel blob creation; keyed by token so different tokens get separate sessions."""
-    if (
-        not hasattr(_thread_local, "session")
-        or getattr(_thread_local, "_token", None) != token
-    ):
-        s = requests.Session()
-        s.headers.update(
-            {
-                "Authorization": f"token {token}",
-                "Accept": "application/vnd.github.v3+json",
-            }
-        )
-        _thread_local.session = s
-        _thread_local._token = token
-    return _thread_local.session
+    """One session per thread for parallel blob creation; keyed by token."""
+    return _session_store.get_session(token)
 
 
 def _wait_seconds_for_github_403(r: requests.Response, attempt: int) -> float:
@@ -102,7 +132,7 @@ def _create_blob_with_retry(
     last_err = None
     for attempt in range(_UPLOAD_FOLDER_BLOB_RETRIES):
         try:
-            with _blob_post_semaphore:
+            with _blob_limiter.acquire_blob_slot():
                 r = session.post(url, json=blob_data, timeout=30)
             if r.status_code == 403:
                 wait_sec = _wait_seconds_for_github_403(r, attempt)

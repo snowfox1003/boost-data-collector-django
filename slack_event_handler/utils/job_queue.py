@@ -36,18 +36,51 @@ KEY_USER_ID = "userId"
 KEY_IS_DM = "isDm"
 KEY_ENQUEUED_AT = "enqueuedAt"
 
-# Per-team Slack app and worker busy flag for multi-workspace support
-_slack_app_by_team: dict[str, object] = {}
-_slack_app_by_team_lock = threading.Lock()
-# True while a dequeued job is waiting for a rate-limit slot (not yet in postedAt).
-_worker_busy_by_team: dict[str, bool] = {}
-_worker_busy_lock = threading.Lock()
+
+class _JobQueueRuntime:
+    """In-process PR-bot runtime: per-team Bolt apps and worker-busy flags.
+
+    ``_apps_lock`` and ``_busy_lock`` are independent; never acquire both
+    simultaneously. Neither nests inside ``modify_state`` / ``state_file_lock``.
+    """
+
+    def __init__(self) -> None:
+        self._slack_app_by_team: dict[str, object] = {}
+        self._apps_lock = threading.Lock()
+        self._worker_busy_by_team: dict[str, bool] = {}
+        self._busy_lock = threading.Lock()
+
+    def set_app(self, app: object, team_id: str) -> None:
+        with self._apps_lock:
+            self._slack_app_by_team[team_id] = app
+
+    def get_app(self, team_id: str | None) -> object | None:
+        if team_id is None:
+            return None
+        with self._apps_lock:
+            return self._slack_app_by_team.get(team_id)
+
+    def set_busy(self, team_id: str | None, busy: bool) -> None:
+        with self._busy_lock:
+            self._worker_busy_by_team[team_id] = busy
+
+    def is_busy(self, team_id: str | None) -> bool:
+        with self._busy_lock:
+            return self._worker_busy_by_team.get(team_id, False)
+
+    def clear(self) -> None:
+        with self._apps_lock:
+            self._slack_app_by_team.clear()
+        with self._busy_lock:
+            self._worker_busy_by_team.clear()
+
+
+_runtime = _JobQueueRuntime()
 
 
 def set_slack_app(app, team_id: str) -> None:
     """Register the Bolt app for this team so the worker can send replies."""
-    with _slack_app_by_team_lock:
-        _slack_app_by_team[team_id] = app
+    _runtime.set_app(app, team_id)
 
 
 def enqueue_job(
@@ -90,8 +123,7 @@ def estimated_delay_sec(team_id: Optional[str] = None) -> int:
 
     state = load_state(team_id)
     posted_at = list(state["postedAt"])
-    with _worker_busy_lock:
-        busy = _worker_busy_by_team.get(team_id, False)
+    busy = _runtime.is_busy(team_id)
     jobs_ahead = max(0, len(state["queue"]) - 1) + (1 if busy else 0)
     now = time.time()
     sim_time = now
@@ -117,10 +149,7 @@ def _send_reply(
     text: str,
 ) -> None:
     """Posts a thread reply for channel messages or a plain DM for direct messages."""
-    app = None
-    if team_id is not None:
-        with _slack_app_by_team_lock:
-            app = _slack_app_by_team.get(team_id)
+    app = _runtime.get_app(team_id)
     if app is None:
         return
     try:
@@ -144,8 +173,7 @@ def _job_label(job: dict) -> str:
 
 def _process_job(job: dict) -> None:
     team_id = job.get(KEY_TEAM_ID)
-    with _worker_busy_lock:
-        _worker_busy_by_team[team_id] = True
+    _runtime.set_busy(team_id, True)
 
     is_dm = job.get(KEY_IS_DM, False)
     label = _job_label(job)
@@ -161,8 +189,7 @@ def _process_job(job: dict) -> None:
         logger.debug("%s – rate limited, waiting %ds", label, int(delay + 0.999))
 
     wait_and_reserve_slot(team_id)
-    with _worker_busy_lock:
-        _worker_busy_by_team[team_id] = False
+    _runtime.set_busy(team_id, False)
 
     logger.debug("%s – posting GitHub comment", label)
     post_pr_comment(owner, repo, pull_number)
@@ -175,8 +202,7 @@ def _process_job(job: dict) -> None:
     )
     logger.debug("%s – comment posted", label)
 
-    with _slack_app_by_team_lock:
-        app = _slack_app_by_team.get(team_id) if team_id else None
+    app = _runtime.get_app(team_id)
     if app is None:
         return
     try:
@@ -207,8 +233,7 @@ def _worker(team_id: Optional[str]) -> None:
             time.sleep(1)
             continue
 
-        with _worker_busy_lock:
-            _worker_busy_by_team[team_id] = True
+        _runtime.set_busy(team_id, True)
         label = _job_label(job)
         is_dm = job.get(KEY_IS_DM, False)
         try:
@@ -224,8 +249,7 @@ def _worker(team_id: Optional[str]) -> None:
                 f"`{job[KEY_OWNER]}/{job[KEY_REPO]}#{job[KEY_PULL_NUMBER]}`: {e}",
             )
         finally:
-            with _worker_busy_lock:
-                _worker_busy_by_team[team_id] = False
+            _runtime.set_busy(team_id, False)
 
 
 def start_worker(team_id: Optional[str] = None) -> None:

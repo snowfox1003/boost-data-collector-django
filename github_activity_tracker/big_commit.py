@@ -23,18 +23,32 @@ from github_activity_tracker.workspace import (
 
 logger = logging.getLogger(__name__)
 
-# Per-repo locks to prevent concurrent clone/fetch for same repo
-_repo_locks: dict[tuple[str, str], threading.Lock] = {}
-_repo_locks_lock = threading.Lock()
+
+class _RepoLockRegistry:
+    """Per-(owner, repo) locks to prevent concurrent clone/fetch for the same repo.
+
+    When ``register_clone`` is called inside ``ensure_repo_cloned``, acquisition
+    order is: per-repo lock → clone registry lock (never reversed).
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict[tuple[str, str], threading.Lock] = {}
+        self._guard = threading.Lock()
+
+    def lock_for(self, owner: str, repo: str) -> threading.Lock:
+        key = (owner, repo)
+        with self._guard:
+            if key not in self._locks:
+                self._locks[key] = threading.Lock()
+            return self._locks[key]
+
+
+_repo_locks = _RepoLockRegistry()
 
 
 def _get_repo_lock(owner: str, repo: str) -> threading.Lock:
     """Get or create a lock for a specific repo."""
-    key = (owner, repo)
-    with _repo_locks_lock:
-        if key not in _repo_locks:
-            _repo_locks[key] = threading.Lock()
-        return _repo_locks[key]
+    return _repo_locks.lock_for(owner, repo)
 
 
 def is_commit_truncated(commit_data: dict) -> bool:

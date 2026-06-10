@@ -19,9 +19,32 @@ from config.workspace import get_workspace_path
 
 _APP_SLUG = "github_activity_tracker"
 
-# Clone registry: tracks clone paths to delete when run finishes
-_clone_registry: set[Path] = set()
-_clone_registry_lock = threading.Lock()
+
+class _CloneRegistry:
+    """Process-global set of clone paths to delete when a run finishes.
+
+    When nested under a per-repo lock (see ``big_commit.ensure_repo_cloned``),
+    acquisition order is: per-repo lock → clone registry lock.
+    """
+
+    def __init__(self) -> None:
+        self._paths: set[Path] = set()
+        self._lock = threading.Lock()
+
+    def register(self, clone_path: Path) -> None:
+        with self._lock:
+            self._paths.add(clone_path)
+
+    def get_all(self) -> list[Path]:
+        with self._lock:
+            return list(self._paths)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._paths.clear()
+
+
+_clone_registry = _CloneRegistry()
 
 
 def get_workspace_root() -> Path:
@@ -174,20 +197,17 @@ def get_clone_dir(owner: str, repo: str) -> Path:
 
 def register_clone(clone_path: Path) -> None:
     """Register a clone path to be deleted when the run finishes."""
-    with _clone_registry_lock:
-        _clone_registry.add(clone_path)
+    _clone_registry.register(clone_path)
 
 
 def get_registered_clones() -> list[Path]:
     """Return list of all registered clone paths (for cleanup)."""
-    with _clone_registry_lock:
-        return list(_clone_registry)
+    return _clone_registry.get_all()
 
 
 def clear_clone_registry() -> None:
     """Clear the clone registry (called after cleanup)."""
-    with _clone_registry_lock:
-        _clone_registry.clear()
+    _clone_registry.clear()
 
 
 def remove_clone_dir(clone_path: Path) -> bool:
