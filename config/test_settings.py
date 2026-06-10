@@ -83,6 +83,7 @@ for _slug in (
     "boost_library_tracker",
     "clang_github_tracker",
     "discord_activity_tracker",
+    "reddit_activity_tracker",
     "shared",
 ):
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)

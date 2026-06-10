@@ -36,6 +36,7 @@ document.  `core` is excluded because it is shared infrastructure, not a peer tr
 | `clang_github_tracker` | Clang/LLVM GitHub activity | Yes |
 | `cppa_slack_tracker` | Slack teams, channels, messages | Yes |
 | `discord_activity_tracker` | Discord servers, channels, messages | Yes |
+| `reddit_activity_tracker` | Reddit subreddit submissions and comments | Yes |
 | `wg21_paper_tracker` | WG21 paper tracking | Yes |
 | `cppa_youtube_script_tracker` | YouTube video metadata and transcripts | Yes |
 | `slack_event_handler` | Slack event listener | No (no domain models) |

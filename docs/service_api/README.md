@@ -18,6 +18,7 @@ Index of all app service modules. All writes to app models must go through the s
 | [clang_github_tracker.services](clang_github_tracker.md) | clang_github_tracker | Upsert llvm issue/PR/commit rows; DB watermarks for API fetch windows. |
 | [boost_mailing_list_tracker.services](boost_mailing_list_tracker.md) | boost_mailing_list_tracker | Mailing list messages and list names. |
 | [cppa_slack_tracker.services](cppa_slack_tracker.md) | cppa_slack_tracker | Slack teams, channels, messages, and membership changes. |
+| [reddit_activity_tracker.services](reddit_activity_tracker.md) | reddit_activity_tracker | Reddit submissions and comments (upsert helpers in PR2). |
 | [wg21_paper_tracker.services](wg21_paper_tracker.md) | wg21_paper_tracker | WG21 papers, authors, and mailings. |
 | [core.protocols](core_protocols.md) | core | Runtime-checkable DTO protocols (`TrackerResult`, `ActivityRecord`, `IncrementalState`); see also [Core public API](../Core_public_API.md). |
 
@@ -37,6 +38,7 @@ Index of all app service modules. All writes to app models must go through the s
 - **clang_github_tracker** – Upsert `ClangGithubIssueItem` / `ClangGithubCommit` during sync or backfill; read `Max(github_updated_at)` / `Max(github_committed_at)` for fetch cursors.
 - **boost_mailing_list_tracker** – Mailing list message and name helpers.
 - **cppa_slack_tracker** – Slack team/channel/message persistence and membership sync.
+- **reddit_activity_tracker** – Reddit submission and comment persistence (service functions added in PR2).
 - **wg21_paper_tracker** – WG21 paper and author persistence.
 - **core.protocols** – Structural contracts for sync outcomes and activity payloads (see [core_protocols.md](core_protocols.md)).
 

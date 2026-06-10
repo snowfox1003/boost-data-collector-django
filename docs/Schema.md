@@ -946,6 +946,51 @@ erDiagram
 
 ---
 
+### 12. Reddit Activity Tracker (`reddit_activity_tracker`)
+
+Subreddit posts and comments ingested from the Reddit OAuth API. Workspace JSON uses LangChain Document format (`page_content` + `metadata`); see PR2 workspace layout under `workspace/reddit_activity_tracker/{YYYY-MM}/`. No cross-app FKs — author identity is stored as plain strings (`author`, `author_id`).
+
+```mermaid
+erDiagram
+    direction LR
+    RedditSubmission ||--o{ RedditComment : "has"
+
+    RedditSubmission {
+        int id PK
+        string reddit_id "UK IX t3_*"
+        string subreddit "IX"
+        string author
+        string author_id
+        string title
+        text selftext
+        text selftext_html
+        string url
+        string permalink
+        int score
+        int num_comments
+        int created_utc "IX"
+        datetime fetched_at
+    }
+
+    RedditComment {
+        int id PK
+        string reddit_id "UK IX t1_*"
+        int submission_id FK
+        string parent_id "t3_* or t1_*"
+        string author
+        string author_id
+        text body
+        string url
+        int score
+        int created_utc "IX"
+        datetime fetched_at
+    }
+```
+
+**Note:** `reddit_id` on both tables is the Reddit fullname (`t3_*` for submissions, `t1_*` for comments) and is the natural key for idempotent upserts.
+
+---
+
 ## Appendix
 
 ### Appendix A: Table summary
@@ -1018,6 +1063,8 @@ erDiagram
 | **DiscordChannel**                   | Channel in a guild (channel_id UK, type, category, topic, sync/activity timestamps).                      | 11      |
 | **DiscordMessage**                   | Message (`message_id` UK, content, type, pin, reply_to, attachments JSON, soft-delete flags).             | 11      |
 | **DiscordReaction**                  | Emoji aggregate per message (unique on message + emoji).                                                | 11      |
+| **RedditSubmission**                 | Reddit post (`reddit_id` t3_* UK, subreddit, title, selftext, score, created_utc).                      | 12      |
+| **RedditComment**                    | Reddit comment (`reddit_id` t1_* UK, submission FK, parent_id, body, score, created_utc).                | 12      |
 | **BoostDocContent**                  | Globally unique scraped page by content hash (url, content_hash UK, first_version_id, last_version_id, is_upserted, scraped_at). One row per unique content hash across all versions.       | 10      |
 | **BoostLibraryDocumentation**        | Join table: BoostLibraryVersion × BoostDocContent. Records which pages belong to each (library, version) pair.                                                                              | 10      |
 

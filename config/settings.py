@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "clang_github_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "reddit_activity_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
     "slack_event_handler",
@@ -162,6 +163,7 @@ _WORKSPACE_APP_SLUGS = (
     "boost_usage_tracker",
     "cppa_slack_tracker",
     "discord_activity_tracker",
+    "reddit_activity_tracker",
     "boost_mailing_list_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
@@ -523,6 +525,13 @@ PINECONE_DISCORD_NAMESPACE: str = (
     env("PINECONE_DISCORD_NAMESPACE", default="discord-together-c-cpp")
     or "discord-together-c-cpp"
 ).strip()
+
+# Reddit configuration (for reddit_activity_tracker)
+REDDIT_CLIENT_ID = (env("REDDIT_CLIENT_ID", default="") or "").strip()
+REDDIT_CLIENT_SECRET = (env("REDDIT_CLIENT_SECRET", default="") or "").strip()
+REDDIT_USER_AGENT = (env("REDDIT_USER_AGENT", default="") or "").strip()
+# Minimum seconds between API requests (default 1.0, ~60 req/min). Env: REQUEST_INTERVAL.
+REDDIT_REQUEST_INTERVAL = env.float("REQUEST_INTERVAL", default=1.0)
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)

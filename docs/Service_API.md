@@ -19,6 +19,7 @@ All writes to app models must go through the service layer. The API is documente
 | **clang_github_tracker** | `clang_github_tracker.services` | Upsert llvm issue/PR/commit rows; fetch watermarks. |
 | **boost_mailing_list_tracker** | `boost_mailing_list_tracker.services` | Mailing list messages and names. |
 | **cppa_slack_tracker** | `cppa_slack_tracker.services` | Slack teams, channels, messages, membership. |
+| **reddit_activity_tracker** | `reddit_activity_tracker.services` | Reddit submissions and comments. |
 | **wg21_paper_tracker** | `wg21_paper_tracker.services` | WG21 papers, authors, mailings. |
 
 ---
@@ -37,6 +38,7 @@ All writes to app models must go through the service layer. The API is documente
 - **[service_api/clang_github_tracker.md](service_api/clang_github_tracker.md)** – API for `clang_github_tracker.services`.
 - **[service_api/boost_mailing_list_tracker.md](service_api/boost_mailing_list_tracker.md)** – API for `boost_mailing_list_tracker.services`.
 - **[service_api/cppa_slack_tracker.md](service_api/cppa_slack_tracker.md)** – API for `cppa_slack_tracker.services`.
+- **[service_api/reddit_activity_tracker.md](service_api/reddit_activity_tracker.md)** – API for `reddit_activity_tracker.services`.
 - **[service_api/wg21_paper_tracker.md](service_api/wg21_paper_tracker.md)** – API for `wg21_paper_tracker.services`.
 - **[service_api/core_protocols.md](service_api/core_protocols.md)** – `core.protocols` DTO protocols (`TrackerResult`, `ActivityRecord`, `IncrementalState`).
 

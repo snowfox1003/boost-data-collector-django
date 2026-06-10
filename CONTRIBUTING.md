@@ -69,6 +69,7 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `clang_github_tracker` | `clang_github_tracker/services.py` | Clang/llvm GitHub issue, PR, and commit upserts; fetch watermarks. |
 | `boost_mailing_list_tracker` | `boost_mailing_list_tracker/services.py` | Mailing list messages and names. |
 | `cppa_slack_tracker` | `cppa_slack_tracker/services.py` | Slack teams, channels, messages, membership. |
+| `reddit_activity_tracker` | `reddit_activity_tracker/services.py` | Reddit submissions and comments. |
 | `wg21_paper_tracker` | `wg21_paper_tracker/services.py` | WG21 papers, authors, mailings. |
 
 For a full list of functions, parameter/return types, and validation (e.g. empty `name` raises `ValueError`), see **[docs/Service_API.md](docs/Service_API.md)** and the per-app docs in **[docs/service_api/](docs/service_api/)** (index: [docs/service_api/README.md](docs/service_api/README.md)). DTO protocols shared across trackers are documented in **[docs/service_api/core_protocols.md](docs/service_api/core_protocols.md)** (generated from `core/protocols.py`).
