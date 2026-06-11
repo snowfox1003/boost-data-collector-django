@@ -2,25 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, is_dataclass, replace
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Mapping
+from dataclasses import dataclass, fields, is_dataclass, replace
+from typing import TYPE_CHECKING
+
+from core.protocol_dto import TrackerResultDataclass
 
 if TYPE_CHECKING:
     from core.protocols import TrackerResult
 
 
-@dataclass(frozen=True)
-class GenericTrackerResult:
+@dataclass(frozen=True, repr=False)
+class GenericTrackerResult(TrackerResultDataclass):
     """Default frozen DTO satisfying :class:`~core.protocols.TrackerResult`."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "counts", MappingProxyType(dict(self.counts)))
 
     @classmethod
     def ok(cls, **counts: int) -> GenericTrackerResult:

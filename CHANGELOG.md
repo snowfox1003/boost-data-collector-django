@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Protocol DTO serialization:** `core.protocol_dto` base dataclasses (`TrackerResultDataclass`, `IncrementalStateDataclass`, `ActivityRecordDataclass`) provide canonical `asdict()`, `to_json()`, `from_dict()`, and truncated `__repr__` on all tracker `protocol_impl` frozen dataclasses; `core.collectors.GenericActivityRecord` added for the default `ActivityRecord` implementation.
 - **Stability policy** ([`STABILITY.md`](STABILITY.md)): documents stable vs evolving vs unstable interfaces for production and contributors; README links to it.
 - **`core.adapters`:** stable adapter protocols and implementations for Pinecone (`PineconeAdapter`), Slack Web API (`SlackWebApiAdapter`), and GitHub REST/GraphQL (`GitHubApiAdapter`). The `pinecone` SDK is imported only from `core/adapters/pinecone.py`; `cppa_pinecone_sync.ingestion` uses `PineconeClientProtocol` with injectable fakes for tests.
 
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **core.collectors:** `BaseCollectorCommand` logs `result_repr` and `result_json` in structured `extra` when the run result is a `TrackerResultDataclass` subclass.
 - **core.collectors:** `AbstractCollector.last_result` is set only after `post_collect()` completes successfully (including default incremental checkpoint persistence), matching the documented “most recent successful run” semantics.
 - **discord_activity_tracker:** `backfill_discord_activity_tracker` reports per-file import failures on `DiscordCollectionTrackerResult` (`success=False`, `errors`, `failed_files` count) instead of always returning `success=True`.
 - **core.protocols / ActivityRecord:** `occurred_at` is timezone-aware UTC `datetime | None`; `source_system` is `SourceSystem` (`StrEnum`); `activity_type` is branded `ActivityType`; `actor_external_id` is `ActorExternalId` (`NewType`). Legacy string payloads use `core.activity_types.migrate_legacy_activity_fields` and `activity_record_to_legacy_dict` on GitHub/Discord `protocol_impl` dataclasses.

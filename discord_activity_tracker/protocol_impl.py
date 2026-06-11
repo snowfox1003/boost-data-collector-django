@@ -2,38 +2,32 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
 from core.activity_types import (
     ActivityType,
-    ActorExternalId,
     LegacyActivityRecordDict,
     SourceSystem,
     activity_record_to_legacy_dict,
-    ensure_activity_occurred_at,
     migrate_legacy_activity_fields,
+)
+from core.protocol_dto import (
+    ActivityRecordDataclass,
+    IncrementalStateDataclass,
+    TrackerResultDataclass,
 )
 
 
-@dataclass(frozen=True)
-class DiscordCollectionTrackerResult:
+@dataclass(frozen=True, repr=False)
+class DiscordCollectionTrackerResult(TrackerResultDataclass):
     """Counts for a Discord collection slice (messages, channels, etc.)."""
 
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
-
-@dataclass(frozen=True)
-class DiscordIncrementalState:
+@dataclass(frozen=True, repr=False)
+class DiscordIncrementalState(IncrementalStateDataclass):
     """Checkpoint between Discord runs (after-cursor + optional snowflake)."""
-
-    checkpoint_token: str | None
-    human_readable_marker: str | None
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_after_date(
@@ -61,25 +55,12 @@ class DiscordIncrementalState:
         )
 
 
-@dataclass(frozen=True)
-class DiscordActivityRecord:
+@dataclass(frozen=True, repr=False)
+class DiscordActivityRecord(ActivityRecordDataclass):
     """Normalized Discord message as a portable activity row."""
 
-    source_system: SourceSystem
-    external_id: str
-    occurred_at: datetime | None
-    activity_type: ActivityType
-    actor_external_id: ActorExternalId
-    source_url: str | None
-    summary: str
-
-    def __post_init__(self) -> None:
-        if self.occurred_at is not None:
-            object.__setattr__(
-                self, "occurred_at", ensure_activity_occurred_at(self.occurred_at)
-            )
-
     def to_legacy_dict(self) -> LegacyActivityRecordDict:
+        """Tier-C workspace bridge format; prefer :meth:`asdict` for canonical protocol JSON."""
         return activity_record_to_legacy_dict(
             source_system=self.source_system,
             external_id=self.external_id,

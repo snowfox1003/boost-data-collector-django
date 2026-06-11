@@ -2,30 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
 from core.activity_types import (
     ActivityType,
-    ActorExternalId,
     LegacyActivityRecordDict,
     SourceSystem,
     activity_record_to_legacy_dict,
-    ensure_activity_occurred_at,
     migrate_legacy_activity_fields,
+)
+from core.protocol_dto import (
+    ActivityRecordDataclass,
+    IncrementalStateDataclass,
+    TrackerResultDataclass,
 )
 from github_activity_tracker.sync import sync_github
 
 
-@dataclass(frozen=True)
-class GitHubSyncTrackerResult:
+@dataclass(frozen=True, repr=False)
+class GitHubSyncTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for ``sync_github`` outcomes."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
     @classmethod
     def from_sync_dict(cls, d: dict[str, list[int]]) -> GitHubSyncTrackerResult:
@@ -63,25 +61,12 @@ def sync_github_tracker_result(
     return GitHubSyncTrackerResult.from_sync_dict(raw)
 
 
-@dataclass(frozen=True)
-class GitHubActivityRecord:
+@dataclass(frozen=True, repr=False)
+class GitHubActivityRecord(ActivityRecordDataclass):
     """Single issue/PR touch for cross-layer logging or bridges."""
 
-    source_system: SourceSystem
-    external_id: str
-    occurred_at: datetime | None
-    activity_type: ActivityType
-    actor_external_id: ActorExternalId
-    source_url: str | None
-    summary: str
-
-    def __post_init__(self) -> None:
-        if self.occurred_at is not None:
-            object.__setattr__(
-                self, "occurred_at", ensure_activity_occurred_at(self.occurred_at)
-            )
-
     def to_legacy_dict(self) -> LegacyActivityRecordDict:
+        """Tier-C workspace bridge format; prefer :meth:`asdict` for canonical protocol JSON."""
         return activity_record_to_legacy_dict(
             source_system=self.source_system,
             external_id=self.external_id,
@@ -146,13 +131,9 @@ class GitHubActivityRecord:
         )
 
 
-@dataclass(frozen=True)
-class GitHubIncrementalState:
+@dataclass(frozen=True, repr=False)
+class GitHubIncrementalState(IncrementalStateDataclass):
     """Opaque + human-readable sync watermark (app-specific *extras*)."""
-
-    checkpoint_token: str | None
-    human_readable_marker: str | None
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_repo_watermark(

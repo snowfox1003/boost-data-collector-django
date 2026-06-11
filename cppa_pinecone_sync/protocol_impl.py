@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping
 
+from core.protocol_dto import TrackerResultDataclass
 
-@dataclass(frozen=True)
-class PineconeSyncTrackerResult:
+
+@dataclass(frozen=True, repr=False)
+class PineconeSyncTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for ``sync_to_pinecone`` outcomes."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
     @classmethod
     def from_sync_dict(cls, d: Mapping[str, Any]) -> PineconeSyncTrackerResult:

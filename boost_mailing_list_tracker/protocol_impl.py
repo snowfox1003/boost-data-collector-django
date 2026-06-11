@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Mapping
+from dataclasses import dataclass
+
+from core.protocol_dto import IncrementalStateDataclass, TrackerResultDataclass
 
 
-@dataclass(frozen=True)
-class MailingListTrackerResult:
+@dataclass(frozen=True, repr=False)
+class MailingListTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for mailing list runs."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
     @classmethod
     def from_run(
@@ -35,13 +31,9 @@ class MailingListTrackerResult:
         )
 
 
-@dataclass(frozen=True)
-class MailingListIncrementalState:
+@dataclass(frozen=True, repr=False)
+class MailingListIncrementalState(IncrementalStateDataclass):
     """Checkpoint between mailing list runs."""
-
-    checkpoint_token: str | None
-    human_readable_marker: str | None
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_start_date(cls, start_date: str | None) -> MailingListIncrementalState:

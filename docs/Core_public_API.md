@@ -13,6 +13,7 @@ The `core` Django app holds shared infrastructure. Treat the following as the **
 | `core.collectors.BaseCollectorCommand` | Thin `BaseCommand` adapter: runs `get_collector(**opts).run()`, logs structured `TrackerResult` fields, then `sync_pinecone()`. |
 | `core.collectors.GenericTrackerResult` | Default frozen `TrackerResult` DTO (`ok()`, `failed()`); used by stubs and simple collectors. |
 | `core.collectors.GenericIncrementalState` | Default frozen `IncrementalState` DTO for checkpoint hooks. |
+| `core.collectors.GenericActivityRecord` | Default frozen `ActivityRecord` DTO for portable activity rows. |
 
 ### Application collectors
 
@@ -56,7 +57,9 @@ Structural contracts for **data** that crosses tracker layers (sync outcomes, ac
 | `core.protocols.IncrementalState` | `@runtime_checkable` protocol: `checkpoint_token`, `human_readable_marker`, `extras`. |
 | `core.protocols.require_tracker_result` / `require_activity_record` / `require_incremental_state` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
 
-Implementations are frozen dataclasses in each tracker app's `protocol_impl.py` (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`, `boost_library_tracker.protocol_impl`). Simple collectors may return `GenericTrackerResult` directly. Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+Implementations are frozen dataclasses in each tracker app's `protocol_impl.py` (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`, `boost_library_tracker.protocol_impl`). They subclass shared bases in **`core.protocol_dto`** (`TrackerResultDataclass`, `IncrementalStateDataclass`, `ActivityRecordDataclass`) which provide canonical `asdict()`, `to_json()`, `from_dict()`, and log-friendly `__repr__`. Simple collectors may return `GenericTrackerResult` directly. Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+
+`BaseCollectorCommand` structured logs include `result_repr` and `result_json` in `extra` when the collector returns a `TrackerResultDataclass` subclass.
 
 `AbstractCollector.collect()` must return a `TrackerResult`. Override `load_incremental_state()` / `persist_incremental_state()` when a collector needs checkpoint read/write between runs (default hooks are no-ops).
 

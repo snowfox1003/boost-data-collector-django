@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping
+
+from core.protocol_dto import IncrementalStateDataclass, TrackerResultDataclass
 
 
-@dataclass(frozen=True)
-class ClangGithubTrackerResult:
+@dataclass(frozen=True, repr=False)
+class ClangGithubTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for Clang sync outcomes."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
     @classmethod
     def from_sync(
@@ -40,13 +36,9 @@ class ClangGithubTrackerResult:
         return cls(success=True, counts={})
 
 
-@dataclass(frozen=True)
-class ClangGithubIncrementalState:
+@dataclass(frozen=True, repr=False)
+class ClangGithubIncrementalState(IncrementalStateDataclass):
     """Checkpoint between Clang GitHub runs."""
-
-    checkpoint_token: str | None
-    human_readable_marker: str | None
-    extras: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_watermarks(

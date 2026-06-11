@@ -2,22 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Any, Mapping
+from dataclasses import dataclass
+
+from core.protocol_dto import IncrementalStateDataclass, TrackerResultDataclass
 
 
-@dataclass(frozen=True)
-class SlackTrackerResult:
+@dataclass(frozen=True, repr=False)
+class SlackTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for Slack sync runs."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "counts", MappingProxyType(dict(self.counts)))
 
     @classmethod
     def from_counts(cls, **counts: int) -> SlackTrackerResult:
@@ -28,16 +20,9 @@ class SlackTrackerResult:
         return cls(success=True, counts={})
 
 
-@dataclass(frozen=True)
-class SlackIncrementalState:
+@dataclass(frozen=True, repr=False)
+class SlackIncrementalState(IncrementalStateDataclass):
     """Checkpoint between Slack message sync runs."""
-
-    checkpoint_token: str | None
-    human_readable_marker: str | None
-    extras: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "extras", MappingProxyType(dict(self.extras)))
 
     @classmethod
     def from_team(

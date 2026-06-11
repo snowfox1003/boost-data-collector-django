@@ -101,7 +101,8 @@ def _parse_occurred_at(raw: str | datetime | None) -> datetime | None:
     return parse_activity_occurred_at(text)
 
 
-def _format_occurred_at_z(dt: datetime) -> str:
+def format_occurred_at_z(dt: datetime) -> str:
+    """Serialize *dt* as timezone-aware UTC ISO-8601 with ``Z`` suffix."""
     aware = ensure_activity_occurred_at(dt)
     return aware.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -133,7 +134,7 @@ def activity_record_to_legacy_dict(
     summary: str,
 ) -> LegacyActivityRecordDict:
     """Serialize typed activity fields to string-keyed export/bridge JSON."""
-    occurred_str = _format_occurred_at_z(occurred_at) if occurred_at is not None else ""
+    occurred_str = format_occurred_at_z(occurred_at) if occurred_at is not None else ""
     return LegacyActivityRecordDict(
         source_system=source_system.value,
         external_id=external_id,

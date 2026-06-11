@@ -2,22 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Mapping
+from dataclasses import dataclass
+
+from core.protocol_dto import TrackerResultDataclass
 
 
-@dataclass(frozen=True)
-class LibraryDocsTrackerResult:
+@dataclass(frozen=True, repr=False)
+class LibraryDocsTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for docs scrape runs."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "counts", MappingProxyType(dict(self.counts)))
 
     @classmethod
     def from_run(

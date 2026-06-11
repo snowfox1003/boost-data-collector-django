@@ -17,6 +17,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 
 from core.collectors.base_collector import CollectorRunnable
+from core.protocol_dto import TrackerResultDataclass
 from core.protocols import TrackerResult
 
 logger = logging.getLogger(__name__)
@@ -34,23 +35,28 @@ def _log_collector_result(collector: CollectorRunnable, result: TrackerResult) -
     if not isinstance(collector_id, str) or not collector_id:
         collector_id = collector.__class__.__name__
     records = _records_collected(result)
+    extra: dict[str, Any] = {
+        "collector": collector_id,
+        "success": result.success,
+        "records_collected": records,
+        "error_count": len(result.errors),
+        "duration_seconds": result.duration_seconds,
+        "counts": dict(result.counts),
+    }
+    if isinstance(result, TrackerResultDataclass):
+        extra["result_repr"] = repr(result)
+        extra["result_json"] = result.to_json()
     logger.info(
         "Collector finished: collector=%s success=%s records_collected=%s "
-        "error_count=%s duration_seconds=%s counts=%s",
+        "error_count=%s duration_seconds=%s counts=%s result=%s",
         collector_id,
         result.success,
         records,
         len(result.errors),
         result.duration_seconds,
         dict(result.counts),
-        extra={
-            "collector": collector_id,
-            "success": result.success,
-            "records_collected": records,
-            "error_count": len(result.errors),
-            "duration_seconds": result.duration_seconds,
-            "counts": dict(result.counts),
-        },
+        extra.get("result_repr", result),
+        extra=extra,
     )
 
 

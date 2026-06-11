@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping
 
+from core.protocol_dto import TrackerResultDataclass
 
-@dataclass(frozen=True)
-class UsageDashboardTrackerResult:
+
+@dataclass(frozen=True, repr=False)
+class UsageDashboardTrackerResult(TrackerResultDataclass):
     """Structured :class:`~core.protocols.TrackerResult` for dashboard runs."""
-
-    success: bool
-    counts: Mapping[str, int]
-    errors: tuple[str, ...] = field(default_factory=tuple)
-    duration_seconds: float | None = None
 
     @classmethod
     def from_stats(cls, stats: Mapping[str, Any] | None) -> UsageDashboardTrackerResult:
