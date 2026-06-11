@@ -10,7 +10,10 @@ See CONTRIBUTING.md for the project-wide rule.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from cppa_slack_tracker.api_schemas import SlackUserPayload
 
 from django.db import transaction
 from django.db.models import Min
@@ -46,7 +49,7 @@ def create_identity(
 def get_or_create_identity(
     display_name: str = "",
     description: str = "",
-    defaults: Optional[dict[str, Any]] = None,
+    defaults: dict[str, Any] | None = None,
 ) -> tuple[Identity, bool]:
     """Get or create an Identity by display_name. If exists, updates description from defaults."""
     lookup = {"display_name": display_name}
@@ -194,7 +197,7 @@ def get_or_create_github_account(
     display_name: str = "",
     avatar_url: str = "",
     account_type: str = GitHubAccountType.USER,
-    identity: Optional[Identity] = None,
+    identity: Identity | None = None,
 ) -> tuple[GitHubAccount, bool]:
     """Get or create a GitHubAccount by github_account_id. Returns (account, created).
 
@@ -282,7 +285,7 @@ def _get_next_negative_github_account_id() -> int:
 
 @transaction.atomic
 def get_or_create_slack_user(
-    user_data: Any,
+    user_data: SlackUserPayload | dict[str, Any],
 ) -> tuple[SlackUser, bool]:
     """Get or create a SlackUser from Slack API user data. Returns (SlackUser, created).
 
@@ -326,7 +329,7 @@ def get_or_create_slack_user(
 
 
 def get_or_create_unknown_github_account(
-    name: Optional[str] = None,
+    name: str | None = None,
     email: str = "",
 ) -> tuple[GitHubAccount, bool]:
     """Get or create a GitHubAccount for commits with no API author/committer.
@@ -363,7 +366,7 @@ def get_or_create_discord_profile(
     display_name: str = "",
     avatar_url: str = "",
     is_bot: bool = False,
-    identity: Optional[Identity] = None,
+    identity: Identity | None = None,
 ) -> tuple[DiscordProfile, bool]:
     """Get or create a DiscordProfile by discord_user_id. Returns (profile, created).
 
@@ -394,7 +397,7 @@ def get_or_create_discord_profile(
 
 def get_or_create_wg21_paper_author_profile(
     display_name: str,
-    email: Optional[str] = None,
+    email: str | None = None,
 ) -> tuple[WG21PaperAuthorProfile, bool]:
     """Get or create a WG21PaperAuthorProfile by display_name, with optional email disambiguation.
 
@@ -427,7 +430,7 @@ def get_or_create_wg21_paper_author_profile(
 def get_or_create_youtube_speaker(
     external_id: str,
     display_name: str = "",
-    identity: Optional[Identity] = None,
+    identity: Identity | None = None,
 ) -> tuple[YoutubeSpeaker, bool]:
     """Get or create a YoutubeSpeaker by external_id. Returns (speaker, created).
 

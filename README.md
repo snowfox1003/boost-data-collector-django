@@ -183,7 +183,7 @@ python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 
 CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 5 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
 
-**Pyright (local):** with dev dependencies installed (`uv pip install -r requirements-dev.lock`), run **`uv run pyright`** from the repo root to match the **`pyright`** CI job (`pyrightconfig.json` scopes `core`, `github_activity_tracker`, and `discord_activity_tracker`).
+**Pyright (local):** with dev dependencies installed (`uv pip install -r requirements-dev.lock`), run **`uv run pyright`** from the repo root to match the **`pyright`** CI job (`pyrightconfig.json` scopes `core`, `github_activity_tracker`, `discord_activity_tracker`, `cppa_slack_tracker`, `cppa_user_tracker`, and `cppa_pinecone_sync`).
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 

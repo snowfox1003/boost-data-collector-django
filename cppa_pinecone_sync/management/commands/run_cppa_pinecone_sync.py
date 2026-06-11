@@ -11,9 +11,10 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import importlib
 import logging
-from typing import Any
+from typing import Any, cast
 
 from django.core.management.base import CommandError
 
@@ -21,13 +22,13 @@ from core.collectors import AbstractCollector, BaseCollectorCommand
 from core.protocols import TrackerResult
 
 from cppa_pinecone_sync.protocol_impl import PineconeSyncTrackerResult
-from cppa_pinecone_sync.sync import sync_to_pinecone
+from cppa_pinecone_sync.sync import PreprocessFn, sync_to_pinecone
 from cppa_pinecone_sync.types import PineconeInstance
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_preprocessor(dotted_path: str):
+def _resolve_preprocessor(dotted_path: str) -> PreprocessFn:
     """Resolve a dotted path (e.g. 'myapp.preprocessors.slack_preprocess') to a callable."""
     if "." not in dotted_path:
         raise ValueError(
@@ -40,7 +41,7 @@ def _resolve_preprocessor(dotted_path: str):
         raise ValueError(f"Module {module_path!r} has no attribute {name!r}")
     if not callable(fn):
         raise ValueError(f"{dotted_path!r} is not callable")
-    return fn
+    return cast(PreprocessFn, fn)
 
 
 class CppaPineconeSyncCollector(AbstractCollector):
@@ -58,7 +59,7 @@ class CppaPineconeSyncCollector(AbstractCollector):
         self.namespace = namespace
         self.preprocessor_path = preprocessor_path
         self.instance = instance
-        self._preprocess_fn: Any = None
+        self._preprocess_fn: PreprocessFn | None = None
 
     @property
     def name(self) -> str:
@@ -78,10 +79,14 @@ class CppaPineconeSyncCollector(AbstractCollector):
             self.preprocessor_path,
         )
 
+        preprocess_fn = self._preprocess_fn
+        if preprocess_fn is None:
+            raise CommandError("Preprocessor not resolved; call validate_config first")
+
         raw = sync_to_pinecone(
             self.app_type,
             self.namespace,
-            self._preprocess_fn,
+            preprocess_fn,
             instance=self.instance,
         )
         result = PineconeSyncTrackerResult.from_sync_dict(raw)
@@ -103,7 +108,7 @@ class Command(BaseCollectorCommand):
         "sync_to_pinecone for one source; other apps can call sync_to_pinecone() directly."
     )
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--app-type",
             type=str,
