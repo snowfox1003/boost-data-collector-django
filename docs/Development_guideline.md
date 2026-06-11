@@ -96,6 +96,10 @@ Use these steps to get the Django project running on your machine.
 6. Ensure the database is reachable. Run migrations: `python manage.py migrate`.
 7. Run a single app command (e.g. `python manage.py run_boost_github_activity_tracker`) or a YAML batch (e.g. `python manage.py run_scheduled_collectors --schedule default --group <group_id>`) to confirm the project works. To test the YAML-driven path as Beat does, use `python manage.py run_scheduled_collectors --schedule default --group <group_id>` for a group batch, or `python manage.py run_scheduled_collectors --schedule interval --interval-minutes <n>` for an interval batch (see `config/boost_collector_schedule.yaml` or the checked-in `config/boost_collector_schedule.yaml.example`).
 
+## Concurrency
+
+When adding or changing in-process locks, semaphores, or shared mutable state accessed from multiple threads, follow the patterns in [CONCURRENCY.md](CONCURRENCY.md): encapsulate in a private state class, document acquisition order, and update the topology table.
+
 ## Testing workflow
 
 Run tests often so you catch problems early.

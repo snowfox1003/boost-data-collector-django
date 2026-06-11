@@ -29,19 +29,34 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_STATE: dict[str, Any] = {"postedAt": [], "queue": []}
 
-_team_thread_locks: dict[str, threading.Lock] = {}
-_team_thread_locks_guard = threading.Lock()
+
+class _TeamThreadLockRegistry:
+    """In-process mutex registry paired with per-team file advisory locks.
+
+    Guard lock is held only briefly to create/lookup per-path locks; never
+    held while waiting on the file lock. Acquisition order in
+    ``state_file_lock``: in-process team lock → advisory file lock.
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict[str, threading.Lock] = {}
+        self._guard = threading.Lock()
+
+    def lock_for(self, lock_file_path: str) -> threading.Lock:
+        with self._guard:
+            lock = self._locks.get(lock_file_path)
+            if lock is None:
+                lock = threading.Lock()
+                self._locks[lock_file_path] = lock
+            return lock
+
+
+_thread_lock_registry = _TeamThreadLockRegistry()
 
 
 def _thread_lock_for(team_id: Optional[str]) -> threading.Lock:
     """In-process mutex paired with the file lock (required for reliable Windows locking)."""
-    key = _get_lock_file_path(team_id)
-    with _team_thread_locks_guard:
-        lock = _team_thread_locks.get(key)
-        if lock is None:
-            lock = threading.Lock()
-            _team_thread_locks[key] = lock
-        return lock
+    return _thread_lock_registry.lock_for(_get_lock_file_path(team_id))
 
 
 def _sanitize_team_id_for_path(team_id: str) -> str:

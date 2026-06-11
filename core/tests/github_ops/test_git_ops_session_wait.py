@@ -8,7 +8,7 @@ from core.operations.github_ops import git_ops as go
 
 
 def test_get_worker_session_reuses_same_token():
-    go._thread_local.session = None  # type: ignore[attr-defined]
+    go._session_store.reset_for_tests()
     s1 = go._get_worker_session("same-token")
     s2 = go._get_worker_session("same-token")
     assert s1 is s2
@@ -16,7 +16,7 @@ def test_get_worker_session_reuses_same_token():
 
 
 def test_get_worker_session_new_session_when_token_changes():
-    go._thread_local.session = None  # type: ignore[attr-defined]
+    go._session_store.reset_for_tests()
     a = go._get_worker_session("token-a")
     b = go._get_worker_session("token-b")
     assert a is not b

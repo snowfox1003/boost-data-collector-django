@@ -40,35 +40,33 @@ def test_get_github_token_scraping_from_env_when_settings_empty():
 @pytest.mark.django_db
 def test_get_github_token_scraping_from_tokens_list_round_robin():
     """get_github_token(use='scraping') round-robins when GITHUB_TOKENS_SCRAPING is a list."""
-    # Reset the module-level cycle so behaviour is deterministic
-    with patch.object(tokens_module, "_scraping_token_cycle", None):
-        with patch.object(settings, "GITHUB_TOKENS_SCRAPING", ["token_a", "token_b"]):
-            first = get_github_token(use="scraping")
-            second = get_github_token(use="scraping")
-            third = get_github_token(use="scraping")
-            assert first in ("token_a", "token_b")
-            assert second in ("token_a", "token_b")
-            assert third in ("token_a", "token_b")
-            # Round-robin: first != second or second != third (cycle of 2)
-            assert (first, second) != (
-                second,
-                third,
-            ) or first == second == third
+    tokens_module._round_robin.reset_for_tests()
+    with patch.object(settings, "GITHUB_TOKENS_SCRAPING", ["token_a", "token_b"]):
+        first = get_github_token(use="scraping")
+        second = get_github_token(use="scraping")
+        third = get_github_token(use="scraping")
+        assert first in ("token_a", "token_b")
+        assert second in ("token_a", "token_b")
+        assert third in ("token_a", "token_b")
+        # Round-robin over two tokens should alternate and wrap.
+        assert first != second
+        assert second != third
+        assert third == first
 
 
 @pytest.mark.django_db
 def test_get_github_token_scraping_round_robin_thread_safe():
     """Concurrent get_github_token(use='scraping') must not corrupt the cycle iterator."""
-    with patch.object(tokens_module, "_scraping_token_cycle", None):
-        with patch.object(settings, "GITHUB_TOKENS_SCRAPING", ["token_a", "token_b"]):
+    tokens_module._round_robin.reset_for_tests()
+    with patch.object(settings, "GITHUB_TOKENS_SCRAPING", ["token_a", "token_b"]):
 
-            def fetch_one():
-                return get_github_token(use="scraping")
+        def fetch_one():
+            return get_github_token(use="scraping")
 
-            n = 200
-            with ThreadPoolExecutor(max_workers=16) as ex:
-                futures = [ex.submit(fetch_one) for _ in range(n)]
-                results = [f.result() for f in as_completed(futures)]
+        n = 200
+        with ThreadPoolExecutor(max_workers=16) as ex:
+            futures = [ex.submit(fetch_one) for _ in range(n)]
+            results = [f.result() for f in as_completed(futures)]
 
     assert all(r in ("token_a", "token_b") for r in results)
     assert results.count("token_a") == n // 2

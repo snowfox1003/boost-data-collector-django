@@ -15,8 +15,41 @@ from core.operations.slack_ops.tokens import get_slack_client
 logger = logging.getLogger(__name__)
 
 DEFAULT_JOIN_INTERVAL_MINUTES = 15
-_check_lock = threading.Lock()
-_stop_event = threading.Event()
+
+
+class _ChannelJoinCoordinator:
+    """Background channel-join scheduler state.
+
+    ``_check_lock`` is try-acquire only (overlap prevention, not long-held
+    mutual exclusion). ``_stop_event`` signals the daemon thread to exit.
+    Standalone — no ordering constraints with other locks.
+    """
+
+    def __init__(self) -> None:
+        self._check_lock = threading.Lock()
+        self._stop_event = threading.Event()
+
+    def try_run_join_check(self, bot_token: str | None) -> None:
+        if self._check_lock.acquire(blocking=False):
+            try:
+                run_channel_join_check(bot_token)
+            finally:
+                self._check_lock.release()
+
+    def wait(self, timeout: float) -> bool:
+        return self._stop_event.wait(timeout)
+
+    def is_stopped(self) -> bool:
+        return self._stop_event.is_set()
+
+    def signal_stop(self) -> None:
+        self._stop_event.set()
+
+    def clear_stop(self) -> None:
+        self._stop_event.clear()
+
+
+_coordinator = _ChannelJoinCoordinator()
 
 
 def _parse_list_env(value: Optional[str]) -> set:
@@ -209,18 +242,14 @@ def start_channel_join_background(
         config = _get_channel_join_config()
         interval_seconds = config["interval_minutes"] * 60
         first_run_delay = min(60, interval_seconds)
-        _stop_event.wait(first_run_delay)
-        if _stop_event.is_set():
+        _coordinator.wait(first_run_delay)
+        if _coordinator.is_stopped():
             return
-        while not _stop_event.is_set():
-            if _check_lock.acquire(blocking=False):
-                try:
-                    run_channel_join_check(bot_token)
-                finally:
-                    _check_lock.release()
+        while not _coordinator.is_stopped():
+            _coordinator.try_run_join_check(bot_token)
             waited = 0
-            while waited < interval_seconds and not _stop_event.is_set():
-                _stop_event.wait(min(60, interval_seconds - waited))
+            while waited < interval_seconds and not _coordinator.is_stopped():
+                _coordinator.wait(min(60, interval_seconds - waited))
                 waited += 60
 
     t = threading.Thread(
@@ -234,4 +263,4 @@ def start_channel_join_background(
 
 def stop_channel_join_background() -> None:
     """Signal the background channel-join thread to stop."""
-    _stop_event.set()
+    _coordinator.signal_stop()

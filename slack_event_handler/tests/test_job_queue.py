@@ -13,15 +13,9 @@ from slack_event_handler.utils.state import load_state
 
 @pytest.fixture(autouse=True)
 def reset_job_queue_globals():
-    with job_queue._slack_app_by_team_lock:
-        job_queue._slack_app_by_team.clear()
-    with job_queue._worker_busy_lock:
-        job_queue._worker_busy_by_team.clear()
+    job_queue._runtime.clear()
     yield
-    with job_queue._slack_app_by_team_lock:
-        job_queue._slack_app_by_team.clear()
-    with job_queue._worker_busy_lock:
-        job_queue._worker_busy_by_team.clear()
+    job_queue._runtime.clear()
 
 
 @pytest.mark.django_db
@@ -67,8 +61,7 @@ def test_estimated_delay_sec_zero_when_empty_queue(settings, tmp_path):
 def test_set_slack_app_registers_team():
     app = MagicMock()
     job_queue.set_slack_app(app, "T1")
-    with job_queue._slack_app_by_team_lock:
-        assert job_queue._slack_app_by_team["T1"] is app
+    assert job_queue._runtime.get_app("T1") is app
 
 
 @pytest.mark.django_db
@@ -174,8 +167,7 @@ def test_process_job_clears_busy_after_slot_reserved(settings):
         with patch("slack_event_handler.utils.job_queue.post_pr_comment"):
             job_queue._process_job(job)
 
-    with job_queue._worker_busy_lock:
-        assert not job_queue._worker_busy_by_team.get("T1", False)
+    assert not job_queue._runtime.is_busy("T1")
 
 
 @pytest.mark.django_db

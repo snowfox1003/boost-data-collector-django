@@ -1,9 +1,8 @@
 """
 GitHub token resolution: get token or API client by use case (scraping, push, write).
 
-Scraping tokens use a shared ``itertools.cycle`` for round-robin. Lazy init and each
-``next()`` run under ``_scraping_token_lock`` so concurrent callers (e.g. multiple
-threads or Celery workers) cannot corrupt iterator state.
+Scraping tokens use a shared ``itertools.cycle`` for round-robin via
+:class:`_ScrapingTokenRoundRobin`.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import itertools
 import logging
 import os
 import threading
-from typing import Literal, Optional
+from typing import Literal
 
 import requests
 from django.conf import settings
@@ -25,10 +24,33 @@ from core.operations.github_ops.client import (
 
 logger = logging.getLogger(__name__)
 
-_scraping_token_cycle: Optional[itertools.cycle] = None
-_scraping_token_lock = threading.Lock()
-
 _GITHUB_TOKEN_USES = ("scraping", "push", "create_pr", "write")
+
+
+class _ScrapingTokenRoundRobin:
+    """Process-global round-robin over GITHUB_TOKENS_SCRAPING.
+
+    Protects lazy ``itertools.cycle`` creation and each ``next()`` call.
+    ``itertools.cycle`` is not safe to advance from multiple threads without
+    serialization. Standalone lock — no ordering constraints with other locks.
+    """
+
+    def __init__(self) -> None:
+        self._cycle: itertools.cycle | None = None
+        self._lock = threading.Lock()
+
+    def next_token(self, tokens: list[str]) -> str:
+        with self._lock:
+            if self._cycle is None:
+                self._cycle = itertools.cycle(tokens)
+            return next(self._cycle)
+
+    def reset_for_tests(self) -> None:
+        with self._lock:
+            self._cycle = None
+
+
+_round_robin = _ScrapingTokenRoundRobin()
 
 
 def get_github_token(
@@ -48,14 +70,8 @@ def get_github_token(
         raw_tokens = getattr(settings, "GITHUB_TOKENS_SCRAPING", None) or []
         # Only include non-empty strings (skip whitespace-only or non-string entries)
         tokens = [t.strip() for t in raw_tokens if isinstance(t, str) and t.strip()]
-        global _scraping_token_cycle
         if tokens:
-            # Hold the lock for both cycle creation and next(): itertools.cycle is not
-            # safe to advance from multiple threads without serialization.
-            with _scraping_token_lock:
-                if _scraping_token_cycle is None:
-                    _scraping_token_cycle = itertools.cycle(tokens)
-                return next(_scraping_token_cycle)
+            return _round_robin.next_token(tokens)
         else:
             token = (
                 getattr(settings, "GITHUB_TOKEN", None)

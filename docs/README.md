@@ -25,6 +25,7 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | **Workspace** | [Workspace.md](Workspace.md) | Workspace layout and usage for file processing (`workspace/<app>/...`). |
 | **Schema** | [Schema.md](Schema.md) | Database schema and table relationships. |
 | **Development** | [Development_guideline.md](Development_guideline.md) | Development setup, app requirements, and step-by-step workflow. |
+| **Concurrency** | [CONCURRENCY.md](CONCURRENCY.md) | Locking topology: which locks exist, what they protect, acquisition-order rules. |
 | **Testing / typing** | [README.md](../README.md#running-tests), [Development_guideline.md](Development_guideline.md#testing-workflow) | pytest (Postgres), coverage, when to run tests; **Pyright** (`uv run pyright`) and CI jobs. |
 | **Deployment** | [Deployment.md](Deployment.md) | CI/CD pipeline, environment secrets (`SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`; optional `SSH_PORT`), server setup, and deploy script behavior. |
 | **Contributing** | [CONTRIBUTING.md](../CONTRIBUTING.md) | Service layer (single place for writes) and contributor guidelines. |
