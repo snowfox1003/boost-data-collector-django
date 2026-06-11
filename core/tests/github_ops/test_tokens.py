@@ -48,11 +48,10 @@ def test_get_github_token_scraping_from_tokens_list_round_robin():
         assert first in ("token_a", "token_b")
         assert second in ("token_a", "token_b")
         assert third in ("token_a", "token_b")
-        # Round-robin: first != second or second != third (cycle of 2)
-        assert (first, second) != (
-            second,
-            third,
-        ) or first == second == third
+        # Round-robin over two tokens should alternate and wrap.
+        assert first != second
+        assert second != third
+        assert third == first
 
 
 @pytest.mark.django_db
