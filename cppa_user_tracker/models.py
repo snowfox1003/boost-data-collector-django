@@ -2,22 +2,27 @@
 Models per docs/Schema.md section 1: Base tables, Identity, and profiles.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
 
 
 class ProfileType(models.TextChoices):
-    GITHUB = "github", "GitHub"
-    SLACK = "slack", "Slack"
-    MAILING_LIST = "mailing_list", "Mailing list"
-    WG21 = "wg21", "WG21"
-    DISCORD = "discord", "Discord"
-    YOUTUBE = "youtube", "YouTube"
+    GITHUB = "github", "GitHub"  # pyright: ignore[reportCallIssue]
+    SLACK = "slack", "Slack"  # pyright: ignore[reportCallIssue]
+    MAILING_LIST = "mailing_list", "Mailing list"  # pyright: ignore[reportCallIssue]
+    WG21 = "wg21", "WG21"  # pyright: ignore[reportCallIssue]
+    DISCORD = "discord", "Discord"  # pyright: ignore[reportCallIssue]
+    YOUTUBE = "youtube", "YouTube"  # pyright: ignore[reportCallIssue]
 
 
 class GitHubAccountType(models.TextChoices):
-    USER = "user", "User"
-    ORGANIZATION = "organization", "Organization"
-    ENTERPRISE = "enterprise", "Enterprise"
+    USER = "user", "User"  # pyright: ignore[reportCallIssue]
+    ORGANIZATION = "organization", "Organization"  # pyright: ignore[reportCallIssue]
+    ENTERPRISE = "enterprise", "Enterprise"  # pyright: ignore[reportCallIssue]
 
 
 class Identity(models.Model):
@@ -64,6 +69,9 @@ class BaseProfile(models.Model):
         choices=ProfileType.choices,
         db_index=True,
     )
+
+    if TYPE_CHECKING:
+        emails: Manager["Email"]
 
     class Meta:
         abstract = False

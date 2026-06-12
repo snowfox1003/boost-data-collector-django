@@ -11,7 +11,6 @@ See CONTRIBUTING.md for the project-wide rule.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from django.utils import timezone
 
@@ -47,14 +46,14 @@ def record_failed_ids(app_type: str, failed_ids: list[str]) -> list[PineconeFail
 # --- PineconeSyncStatus ---
 
 
-def get_final_sync_at(app_type: str) -> Optional[datetime]:
+def get_final_sync_at(app_type: str) -> datetime | None:
     """Return final_sync_at for the given app_type, or None if no record exists."""
     row = PineconeSyncStatus.objects.filter(app_type=app_type).first()
     return row.final_sync_at if row else None
 
 
 def update_sync_status(
-    app_type: str, final_sync_at: Optional[datetime] = None
+    app_type: str, final_sync_at: datetime | None = None
 ) -> PineconeSyncStatus:
     """Create or update PineconeSyncStatus for the given app_type.
 

@@ -13,7 +13,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, List, Literal, Optional, Union
+from typing import Any, Callable, Iterable, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,14 @@ class Document:
     """Chunk or source document (page content + metadata for Pinecone)."""
 
     page_content: str
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _split_text_with_regex(
     text: str,
     separator: str,
-    keep_separator: Union[bool, Literal["start", "end"]],
-) -> List[str]:
+    keep_separator: bool | Literal["start", "end"],
+) -> list[str]:
     """Split *text* on *separator* (regex); optionally keep delimiter segments."""
     if separator:
         if keep_separator:
@@ -62,7 +62,7 @@ class TextSplitter(ABC):
         chunk_size: int = 4000,
         chunk_overlap: int = 200,
         length_function: Callable[[str], int] = len,
-        keep_separator: Union[bool, Literal["start", "end"]] = False,
+        keep_separator: bool | Literal["start", "end"] = False,
         add_start_index: bool = False,
         strip_whitespace: bool = True,
     ) -> None:
@@ -75,21 +75,21 @@ class TextSplitter(ABC):
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._length_function = length_function
-        self._keep_separator = keep_separator
+        self._keep_separator: bool | Literal["start", "end"] = keep_separator
         self._add_start_index = add_start_index
         self._strip_whitespace = strip_whitespace
 
     @abstractmethod
-    def split_text(self, text: str) -> List[str]:
+    def split_text(self, text: str) -> list[str]:
         """Return non-overlapping string chunks for *text*."""
         raise NotImplementedError
 
     def create_documents(
-        self, texts: List[str], metadatas: Optional[List[dict]] = None
-    ) -> List[Document]:
+        self, texts: list[str], metadatas: list[dict[str, Any]] | None = None
+    ) -> list[Document]:
         """Split each string in *texts* into ``Document`` rows with copied *metadatas*."""
         _metadatas = metadatas or [{}] * len(texts)
-        documents: List[Document] = []
+        documents: list[Document] = []
         for i, text in enumerate(texts):
             index = 0
             previous_chunk_len = 0
@@ -103,16 +103,16 @@ class TextSplitter(ABC):
                 documents.append(Document(page_content=chunk, metadata=metadata))
         return documents
 
-    def split_documents(self, documents: Iterable[Document]) -> List[Document]:
+    def split_documents(self, documents: Iterable[Document]) -> list[Document]:
         """Split each ``Document.page_content``; metadata is deep-copied per chunk."""
-        texts: List[str] = []
-        metadatas: List[dict] = []
+        texts: list[str] = []
+        metadatas: list[dict[str, Any]] = []
         for doc in documents:
             texts.append(doc.page_content)
             metadatas.append(doc.metadata)
         return self.create_documents(texts, metadatas=metadatas)
 
-    def _join_docs(self, docs: List[str], separator: str) -> Optional[str]:
+    def _join_docs(self, docs: list[str], separator: str) -> str | None:
         """Join *docs* with *separator*; strip if configured; return None for empty."""
         text = separator.join(docs)
         if self._strip_whitespace:
@@ -121,12 +121,12 @@ class TextSplitter(ABC):
             return None
         return text
 
-    def _merge_splits(self, splits: Iterable[str], separator: str) -> List[str]:
+    def _merge_splits(self, splits: Iterable[str], separator: str) -> list[str]:
         """Combine small *splits* into chunks not exceeding *chunk_size* (with overlap trim)."""
         separator_len = self._length_function(separator)
 
-        docs: List[str] = []
-        current_doc: List[str] = []
+        docs: list[str] = []
+        current_doc: list[str] = []
         total = 0
         for d in splits:
             _len = self._length_function(d)
@@ -166,8 +166,8 @@ class RecursiveCharacterTextSplitter(TextSplitter):
 
     def __init__(
         self,
-        separators: Optional[List[str]] = None,
-        keep_separator: Union[bool, Literal["start", "end"]] = True,
+        separators: list[str] | None = None,
+        keep_separator: bool | Literal["start", "end"] = True,
         is_separator_regex: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -176,11 +176,11 @@ class RecursiveCharacterTextSplitter(TextSplitter):
         self._separators = separators or ["\n\n", "\n", " ", ""]
         self._is_separator_regex = is_separator_regex
 
-    def _split_text(self, text: str, separators: List[str]) -> List[str]:
+    def _split_text(self, text: str, separators: list[str]) -> list[str]:
         """Recursively split *text* using the first matching separator, then merge."""
-        final_chunks: List[str] = []
+        final_chunks: list[str] = []
         separator = separators[-1]
-        new_separators: List[str] = []
+        new_separators: list[str] = []
         for i, _s in enumerate(separators):
             _separator = _s if self._is_separator_regex else re.escape(_s)
             if _s == "":
@@ -195,7 +195,7 @@ class RecursiveCharacterTextSplitter(TextSplitter):
         splits = _split_text_with_regex(text, _separator, self._keep_separator)
 
         _separator = "" if self._keep_separator else separator
-        _good_splits: List[str] = []
+        _good_splits: list[str] = []
         for s in splits:
             if self._length_function(s) < self._chunk_size:
                 _good_splits.append(s)
@@ -214,6 +214,6 @@ class RecursiveCharacterTextSplitter(TextSplitter):
             final_chunks.extend(merged_text)
         return final_chunks
 
-    def split_text(self, text: str) -> List[str]:
+    def split_text(self, text: str) -> list[str]:
         """Public entry: split *text* with this instance's separator list."""
         return self._split_text(text, self._separators)

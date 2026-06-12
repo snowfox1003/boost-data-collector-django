@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from django.db import transaction
 
 from . import services
 from .ingestion import PineconeIngestion
+from .text_chunking import Document
 from .types import PineconeInstance
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def _get_ingestion(
 #   - metadata update: (failed_ids, final_sync_at) ->
 #       (raw_documents, is_chunked, metas_to_update)
 PreprocessFn = Callable[
-    [list[str], Optional[datetime]],
+    [list[str], datetime | None],
     tuple[list[dict[str, Any]], bool]
     | tuple[list[dict[str, Any]], bool, list[dict[str, Any]]],
 ]
@@ -74,11 +75,9 @@ def _empty_sync_result() -> dict[str, Any]:
 
 def _build_documents_from_raw(
     raw_documents: list[dict[str, Any]],
-) -> list[Any]:
+) -> list[Document]:
     """Convert preprocess output to ``Document`` instances; skip items missing doc_id/url."""
-    from cppa_pinecone_sync.text_chunking import Document
-
-    documents: list[Any] = []
+    documents: list[Document] = []
     for item in raw_documents:
         content = item.get("content", "")
         metadata = dict(item.get("metadata") or {})
@@ -115,7 +114,7 @@ def _extract_new_failed_ids(result: dict[str, Any]) -> list[str]:
     return new_failed_ids
 
 
-def _extract_source_ids_from_documents(documents: list[Any]) -> list[str]:
+def _extract_source_ids_from_documents(documents: list[Document]) -> list[str]:
     """Collect deduplicated source IDs from Document.metadata.table_ids in order."""
     source_ids: list[str] = []
     for doc in documents:
