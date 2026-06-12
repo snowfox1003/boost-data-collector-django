@@ -54,3 +54,9 @@ groups:
     tasks:
       - command: run_boost_mailing_list_tracker
         schedule: daily
+
+  reddit:
+    default_time: "17:00"
+    tasks:
+      - command: run_reddit_activity_tracker
+        schedule: daily

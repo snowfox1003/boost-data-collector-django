@@ -543,8 +543,14 @@ PINECONE_DISCORD_NAMESPACE: str = (
 REDDIT_CLIENT_ID = (env("REDDIT_CLIENT_ID", default="") or "").strip()
 REDDIT_CLIENT_SECRET = (env("REDDIT_CLIENT_SECRET", default="") or "").strip()
 REDDIT_USER_AGENT = (env("REDDIT_USER_AGENT", default="") or "").strip()
+REDDIT_BEARER_TOKEN = (env("REDDIT_BEARER_TOKEN", default="") or "").strip()
+REDDIT_SESSION_COOKIE = (env("REDDIT_SESSION_COOKIE", default="") or "").strip()
+REDDIT_CSRF_TOKEN = (env("REDDIT_CSRF_TOKEN", default="") or "").strip() or None
 # Minimum seconds between API requests (default 1.0, ~60 req/min). Env: REQUEST_INTERVAL.
 REDDIT_REQUEST_INTERVAL = env.float("REQUEST_INTERVAL", default=1.0)
+# Pause when X-Ratelimit-Remaining drops below this value. Env: RATE_LIMIT_LOW_WATERMARK.
+REDDIT_RATE_LIMIT_LOW_WATERMARK = env.float("RATE_LIMIT_LOW_WATERMARK", default=2.0)
+REDDIT_DEFAULT_LOOKBACK_DAYS = env.int("REDDIT_DEFAULT_LOOKBACK_DAYS", default=30)
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)

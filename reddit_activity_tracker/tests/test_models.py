@@ -4,14 +4,15 @@ import pytest
 from django.db import IntegrityError
 from model_bakery import baker
 
+from cppa_user_tracker.models import RedditUser
 from reddit_activity_tracker.models import RedditComment, RedditSubmission
 
 
 @pytest.mark.django_db
-def test_reddit_submission_reddit_id_unique():
+def test_reddit_submission_reddit_submission_id_unique():
     baker.make(
         RedditSubmission,
-        reddit_id="t3_abc123",
+        reddit_submission_id="t3_abc123",
         subreddit="cpp",
         title="First",
         url="https://example.com",
@@ -21,7 +22,7 @@ def test_reddit_submission_reddit_id_unique():
     with pytest.raises(IntegrityError):
         baker.make(
             RedditSubmission,
-            reddit_id="t3_abc123",
+            reddit_submission_id="t3_abc123",
             subreddit="cpp",
             title="Duplicate",
             url="https://example.com/2",
@@ -34,7 +35,7 @@ def test_reddit_submission_reddit_id_unique():
 def test_reddit_comment_cascade_delete():
     submission = baker.make(
         RedditSubmission,
-        reddit_id="t3_sub001",
+        reddit_submission_id="t3_sub001",
         subreddit="cpp",
         title="Post",
         url="https://example.com",
@@ -43,37 +44,38 @@ def test_reddit_comment_cascade_delete():
     )
     baker.make(
         RedditComment,
-        reddit_id="t1_cmt001",
+        reddit_comment_id="t1_cmt001",
         submission=submission,
         parent_id="t3_sub001",
         url="https://www.reddit.com/r/cpp/comments/sub001/cmt001/",
         created_utc=1700000100,
     )
-    assert RedditComment.objects.filter(reddit_id="t1_cmt001").exists()
+    assert RedditComment.objects.filter(reddit_comment_id="t1_cmt001").exists()
     submission.delete()
-    assert not RedditComment.objects.filter(reddit_id="t1_cmt001").exists()
+    assert not RedditComment.objects.filter(reddit_comment_id="t1_cmt001").exists()
 
 
 @pytest.mark.django_db
-def test_reddit_submission_str():
+def test_reddit_submission_user_fk():
+    user = baker.make(RedditUser, username="Taladar", display_name="Taladar")
     submission = baker.make(
         RedditSubmission,
-        reddit_id="t3_str001",
+        reddit_submission_id="t3_str001",
         subreddit="cpp",
+        user=user,
         title="Hello World",
         url="https://example.com",
         permalink="/r/cpp/comments/str001/",
         created_utc=1700000000,
     )
-    assert "t3_str001" in str(submission)
-    assert "Hello World" in str(submission)
+    assert submission.user.username == "Taladar"
 
 
 @pytest.mark.django_db
 def test_reddit_comment_str():
     submission = baker.make(
         RedditSubmission,
-        reddit_id="t3_sub002",
+        reddit_submission_id="t3_sub002",
         subreddit="cpp",
         title="Post",
         url="https://example.com",
@@ -82,7 +84,7 @@ def test_reddit_comment_str():
     )
     comment = baker.make(
         RedditComment,
-        reddit_id="t1_cmt002",
+        reddit_comment_id="t1_cmt002",
         submission=submission,
         parent_id="t3_sub002",
         url="https://www.reddit.com/r/cpp/comments/sub002/cmt002/",

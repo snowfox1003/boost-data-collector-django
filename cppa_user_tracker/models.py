@@ -17,6 +17,7 @@ class ProfileType(models.TextChoices):
     WG21 = "wg21", "WG21"  # pyright: ignore[reportCallIssue]
     DISCORD = "discord", "Discord"  # pyright: ignore[reportCallIssue]
     YOUTUBE = "youtube", "YouTube"  # pyright: ignore[reportCallIssue]
+    REDDIT = "reddit", "Reddit"  # pyright: ignore[reportCallIssue]
 
 
 class GitHubAccountType(models.TextChoices):
@@ -191,6 +192,26 @@ class DiscordProfile(BaseProfile):
     display_name = models.CharField(max_length=255, db_index=True, blank=True)
     avatar_url = models.URLField(max_length=512, blank=True)
     is_bot = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class RedditUser(BaseProfile):
+    """Profile for Reddit; extends BaseProfile."""
+
+    def save(self, *args, **kwargs):
+        self.type = ProfileType.REDDIT
+        super().save(*args, **kwargs)
+
+    reddit_user_id = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        null=True,
+        blank=True,
+    )
+    username = models.CharField(max_length=255, unique=True, db_index=True)
+    display_name = models.CharField(max_length=255, db_index=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

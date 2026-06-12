@@ -29,9 +29,12 @@ from .models import (
     MailingListProfile,
     SlackUser,
     DiscordProfile,
+    RedditUser,
     WG21PaperAuthorProfile,
     YoutubeSpeaker,
 )
+
+_REDDIT_DELETED_AUTHORS = frozenset({"", "[deleted]", "AutoModerator"})
 
 
 # --- Identity ---
@@ -451,3 +454,98 @@ def get_or_create_youtube_speaker(
         speaker.display_name = display_name_val
         speaker.save(update_fields=["display_name", "updated_at"])
     return speaker, created
+
+
+class RedditClientProtocol(Protocol):
+    """Protocol for a Reddit API client used by get_or_create_reddit_user."""
+
+    def fetch_user_about(self, username: str) -> dict[str, Any] | None: ...
+
+
+def _normalize_reddit_username(author: str | None) -> str | None:
+    username = (author or "").strip()
+    if not username or username in _REDDIT_DELETED_AUTHORS:
+        return None
+    return username
+
+
+def _display_name_from_reddit_profile(
+    profile: dict[str, Any] | None, username: str
+) -> str:
+    if not profile:
+        return username
+    subreddit = profile.get("subreddit") or {}
+    if isinstance(subreddit, dict):
+        title = (subreddit.get("title") or "").strip()
+        if title:
+            return title
+    return username
+
+
+@transaction.atomic
+def get_or_create_reddit_user(
+    username: str,
+    *,
+    reddit_user_id: str | None = None,
+    display_name: str | None = None,
+    client: RedditClientProtocol | None = None,
+) -> RedditUser | None:
+    """Get or create a RedditUser; call /user/about only when the user is new."""
+    normalized = _normalize_reddit_username(username)
+    if not normalized:
+        return None
+
+    existing = RedditUser.objects.filter(username=normalized).first()
+    if existing is not None:
+        return existing
+
+    profile_data: dict[str, Any] | None = None
+    if client is not None:
+        profile_data = client.fetch_user_about(normalized)
+
+    resolved_reddit_user_id = (reddit_user_id or "").strip() or None
+    if profile_data:
+        profile_id = (profile_data.get("id") or "").strip()
+        if profile_id:
+            resolved_reddit_user_id = f"t2_{profile_id}"
+        elif profile_data.get("fullname"):
+            resolved_reddit_user_id = str(profile_data.get("fullname")).strip()
+
+    resolved_display_name = (display_name or "").strip()
+    if not resolved_display_name:
+        resolved_display_name = _display_name_from_reddit_profile(
+            profile_data, normalized
+        )
+
+    user, created = RedditUser.objects.get_or_create(
+        username=normalized,
+        defaults={
+            "reddit_user_id": resolved_reddit_user_id,
+            "display_name": resolved_display_name,
+        },
+    )
+    if not created:
+        if resolved_reddit_user_id:
+            user.reddit_user_id = resolved_reddit_user_id
+        user.display_name = resolved_display_name or user.display_name
+        user.save()
+    return user
+
+
+def resolve_reddit_user_from_author_data(
+    data: dict[str, Any],
+    *,
+    client: RedditClientProtocol | None = None,
+) -> RedditUser | None:
+    """Resolve RedditUser from submission/comment author fields."""
+    author = data.get("author")
+    author_fullname = data.get("author_fullname")
+    username = _normalize_reddit_username(author)
+    if not username:
+        return None
+    reddit_user_id = (author_fullname or "").strip() or None
+    return get_or_create_reddit_user(
+        username,
+        reddit_user_id=reddit_user_id,
+        client=client,
+    )

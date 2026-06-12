@@ -24,12 +24,14 @@
 | `get_or_create_identity` | display_name: str = '', description: str = '', defaults: dict[str, Any] \| None = None | tuple[Identity, bool] | Get or create an Identity by display_name. If exists, updates description from defaults. |
 | `get_or_create_mailing_list_profile` | display_name: str = '', email: str = '' | tuple[MailingListProfile, bool] | Get or create a MailingListProfile by display_name and email. Returns (profile, created). |
 | `get_or_create_owner_account` | client: GitHubClientProtocol, owner: str | GitHubAccount | Get or create a GitHubAccount for an owner (org or user). For use by any app. |
+| `get_or_create_reddit_user` | username: str, *, reddit_user_id: str \| None = None, display_name: str \| None = None, client: RedditClientProtocol \| None = None | RedditUser \| None | Get or create a RedditUser; call /user/about only when the user is new. |
 | `get_or_create_slack_user` | user_data: SlackUserPayload \| dict[str, Any] | tuple[SlackUser, bool] | Get or create a SlackUser from Slack API user data. Returns (SlackUser, created). |
 | `get_or_create_unknown_github_account` | name: str \| None = None, email: str = '' | tuple[GitHubAccount, bool] | Get or create a GitHubAccount for commits with no API author/committer. |
 | `get_or_create_wg21_paper_author_profile` | display_name: str, email: str \| None = None | tuple[WG21PaperAuthorProfile, bool] | Get or create a WG21PaperAuthorProfile by display_name, with optional email disambiguation. |
 | `get_or_create_youtube_speaker` | external_id: str, display_name: str = '', identity: Identity \| None = None | tuple[YoutubeSpeaker, bool] | Get or create a YoutubeSpeaker by external_id. Returns (speaker, created). |
 | `remove_email` | email_obj: Email | None | Remove an email from a profile. |
 | `remove_temp_profile_identity_relation` | base_profile: BaseProfile, target_identity: TmpIdentity | None | Remove the staging relation between base_profile and target_identity. |
+| `resolve_reddit_user_from_author_data` | data: dict[str, Any], *, client: RedditClientProtocol \| None = None | RedditUser \| None | Resolve RedditUser from submission/comment author fields. |
 | `update_email` | email_obj: Email, **kwargs: Any | Email | Update an Email instance. Allowed keys: email, is_primary, is_active. |
 
 <!-- SERVICE_API:GENERATED:END -->

@@ -7,6 +7,7 @@ from .models import (
     GitHubAccount,
     Identity,
     MailingListProfile,
+    RedditUser,
     SlackUser,
     TempProfileIdentityRelation,
     TmpIdentity,
@@ -98,4 +99,18 @@ class MailingListProfileAdmin(ModelAdmin):
 class WG21PaperAuthorProfileAdmin(ModelAdmin):
     list_display = ("id", "identity", "display_name", "updated_at")
     search_fields = ("display_name",)
+    raw_id_fields = ("identity",)
+
+
+@admin.register(RedditUser)
+class RedditUserAdmin(ModelAdmin):
+    list_display = (
+        "id",
+        "identity",
+        "reddit_user_id",
+        "username",
+        "display_name",
+        "updated_at",
+    )
+    search_fields = ("reddit_user_id", "username", "display_name")
     raw_id_fields = ("identity",)

@@ -12,8 +12,12 @@ from django.core.management import call_command
 )
 @pytest.mark.django_db
 def test_run_reddit_activity_tracker_writes_success(mock_build_session):
-    mock_build_session.return_value = MagicMock()
+    session = MagicMock()
+    session.fetch_submissions_in_range.return_value = []
+    session.fetch_comments_in_range.return_value = []
+    mock_build_session.return_value = session
     out = StringIO()
     call_command("run_reddit_activity_tracker", stdout=out, verbosity=0)
-    assert "completed" in out.getvalue().lower()
     mock_build_session.assert_called_once()
+    session.fetch_submissions_in_range.assert_called_once()
+    session.fetch_comments_in_range.assert_called_once()

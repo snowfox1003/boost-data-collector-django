@@ -1,5 +1,7 @@
 """Tests for cppa_user_tracker.services."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from cppa_user_tracker.models import (
@@ -8,6 +10,7 @@ from cppa_user_tracker.models import (
     GitHubAccount,
     GitHubAccountType,
     Identity,
+    RedditUser,
     SlackUser,
     TempProfileIdentityRelation,
     WG21PaperAuthorProfile,
@@ -804,6 +807,66 @@ def test_get_or_create_discord_profile_updates_existing():
     assert profile.display_name == "newd"
     assert profile.avatar_url == "http://img"
     assert profile.is_bot is True
+
+
+# --- get_or_create_reddit_user ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_reddit_user_creates_and_updates():
+    client = MagicMock()
+    client.fetch_user_about.return_value = {
+        "id": "abc123",
+        "name": "Taladar",
+        "subreddit": {"title": "Taladar"},
+    }
+    user = services.get_or_create_reddit_user(
+        "Taladar",
+        reddit_user_id="t2_old",
+        client=client,
+    )
+    assert user is not None
+    assert user.username == "Taladar"
+    assert user.reddit_user_id == "t2_abc123"
+    assert user.display_name == "Taladar"
+
+    user2 = services.get_or_create_reddit_user("Taladar", client=client)
+    assert user2.pk == user.pk
+    client.fetch_user_about.assert_called_once()
+
+
+@pytest.mark.django_db
+def test_get_or_create_reddit_user_skips_about_for_existing_user():
+    RedditUser.objects.create(
+        username="Taladar",
+        reddit_user_id="t2_abc123",
+        display_name="Taladar",
+    )
+    client = MagicMock()
+    user = services.get_or_create_reddit_user("Taladar", client=client)
+    assert user is not None
+    assert user.username == "Taladar"
+    client.fetch_user_about.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_get_or_create_reddit_user_deleted_author_returns_none():
+    assert services.get_or_create_reddit_user("[deleted]") is None
+
+
+@pytest.mark.django_db
+def test_resolve_reddit_user_from_author_data():
+    client = MagicMock()
+    client.fetch_user_about.return_value = {
+        "id": "abc123",
+        "subreddit": {"title": "Taladar"},
+    }
+    user = services.resolve_reddit_user_from_author_data(
+        {"author": "Taladar", "author_fullname": "t2_abc123"},
+        client=client,
+    )
+    assert user is not None
+    assert user.username == "Taladar"
 
 
 # --- get_or_create_youtube_speaker ---
