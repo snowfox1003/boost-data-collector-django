@@ -1,6 +1,6 @@
 """
 Slack Fetcher: file download, user/channel info, huddle transcript.
-Uses SlackAPIClient for API calls; file download and xoxc/xoxd transcript here.
+Uses SlackAPIClient for API calls; huddle transcript uses workspace session credentials.
 """
 
 import os
@@ -213,11 +213,10 @@ def download_file(file_url, save_path=None, filename=None, bot_token=None):
 
 def fetch_huddle_transcript(file_id):
     """
-    Fetch huddle transcript/file info using xoxc/xoxd from workspace JSON.
+    Fetch huddle transcript/file info using session credentials from workspace JSON.
 
-    Stale JSON tokens with a valid Chrome profile are refreshed automatically via
-    get_or_load_slack_internal_token_pair (probe + re-extract). On auth errors,
-    re-extract is attempted once more before giving up.
+    Stale credentials are refreshed automatically. On auth errors, one refresh retry
+    is attempted before giving up.
     """
     from slack_event_handler.utils.slack_internal_tokens_store import (
         SLACK_TOKENS_RELOGIN_HINT,
@@ -234,8 +233,8 @@ def fetch_huddle_transcript(file_id):
     if not pair:
         if team_id:
             logger.error(
-                "Cannot fetch huddle transcript for file %s: no valid Slack internal "
-                "tokens for team %s. %s",
+                "Cannot fetch huddle transcript for file %s: no valid session "
+                "credentials for team %s. %s",
                 file_id,
                 team_id,
                 SLACK_TOKENS_RELOGIN_HINT,
@@ -243,7 +242,7 @@ def fetch_huddle_transcript(file_id):
         else:
             logger.error(
                 "Cannot fetch huddle transcript for file %s: no Slack team id "
-                "(set SLACK_TEAM_IDS) and no valid internal tokens. %s",
+                "(set SLACK_TEAM_IDS) and no valid session credentials. %s",
                 file_id,
                 SLACK_TOKENS_RELOGIN_HINT,
             )
@@ -270,7 +269,7 @@ def fetch_huddle_transcript(file_id):
             if team_id and is_slack_internal_token_auth_error(err) and not reextracted:
                 reextracted = True
                 logger.info(
-                    "Slack auth error (%s); re-extracting tokens from Chrome profile",
+                    "Slack auth error (%s); refreshing session credentials",
                     err,
                 )
                 new_pair = _extract_validate_and_return(team_id)
@@ -280,8 +279,8 @@ def fetch_huddle_transcript(file_id):
                     cookies = {"d": xoxd_token}
                     continue
                 logger.error(
-                    "Cannot fetch huddle transcript for file %s: re-extract from Chrome "
-                    "profile did not yield valid tokens for team %s. %s",
+                    "Cannot fetch huddle transcript for file %s: credential refresh did not "
+                    "yield valid session for team %s. %s",
                     file_id,
                     team_id,
                     SLACK_TOKENS_RELOGIN_HINT,
@@ -291,7 +290,7 @@ def fetch_huddle_transcript(file_id):
                 log_slack_internal_tokens_still_invalid(team_id)
                 logger.error(
                     "Cannot fetch huddle transcript for file %s: Slack auth error (%s) "
-                    "after re-extract. %s",
+                    "after credential refresh. %s",
                     file_id,
                     err,
                     SLACK_TOKENS_RELOGIN_HINT,

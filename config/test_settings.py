@@ -108,3 +108,8 @@ CLANG_GITHUB_CONTEXT_REPO_BRANCH = ""
 
 # Tests patch a single subprocess.Popen for DiscordChatExporter.
 DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = False
+
+# Tests set DISCORD_USER_TOKEN via monkeypatch; do not inherit internal-token mode
+# from developer .env (get_or_load_discord_user_token would ignore env token).
+ALLOW_INTERNAL_DISCORD_TOKENS = False
+DISCORD_USER_TOKEN = ""

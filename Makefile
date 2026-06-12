@@ -60,6 +60,14 @@ help:
 	@echo "    slack-tokens-reextract Stop chromium → extract JSON"
 	@echo "    slack-tokens-refresh   Login (noVNC) → wait → extract JSON"
 	@echo ""
+	@echo "  Discord session (user token extraction)"
+	@echo "    discord-login            Start discord-chromium (noVNC http://127.0.0.1:7901)"
+	@echo "    discord-wait-profile     Wait until Discord login wrote Cookies + LevelDB"
+	@echo "    discord-login-stop       Stop discord-chromium before extract"
+	@echo "    extract-discord-tokens   Extract token to workspace JSON (one-shot)"
+	@echo "    discord-tokens-reextract Stop chromium → extract JSON"
+	@echo "    discord-tokens-refresh   Login (noVNC) → wait → extract JSON"
+	@echo ""
 	@echo "  Utilities"
 	@echo "    clean-mac      Remove macOS ._* resource-fork files"
 	@echo "    clean-pyc      Remove compiled Python files"
@@ -202,6 +210,36 @@ slack-tokens-reextract: extract-slack-tokens
 
 # Login in noVNC, wait for profile files, then extract JSON.
 slack-tokens-refresh: slack-login slack-wait-profile extract-slack-tokens
+
+# ── Discord session ───────────────────────────────────────────────────────────
+
+.PHONY: discord-login discord-wait-profile discord-login-stop extract-discord-tokens \
+	discord-tokens-reextract discord-tokens-refresh
+
+discord-login:
+	@mkdir -p workspace/discord_activity_tracker/chrome_profile
+	@rm -f workspace/discord_activity_tracker/chrome_profile/SingletonLock \
+		workspace/discord_activity_tracker/chrome_profile/SingletonCookie \
+		workspace/discord_activity_tracker/chrome_profile/SingletonSocket
+	$(COMPOSE) --profile discord-session up -d --force-recreate discord-chromium
+	@echo "noVNC (password: secret) — Chrome does NOT open automatically:"
+	@echo "  http://127.0.0.1:7901/?autoconnect=1&resize=scale&password=secret"
+	@echo "Right-click desktop → Web Browsing → Google Chrome → https://discord.com"
+	@command -v open >/dev/null 2>&1 && open "http://127.0.0.1:7901/?autoconnect=1&resize=scale&password=secret" || true
+
+discord-wait-profile:
+	@chmod +x scripts/wait_discord_chrome_profile.sh
+	@./scripts/wait_discord_chrome_profile.sh
+
+discord-login-stop:
+	$(COMPOSE) --profile discord-session stop discord-chromium
+
+extract-discord-tokens: discord-login-stop
+	$(MANAGE) extract_discord_tokens
+
+discord-tokens-reextract: extract-discord-tokens
+
+discord-tokens-refresh: discord-login discord-wait-profile extract-discord-tokens
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 

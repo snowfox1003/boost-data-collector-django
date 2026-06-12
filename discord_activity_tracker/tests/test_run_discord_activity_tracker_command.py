@@ -72,17 +72,18 @@ def test_parse_channel_ids_empty_string():
 @pytest.mark.django_db
 def test_resolve_bounds_no_since_empty_db_after_is_none(settings):
     settings.USE_TZ = True
-    after, before = _resolve_exporter_date_bounds(
+    after, before, per_ch = _resolve_exporter_date_bounds(
         {"since": None, "until": None},
         guild_snowflake=888001,
         channel_ids=[],
     )
     assert before is None
     assert after is None
+    assert per_ch is True
 
 
 def test_resolve_bounds_since_until_only():
-    after, before = _resolve_exporter_date_bounds(
+    after, before, per_ch = _resolve_exporter_date_bounds(
         {
             "since": "2026-01-01",
             "until": "2026-01-31",
@@ -91,16 +92,18 @@ def test_resolve_bounds_since_until_only():
         channel_ids=[],
     )
     assert after is not None and before is not None
+    assert per_ch is False
 
 
 def test_resolve_bounds_explicit_since_no_until():
-    after, before = _resolve_exporter_date_bounds(
+    after, before, per_ch = _resolve_exporter_date_bounds(
         {"since": "2026-05-01", "until": None},
         guild_snowflake=1,
         channel_ids=[],
     )
     assert after is not None
     assert before is None
+    assert per_ch is False
 
 
 @pytest.mark.django_db
@@ -137,13 +140,14 @@ def test_resolve_bounds_no_since_uses_latest_db_message():
         message_created_at=msg_time,
     )
 
-    after, before = _resolve_exporter_date_bounds(
+    after, before, per_ch = _resolve_exporter_date_bounds(
         {"since": None, "until": None},
         guild_snowflake=700,
         channel_ids=[701],
     )
     assert before is None
     assert after == msg_time
+    assert per_ch is True
 
 
 # ---------------------------------------------------------------------------
@@ -177,9 +181,10 @@ def test_collector_empty_channels_arg_falls_back_to_settings(monkeypatch):
 @pytest.mark.django_db
 def test_handle_core_raises_when_user_token_missing(monkeypatch):
     monkeypatch.setattr(settings, "DISCORD_USER_TOKEN", "")
+    monkeypatch.setattr(settings, "ALLOW_INTERNAL_DISCORD_TOKENS", False)
     monkeypatch.setattr(settings, "DISCORD_SERVER_ID", 9999)
     cmd, collector = _cmd_and_collector()
-    with pytest.raises(CommandError, match="DISCORD_USER_TOKEN"):
+    with pytest.raises(CommandError, match="Discord credentials not configured"):
         cmd._handle_core(collector.options, collector=collector)
 
 

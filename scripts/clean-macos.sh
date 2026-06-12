@@ -11,12 +11,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${1:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 echo "Scanning for macOS ._* files under: $ROOT"
-COUNT=$(find "$ROOT" -name '._*' -not -path '*/.git/*' 2>/dev/null | wc -l | tr -d ' ')
+COUNT=$(find "$ROOT" -name '._*' 2>/dev/null | wc -l | tr -d ' ')
 
 if [ "$COUNT" -eq 0 ]; then
     echo "No ._* files found. Nothing to clean."
     exit 0
 fi
 
-find "$ROOT" -name '._*' -not -path '*/.git/*' -delete 2>/dev/null
+find "$ROOT" -name '._*' -delete 2>/dev/null
 echo "Removed $COUNT ._* file(s)."

@@ -2,49 +2,7 @@
 
 This project uses **[DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter)** (CLI), not a separate product named “DiscordExpert.” The GUI and CLI come from the same Tyrrrz releases; ingestion here runs the **CLI** only (`export`, `exportguild`, `channels`), driven by `discord_activity_tracker/sync/chat_exporter.py` and `manage.py run_discord_activity_tracker`.
 
-Using a **user token** with DiscordChatExporter may violate Discord’s Terms of Service; prefer official APIs / bots when possible. Document tokens securely and never commit them.
-
----
-
-## Discord token and IDs (for fetching)
-
-`manage.py run_discord_activity_tracker` reads **`DISCORD_USER_TOKEN`** from `.env`. DiscordChatExporter uses the same kind of value as its CLI **`-t`** / `--token` argument when talking to Discord.
-
-### Where to get the token
-
-Discord does **not** publish a supported “export my user token” flow for this use case. **Follow the maintained upstream guide** (it is updated when the Discord client or API changes):
-
-- **[Token and IDs](https://github.com/Tyrrrz/DiscordChatExporter/blob/master/.docs/Token-and-IDs.md)** — how to obtain a token and copy **server** / **channel** snowflake IDs.
-
-**Built-in CLI help** (after you install the binary, see below):
-
-- **macOS / Linux:** `./DiscordChatExporter.Cli guide`
-- **Windows (`cmd`):** `DiscordChatExporter.Cli.exe guide` (no leading `./`)
-
-That command prints the same class of instructions as the wiki.
-
-Put the token in **`.env`** (never commit it):
-
-```env
-DISCORD_USER_TOKEN=your_token_here
-```
-
-### Bot token vs user token
-
-| Item | Env var in this repo | Used by ChatExporter fetch? |
-|------|----------------------|----------------------------|
-| **User** (account) token | `DISCORD_USER_TOKEN` | **Yes** — required for `run_discord_activity_tracker` → DiscordChatExporter. |
-| **Bot** token from the [Developer Portal](https://discord.com/developers/applications) | `DISCORD_TOKEN` | **No** for this exporter path (reserved for other / future bot-based features). |
-
-If export fails with “unauthorized” or similar, double-check you pasted the **user** token, not a bot token, and that the value has no extra quotes or spaces.
-
-### Server and channel IDs
-
-Set **`DISCORD_SERVER_ID`** to the guild you want. Optionally set **`DISCORD_CHANNEL_IDS`** to a comma-separated list of channel snowflakes; leave empty when you want the exporter to include all relevant channels (see behavior in [service_api/discord_activity_tracker.md](../service_api/discord_activity_tracker.md)). **Developer Mode** in the Discord app (Settings → Advanced) enables **Copy ID** on servers and channels; details are in **Token and IDs** above.
-
-### If the token leaks
-
-Treat it like a password. Revoke or rotate it using the same upstream steps you used to obtain it, and follow [Discord’s account security guidance](https://support.discord.com/hc/en-us/categories/360001371893-Account-Security-Verification). Do not paste tokens into chat, tickets, or screenshots.
+Exporter credentials and Discord server/channel IDs are configured via `.env` (see `.env.example`). User-account automation may violate Discord’s Terms of Service; prefer official APIs and bots when possible.
 
 ---
 
@@ -84,7 +42,6 @@ All variables live in `.env` (see `.env.example` in the repo root). The ones tha
 
 | Variable | Purpose |
 |----------|---------|
-| `DISCORD_USER_TOKEN` | Token passed to DiscordChatExporter for export (required for `run_discord_activity_tracker` fetch path). |
 | `DISCORD_SERVER_ID` | Guild snowflake to export. |
 | `DISCORD_CHANNEL_IDS` | Optional comma-separated channel IDs; empty often means “all text channels” depending on exporter mode. |
 | `DISCORD_CHAT_EXPORTER_CLI` | Optional absolute path to `DiscordChatExporter.Cli` / `.exe` if not using `workspace/.../script/`. |

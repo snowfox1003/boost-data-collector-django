@@ -435,14 +435,6 @@ server {
 
 Reload nginx after testing config (`sudo nginx -t && sudo systemctl reload nginx`).
 
-**Slack login (optional, port 7900):** When using `docker compose --profile slack-session`, noVNC is bound to **`127.0.0.1:7900`**. Access from your laptop via SSH port forwarding:
-
-```bash
-ssh -L 7900:127.0.0.1:7900 YOUR_DEPLOY_USER@YOUR_SERVER_HOST
-```
-
-Then open **http://localhost:7900**, sign in to Slack, stop `slack-chromium`, and run `docker compose run --rm web python manage.py extract_slack_tokens` (from the repo root on the server; same as `make extract-slack-tokens`). If you run **`run_slack_event_handler`** outside Compose, mount the same `workspace` path and `.env` as the Docker stack.
-
 ---
 
 ## Deploy Script Behavior

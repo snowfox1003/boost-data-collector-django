@@ -60,10 +60,11 @@ Collectors, management commands, and sync layers classify failures with [`classi
 
 | Module / symbol | Role |
 | --------------- | ---- |
-| `sync/chat_exporter.py` | Runs **DiscordChatExporter** (`exportguild`, etc.), date bounds in UTC, filters JSON paths. Used by **`run_discord_activity_tracker`**. |
-| `sync/messages.py` | `_prepare_message_data`, `_process_messages_in_batches` (calls `bulk_process_message_batch`). Also exposes **discord.py** helpers (`DiscordSyncClient`, `sync_all_channels`, …) for Bot API–style sync; those entry points are **not** wired to `run_discord_activity_tracker` today (that command uses the exporter + user token only). |
+| `sync/chat_exporter.py` | Runs **DiscordChatExporter** per channel per UTC day (`export`), date bounds in UTC. Used by **`run_discord_activity_tracker`**. |
+| `sync/raw_archive.py` | `merge_exporter_json` — merge daily JSON archives by message id under `raw/discord_activity_tracker/`. |
+| `sync/messages.py` | `_prepare_message_data`, `_process_messages_in_batches` (calls `bulk_process_message_batch`). Also exposes **discord.py** helpers (`DiscordSyncClient`, `sync_all_channels`, …) for Bot API–style sync; those entry points are **not** wired to `run_discord_activity_tracker` today (that command uses the DiscordChatExporter CLI only). |
 | `sync/client.py` | `DiscordSyncClient` — discord.py wrapper (intents, fetch guild/channel/messages). |
-| `sync/exporter_window.py` | `latest_message_created_at_for_guild` — lower bound for incremental exporter runs when `--since` is omitted. |
+| `sync/exporter_window.py` | `latest_message_created_at_for_guild`, `iter_channel_export_days` — DB lower bound and UTC day windows for exporter runs. |
 | `sync/utils.py` | Parsing helpers shared by exporter and message pipelines. |
 | `sync/export.py` | Markdown export from DB (used downstream of sync; see command help for `DISCORD_CONTEXT_*` settings). |
 
@@ -75,13 +76,13 @@ Two management commands handle message ingestion. Both use **`AbstractCollector`
 
 ### `run_discord_activity_tracker` — incremental / scheduled
 
-Uses **DiscordChatExporter** CLI with the user token. Setup (download, install path, env vars): [DiscordChatExporter operations doc](../operations/discord_chat_exporter.md).
+Uses **DiscordChatExporter** CLI with configured exporter credentials. Setup (download, install path, env vars): [DiscordChatExporter operations doc](../operations/discord_chat_exporter.md).
 
 Fetches into a staging directory, persists to the database, then archives JSON under:
 
 `{WORKSPACE_DIR}/raw/discord_activity_tracker/<server_id>/<channel_id>/`
 
-Date bounds passed to the exporter use **UTC** (see `sync/chat_exporter.py`). When `--since` is omitted, the lower bound is the latest stored message time for this guild (and channel allowlist). If the database has no matching rows, no `--after` filter is applied (full history). When `--until` is omitted, there is no upper bound (export through the present). If `--since` and `--until` are both set but **since is after until**, the command logs a warning and treats both as unset, then recomputes bounds from the rules above.
+DiscordChatExporter runs **once per channel per UTC calendar day** in the resolved window. Date bounds use **UTC** (see `sync/chat_exporter.py` and `sync/exporter_window.py`). When `--since` is omitted, the lower bound is the latest stored message time for this guild (and channel allowlist). If the database has no matching rows, only **today (UTC)** is exported. When `--until` is omitted, there is no upper bound (export through the present). Raw archives are stored as `YYYY-MM-DD.json` per channel; later runs **merge** new messages into the same file by message id. If `--since` and `--until` are both set but **since is after until**, the command logs a warning and treats both as unset, then recomputes bounds from the rules above.
 
 ```
 python manage.py run_discord_activity_tracker [options]

@@ -1,7 +1,7 @@
 """
 Management command: extract_slack_tokens
 
-Reads xoxc/xoxd from CHROME_PROFILE_PATH and saves them to workspace JSON.
+Persist Slack session credentials to workspace JSON.
 """
 
 import logging
@@ -22,9 +22,8 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        "Extract Slack xoxc/xoxd tokens from CHROME_PROFILE_PATH and write "
-        "workspace/slack_event_handler/slack_internal_tokens.json. "
-        "Stop slack-chromium (slack-session profile) before running to avoid LevelDB locks."
+        "Persist Slack session credentials to "
+        "workspace/slack_event_handler/slack_internal_tokens.json."
     )
 
     def add_arguments(self, parser):
@@ -50,9 +49,9 @@ class Command(BaseCommand):
         if not allow:
             self.stderr.write(
                 self.style.WARNING(
-                    "ALLOW_INTERNAL_SLACK_TOKENS is not true: tokens will be saved to "
+                    "Internal Slack session mode is not enabled: credentials will be saved to "
                     "workspace JSON but ignored by Django until enabled. "
-                    "Restart web/celery after enabling."
+                    "Restart web/celery after enabling. See .env.example."
                 )
             )
 
@@ -63,20 +62,17 @@ class Command(BaseCommand):
         profile_path = str(profile)
         if not profile.is_dir():
             raise CommandError(
-                "Chrome profile not found at CHROME_PROFILE_PATH "
+                "Session storage not found "
                 f"({profile_path}). Expected: {get_chrome_profile_path()}. "
-                "Log into Slack via make slack-login, then re-run extract_slack_tokens."
+                "See .env.example."
             )
 
         pair = extract_and_save_slack_internal_tokens(team_id)
         if not pair:
-            raise CommandError(
-                "Token extraction failed. Ensure Slack is logged in under "
-                f"CHROME_PROFILE_PATH ({profile_path}) and slack-chromium is stopped."
-            )
+            raise CommandError("Failed to load session credentials. See .env.example.")
         out_path = slack_internal_tokens_json_path()
         self.stdout.write(
             self.style.SUCCESS(
-                f"Extracted tokens for team {team_id}; saved to {out_path}."
+                f"Saved session credentials for team {team_id} to {out_path}."
             )
         )

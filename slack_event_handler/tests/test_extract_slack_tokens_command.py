@@ -24,7 +24,7 @@ def test_extract_slack_tokens_command_success(
     out = StringIO()
     call_command("extract_slack_tokens", "--team-id=T1", stdout=out)
     mock_extract_and_save.assert_called_once_with("T1")
-    assert "saved to" in out.getvalue()
+    assert "Saved session credentials" in out.getvalue()
 
 
 @patch(
@@ -40,12 +40,12 @@ def test_extract_slack_tokens_command_failure(
     profile = tmp_path / "chrome_profile"
     profile.mkdir()
     mock_resolve_profile.return_value = profile
-    with pytest.raises(CommandError, match="Token extraction failed"):
+    with pytest.raises(CommandError, match="Failed to load session credentials"):
         call_command("extract_slack_tokens", "--team-id=T1")
     mock_extract_and_save.assert_called_once_with("T1")
 
 
 def test_extract_slack_tokens_command_missing_profile(settings, tmp_path):
     settings.CHROME_PROFILE_PATH = str(tmp_path / "missing_profile")
-    with pytest.raises(CommandError, match="Chrome profile not found"):
+    with pytest.raises(CommandError, match="Session storage not found"):
         call_command("extract_slack_tokens", "--team-id=T21Q22G66")

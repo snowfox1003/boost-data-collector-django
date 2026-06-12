@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from discord_activity_tracker.sync.chat_exporter import (
+    ChannelDayExport,
     DiscordChatExporterError,
     _sorted_discord_export_json_paths,
     filter_discord_export_json_paths,
@@ -92,6 +93,10 @@ def test_export_guild_success(tmp_path):
     cli = tmp_path / "DiscordChatExporter.Cli.exe"
     cli.write_text("fake", encoding="utf-8")
     out = tmp_path / "exp"
+    channel_id = 100
+    day_str = "2026-01-02"
+    after = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    before = datetime(2026, 1, 3, tzinfo=timezone.utc)
 
     proc = MagicMock()
     proc.stdout = StringIO("line1\n\n")
@@ -100,7 +105,7 @@ def test_export_guild_success(tmp_path):
     def wait():
         proc.returncode = 0
         out.mkdir(parents=True, exist_ok=True)
-        (out / "guild.json").write_text("{}", encoding="utf-8")
+        (out / f"{channel_id}_{day_str}.json").write_text("{}", encoding="utf-8")
 
     proc.wait = wait
 
@@ -114,9 +119,19 @@ def test_export_guild_success(tmp_path):
             return_value=proc,
         ),
     ):
-        paths = export_guild_to_json("user-token", 42, out, include_threads="All")
+        exports = export_guild_to_json(
+            "user-token",
+            42,
+            out,
+            channel_ids=[channel_id],
+            after_date=after,
+            before_date=before,
+            include_threads="All",
+        )
 
-    assert out / "guild.json" in paths
+    assert len(exports) == 1
+    assert exports[0].path == out / f"{channel_id}_{day_str}.json"
+    assert exports[0].day_str == day_str
 
 
 def test_export_guild_nonzero_exit_raises(tmp_path):
@@ -144,7 +159,67 @@ def test_export_guild_nonzero_exit_raises(tmp_path):
         ),
     ):
         with pytest.raises(DiscordChatExporterError, match="exit code"):
-            export_guild_to_json("tok", 1, out)
+            export_guild_to_json(
+                "tok",
+                1,
+                out,
+                channel_ids=[1],
+                after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+            )
+
+
+def test_export_guild_auth_failure_retries_with_reextracted_token(tmp_path, settings):
+    settings.ALLOW_INTERNAL_DISCORD_TOKENS = True
+    cli = tmp_path / "DiscordChatExporter.Cli.exe"
+    cli.write_text("fake", encoding="utf-8")
+    out = tmp_path / "exp"
+
+    call_count = {"n": 0}
+
+    def make_proc():
+        proc = MagicMock()
+        proc.stdout = StringIO("line1\n")
+        if call_count["n"] == 0:
+            proc.stderr.read.return_value = "HTTP 401 Unauthorized"
+            proc.wait = lambda: setattr(proc, "returncode", 1) or None
+        else:
+            proc.stderr.read.return_value = ""
+
+            def wait_ok():
+                proc.returncode = 0
+                out.mkdir(parents=True, exist_ok=True)
+                (out / "100_2026-01-02.json").write_text("{}", encoding="utf-8")
+
+            proc.wait = wait_ok
+        call_count["n"] += 1
+        return proc
+
+    with (
+        patch(
+            "discord_activity_tracker.sync.chat_exporter._get_cli_path",
+            return_value=cli,
+        ),
+        patch(
+            "discord_activity_tracker.sync.chat_exporter.subprocess.Popen",
+            side_effect=lambda *a, **k: make_proc(),
+        ),
+        patch(
+            "discord_activity_tracker.utils.discord_internal_tokens_store.extract_and_save_discord_internal_tokens",
+            return_value="fresh-tok",
+        ),
+    ):
+        exports = export_guild_to_json(
+            "old-tok",
+            42,
+            out,
+            channel_ids=[100],
+            after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+        )
+
+    assert call_count["n"] == 2
+    assert exports[0].path == out / "100_2026-01-02.json"
 
 
 def test_export_guild_unexpected_wraps(tmp_path):
@@ -162,13 +237,18 @@ def test_export_guild_unexpected_wraps(tmp_path):
         ),
     ):
         with pytest.raises(DiscordChatExporterError, match="Unexpected"):
-            export_guild_to_json("tok", 1, tmp_path / "o")
+            export_guild_to_json(
+                "tok",
+                1,
+                tmp_path / "o",
+                channel_ids=[1],
+                after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+            )
 
 
-def test_export_guild_output_path_uses_os_sep(tmp_path):
-    """The --output arg must end with os.sep (not hardcoded backslash)."""
-    import os
-
+def test_export_guild_output_path_is_explicit_json_file(tmp_path):
+    """Per-day export passes an explicit ``-o`` JSON file path (no directory slash)."""
     cli = tmp_path / "DiscordChatExporter.Cli.exe"
     cli.write_text("fake", encoding="utf-8")
     out = tmp_path / "exp"
@@ -180,6 +260,8 @@ def test_export_guild_output_path_uses_os_sep(tmp_path):
 
     def wait():
         proc.returncode = 0
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "1_2026-01-02.json").write_text("{}", encoding="utf-8")
 
     proc.wait = wait
 
@@ -197,16 +279,21 @@ def test_export_guild_output_path_uses_os_sep(tmp_path):
             side_effect=popen,
         ),
     ):
-        export_guild_to_json("tok", 1, out)
+        export_guild_to_json(
+            "tok",
+            1,
+            out,
+            channel_ids=[1],
+            after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+        )
 
     output_index = captured["cmd"].index("--output") + 1
     output_value = captured["cmd"][output_index]
-    assert output_value.endswith(
-        os.sep
-    ), f"--output should end with os.sep='{os.sep}', got: {output_value!r}"
+    assert output_value.endswith("1_2026-01-02.json")
 
 
-def test_export_guild_parallel_from_settings(tmp_path, settings):
+def test_export_guild_per_channel_parallel_is_one(tmp_path, settings):
     settings.DISCORD_CHAT_EXPORTER_PARALLEL = 4
     cli = tmp_path / "DiscordChatExporter.Cli.exe"
     cli.write_text("fake", encoding="utf-8")
@@ -219,6 +306,8 @@ def test_export_guild_parallel_from_settings(tmp_path, settings):
 
     def wait():
         proc.returncode = 0
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "1_2026-01-02.json").write_text("{}", encoding="utf-8")
 
     proc.wait = wait
 
@@ -236,46 +325,17 @@ def test_export_guild_parallel_from_settings(tmp_path, settings):
             side_effect=popen,
         ),
     ):
-        export_guild_to_json("tok", 1, out)
+        export_guild_to_json(
+            "tok",
+            1,
+            out,
+            channel_ids=[1],
+            after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+            before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+        )
 
     par_idx = captured["cmd"].index("--parallel")
-    assert captured["cmd"][par_idx + 1] == "4"
-
-
-def test_export_guild_parallel_clamped_to_16(tmp_path, settings):
-    settings.DISCORD_CHAT_EXPORTER_PARALLEL = 99
-    cli = tmp_path / "DiscordChatExporter.Cli.exe"
-    cli.write_text("fake", encoding="utf-8")
-    out = tmp_path / "exp"
-    captured = {}
-
-    proc = MagicMock()
-    proc.stdout = StringIO("")
-    proc.stderr.read.return_value = ""
-
-    def wait():
-        proc.returncode = 0
-
-    proc.wait = wait
-
-    def popen(cmd, **_kwargs):
-        captured["cmd"] = cmd
-        return proc
-
-    with (
-        patch(
-            "discord_activity_tracker.sync.chat_exporter._get_cli_path",
-            return_value=cli,
-        ),
-        patch(
-            "discord_activity_tracker.sync.chat_exporter.subprocess.Popen",
-            side_effect=popen,
-        ),
-    ):
-        export_guild_to_json("tok", 1, out)
-
-    par_idx = captured["cmd"].index("--parallel")
-    assert captured["cmd"][par_idx + 1] == "16"
+    assert captured["cmd"][par_idx + 1] == "1"
 
 
 def test_parse_channels_command_stdout_skips_threads_and_banner():
@@ -356,7 +416,14 @@ def test_export_guild_sigkill_error_message_hints_parallel(tmp_path):
         ),
     ):
         with pytest.raises(DiscordChatExporterError, match="SIGKILL"):
-            export_guild_to_json("tok", 1, out)
+            export_guild_to_json(
+                "tok",
+                1,
+                out,
+                channel_ids=[1],
+                after_date=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                before_date=datetime(2026, 1, 3, tzinfo=timezone.utc),
+            )
 
 
 def test_sequential_export_skips_channels_cli_when_channel_ids_set(tmp_path, settings):
@@ -366,6 +433,9 @@ def test_sequential_export_skips_channels_cli_when_channel_ids_set(tmp_path, set
     cli.write_text("fake", encoding="utf-8")
     out = tmp_path / "exp"
     run_calls: list[list[str]] = []
+    day_str = "2026-01-01"
+    after = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    before = datetime(2026, 1, 2, tzinfo=timezone.utc)
 
     def capture_run(cmd, **_kwargs):
         run_calls.append(list(cmd))
@@ -384,7 +454,8 @@ def test_sequential_export_skips_channels_cli_when_channel_ids_set(tmp_path, set
 
         def wait():
             proc.returncode = 0
-            (out / f"out-{ch}.json").write_text("{}", encoding="utf-8")
+            out.mkdir(parents=True, exist_ok=True)
+            (out / f"{ch}_{day_str}.json").write_text("{}", encoding="utf-8")
 
         proc.wait = wait
         return proc
@@ -406,22 +477,24 @@ def test_sequential_export_skips_channels_cli_when_channel_ids_set(tmp_path, set
             side_effect=make_popen,
         ),
     ):
-        paths = export_guild_to_json(
+        exports = export_guild_to_json(
             "tok",
             1,
             out,
             channel_ids=[222, 111, 222],
+            after_date=after,
+            before_date=before,
         )
 
     assert run_calls == []
-    assert len(paths) == 2
+    assert len(exports) == 2
 
 
 def test_export_guild_adds_after_before_flags(tmp_path):
     cli = tmp_path / "DiscordChatExporter.Cli.exe"
     cli.write_text("fake", encoding="utf-8")
     out = tmp_path / "exp"
-    captured = {}
+    captured_cmds: list[list[str]] = []
 
     proc = MagicMock()
     proc.stdout = StringIO("")
@@ -429,17 +502,22 @@ def test_export_guild_adds_after_before_flags(tmp_path):
 
     def wait():
         proc.returncode = 0
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "7_2026-01-02.json").write_text("{}", encoding="utf-8")
 
     proc.wait = wait
 
     def popen(cmd, **_kwargs):
-        captured["cmd"] = cmd
+        captured_cmds.append(list(cmd))
         return proc
 
     with (
         patch(
             "discord_activity_tracker.sync.chat_exporter._get_cli_path",
             return_value=cli,
+        ),
+        patch(
+            "discord_activity_tracker.sync.chat_exporter.validate_discord_chat_exporter_cli_architecture",
         ),
         patch(
             "discord_activity_tracker.sync.chat_exporter.subprocess.Popen",
@@ -450,12 +528,13 @@ def test_export_guild_adds_after_before_flags(tmp_path):
             "tok",
             7,
             out,
+            channel_ids=[7],
             after_date=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
-            before_date=datetime(2026, 2, 1, 0, 0, 0, tzinfo=timezone.utc),
+            before_date=datetime(2026, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
         )
 
-    cmd = captured["cmd"]
-    assert "--after" in cmd and "--before" in cmd
+    assert captured_cmds
+    assert any("--after" in cmd and "--before" in cmd for cmd in captured_cmds)
 
 
 def test_parse_exported_json_roundtrip(tmp_path):
@@ -655,7 +734,7 @@ def test_export_and_parse_skips_bad_file(tmp_path):
 
     with patch(
         "discord_activity_tracker.sync.chat_exporter.export_guild_to_json",
-        return_value=[bad],
+        return_value=[ChannelDayExport(path=bad, day_str="2026-01-01", channel_id=1)],
     ):
         assert export_and_parse_guild("t", 1, tmp_path / "o") == []
 
@@ -671,7 +750,7 @@ def test_export_and_parse_returns_channels(tmp_path):
 
     with patch(
         "discord_activity_tracker.sync.chat_exporter.export_guild_to_json",
-        return_value=[ok],
+        return_value=[ChannelDayExport(path=ok, day_str="2026-01-01", channel_id=1)],
     ):
         rows = export_and_parse_guild("t", 1, tmp_path / "o")
 

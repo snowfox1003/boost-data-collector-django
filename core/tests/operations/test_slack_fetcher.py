@@ -474,7 +474,7 @@ def test_fetch_huddle_auth_error_when_reextract_fails(
     with caplog.at_level(logging.ERROR):
         assert fetch_huddle_transcript("Fx") is None
     _mock_reextract.assert_called_once_with("T1")
-    assert "slack-tokens-refresh" in caplog.text
+    assert ".env.example" in caplog.text
 
 
 @override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)

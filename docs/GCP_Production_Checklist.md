@@ -27,7 +27,7 @@ Mirror [`.env.example`](../.env.example) groups; inject via Secret Manager → e
 |----------|----------------|
 | GitHub | `GITHUB_TOKEN`, `GITHUB_TOKENS_SCRAPING`, `GITHUB_TOKEN_WRITE` |
 | Slack | `SLACK_TEAM_IDS`, `SLACK_BOT_TOKEN_*`, `SLACK_APP_TOKEN_*` |
-| Discord | `DISCORD_TOKEN` or `DISCORD_USER_TOKEN`, `DISCORD_SERVER_ID`, exporter paths |
+| Discord | `DISCORD_TOKEN`, `DISCORD_SERVER_ID`, exporter paths |
 | Pinecone | `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, … |
 | YouTube | `YOUTUBE_API_KEY` |
 | WG21 | `WG21_GITHUB_DISPATCH_*` (see `config/settings.py`) |

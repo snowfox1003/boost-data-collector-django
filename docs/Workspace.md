@@ -21,13 +21,13 @@ workspace/                                    # WORKSPACE_DIR (configurable via 
 │   └── boost_mailing_list_tracker/           # Raw API responses (kept, not removed)
 │       └── <list_name>/<msg_id>.json
 │   └── discord_activity_tracker/             # DiscordChatExporter output (see below)
-│       ├── _exporter_staging/                # Temporary guild export (cleared each run)
-│       └── <server_id>/<channel_id>/         # Archived JSON after DB import
+│       └── <server_id>/<channel_id>/         # Archived JSON after DB import (YYYY-MM-DD.json)
 ├── clang_github_tracker/                    # Markdown export for clang_github_tracker (md_export/)
 ├── boost_mailing_list_tracker/               # Mailing list messages (see below)
 │   └── <list_name>/
 │       └── messages/<msg_id>.json            # Formatted cache (processed then removed)
 ├── discord_activity_tracker/                 # CLI install + backfill drop folder
+│   ├── _exporter_staging/                    # Temporary per-day export (cleared each run)
 │   ├── script/                               # DiscordChatExporter.Cli (default layout; optional)
 │   └── Discussion - c-cpp-discussion/      # Pre-exported JSON for backfill (removed after import)
 └── shared/                                   # Temp files used by more than one app
@@ -51,7 +51,7 @@ So: **raw/** = permanent archive of scraped API responses; **messages/** = short
 
 ### discord_activity_tracker paths
 
-1. **`run_discord_activity_tracker`** — DiscordChatExporter writes to `raw/discord_activity_tracker/_exporter_staging/`, then JSON is parsed, upserted into the DB, and **moved** under `raw/discord_activity_tracker/<server_id>/<channel_id>/` (kept as an archive).
+1. **`run_discord_activity_tracker`** — DiscordChatExporter runs **per channel per UTC day**, writing scratch JSON under `discord_activity_tracker/_exporter_staging/`. Each file is parsed, upserted into the DB, then **merged** into `raw/discord_activity_tracker/<server_id>/<channel_id>/YYYY-MM-DD.json` (same-day re-runs append/update by message id).
 2. **`backfill_discord_activity_tracker`** — Place DiscordChatExporter JSON under `discord_activity_tracker/Discussion - c-cpp-discussion/` (any depth). Each file is imported, then **deleted** so it is not processed twice.
 
 See [service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md) and [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md).

@@ -3,8 +3,8 @@ Workspace paths for slack_event_handler.
 
 Layout: workspace/slack_event_handler/
   - data/                      (state.json, raw event files)
-  - chrome_profile/            (Slack login session for xoxc/xoxd extraction)
-  - slack_internal_tokens.json (xoxc/xoxd tokens, not .env)
+  - chrome_profile/            (session storage for huddle credentials)
+  - slack_internal_tokens.json (session credentials, not .env)
 """
 
 import os
@@ -30,14 +30,14 @@ def get_data_dir() -> Path:
 
 
 def get_chrome_profile_path() -> Path:
-    """Chrome user-data dir for Slack session extraction."""
+    """Session storage directory for Slack huddle credentials."""
     path = get_workspace_root() / CHROME_PROFILE_DIRNAME
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_slack_internal_tokens_json_path() -> Path:
-    """JSON file storing xoxc/xoxd per team."""
+    """JSON file storing session credentials per team."""
     return get_workspace_root() / SLACK_INTERNAL_TOKENS_FILENAME
 
 

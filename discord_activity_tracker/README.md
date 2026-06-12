@@ -10,7 +10,7 @@ Ingests **Discord server activity** (messages, threads, exports) into PostgreSQL
 
 ### Where we fetch data
 
-**Discord** via **DiscordChatExporter** (bot/user token + server/channel configuration) within the `--since`/`--until` window, honoring resume semantics documented in the command help.
+**Discord** via **DiscordChatExporter** (configured credentials + server/channel configuration) within the `--since`/`--until` window, honoring resume semantics documented in the command help.
 
 ### How data is saved to the database
 
@@ -32,7 +32,7 @@ Unless `--skip-pinecone` (or deprecated `--ignore-pinecone`) is set, the run inv
 
 ## Main command: `run_discord_activity_tracker`
 
-Orchestrates exporter fetch → DB upsert + raw JSON → Markdown export to `DISCORD_CONTEXT_REPO_PATH` → optional Pinecone via `run_cppa_pinecone_sync`. Requires `DISCORD_USER_TOKEN`, `DISCORD_SERVER_ID`; channel scope from `DISCORD_CHANNEL_IDS` unless `--channels` is set.
+Orchestrates exporter fetch → DB upsert + raw JSON → Markdown export to `DISCORD_CONTEXT_REPO_PATH` → optional Pinecone via `run_cppa_pinecone_sync`. Requires configured Discord credentials (see `.env.example`), plus `DISCORD_SERVER_ID`; channel scope from `DISCORD_CHANNEL_IDS` unless `--channels` is set.
 
 | Option | Description |
 | --- | --- |
@@ -41,7 +41,7 @@ Orchestrates exporter fetch → DB upsert + raw JSON → Markdown export to `DIS
 | `--skip-markdown-export` | Skip writing Markdown from the DB to `DISCORD_CONTEXT_REPO_PATH`. |
 | `--skip-remote-push` | Skip git commit/push after Markdown export (when auto-commit is enabled). |
 | `--skip-pinecone` / `--ignore-pinecone` | Skip Pinecone upsert for Discord messages (`--ignore-pinecone` is a deprecated alias). |
-| `--since`, `--from-date`, `--start-time` | Exporter lower bound (`--after`): `YYYY-MM-DD` or ISO-8601 UTC. If omitted, resumes from latest DB message for the guild (or full history if empty). |
+| `--since`, `--from-date`, `--start-time` | Exporter lower bound (`--after`): `YYYY-MM-DD` or ISO-8601 UTC. If omitted, resumes from latest DB message for the guild (or today UTC only if empty). |
 | `--until`, `--to-date`, `--end-time` | Exporter upper bound (`--before`); same formats. Omitted = through present. |
 | `--channels` | Comma-separated channel IDs (overrides `DISCORD_CHANNEL_IDS`). |
 | `--task` | **Deprecated.** `sync` \| `export` \| `all` — prefer `--skip-*` flags. |

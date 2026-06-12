@@ -74,7 +74,7 @@ Columns: **persistence** (usual durable stores), **coupling** (one-line upstream
 
 | App | Entry command | Notes |
 |-----|---------------|-------|
-| `slack_event_handler` | `run_slack_event_handler` | Slack Socket Mode listener (PR bot / huddles); see [Docker.md §4b](Docker.md#4b-slack-session-tokens-huddle-transcripts-optional) |
+| `slack_event_handler` | `run_slack_event_handler` | Slack Socket Mode listener (PR bot / huddles) |
 
 ---
 

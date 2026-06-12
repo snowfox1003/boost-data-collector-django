@@ -1,7 +1,4 @@
-"""
-Slack Token Extractor Module
-Reads xoxc and xoxd tokens from a logged-in Chrome user profile on disk.
-"""
+"""Slack session credential helpers for huddle transcript flows."""
 
 import json
 import logging
@@ -15,7 +12,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Slack files.info errors that indicate stale xoxc/xoxd (not missing file).
+# Slack files.info errors that indicate stale session credentials (not missing file).
 SLACK_INTERNAL_TOKEN_AUTH_ERRORS = frozenset(
     {
         "invalid_auth",
@@ -34,7 +31,7 @@ SLACK_TOKEN_PROBE_FILE_ID = "F00000000000"
 LOCAL_CONFIG_V2_KEY = b"_https://app.slack.com\x00\x01localConfig_v2"
 LOCAL_CONFIG_V2_MARKER = b"localConfig_v2"
 
-# Chrome profile path: validate normalized POSIX form (Windows drive letters via ":").
+# Session storage path: validate normalized POSIX form (Windows drive letters via ":").
 CHROME_PROFILE_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9/_. \-:]+$")
 
 
@@ -55,7 +52,7 @@ def _validate_chrome_profile_path(path: str) -> str:
 
 
 def _resolve_chrome_profile_root() -> Path:
-    """Return validated Chrome user-data directory (workspace/slack_event_handler/chrome_profile)."""
+    """Return validated session storage directory for Slack credentials."""
     from slack_event_handler.workspace import get_chrome_profile_path
 
     raw = (getattr(settings, "CHROME_PROFILE_PATH", "") or "").strip()
@@ -77,7 +74,7 @@ def _cookies_path(profile_root: Path) -> Path:
 
 
 def _parse_local_config_raw(raw: bytes) -> dict:
-    """Parse localConfig_v2 value from Chromium LevelDB (strip optional prefix byte)."""
+    """Parse localConfig_v2 payload (strip optional prefix byte)."""
     if not raw:
         raise ValueError("localConfig_v2 is empty")
     if raw[0:1] in (b"\x00", b"\x01"):
@@ -88,14 +85,13 @@ def _parse_local_config_raw(raw: bytes) -> dict:
 
 
 def _read_leveldb_value(leveldb_dir: Path, key: bytes) -> bytes | None:
-    """Read a single key from LevelDB; copy to temp dir if the database is locked."""
+    """Read a single key from local storage; copy to temp dir if locked."""
     try:
         import plyvel
     except ImportError:
         logger.warning(
-            "plyvel is not installed; cannot read Chrome LevelDB at %s. "
-            "Install libleveldb-dev and plyvel (Linux/macOS), or use WSL/Docker for "
-            "extract_slack_tokens.",
+            "plyvel is not installed; cannot read session storage at %s. "
+            "See .env.example for supported environments.",
             leveldb_dir,
         )
         return None
@@ -133,7 +129,7 @@ def _read_leveldb_value(leveldb_dir: Path, key: bytes) -> bytes | None:
 
 
 def _read_local_config_v2(profile_root: Path) -> dict | None:
-    """Load and parse localConfig_v2 from the Chrome profile LevelDB."""
+    """Load and parse localConfig_v2 from session storage."""
     leveldb_dir = _leveldb_path(profile_root)
     if not leveldb_dir.is_dir():
         logger.warning("LevelDB not found at %s", leveldb_dir)
@@ -153,18 +149,14 @@ def _read_local_config_v2(profile_root: Path) -> dict | None:
 
 
 def _chrome_linux_v10_cookie_key() -> bytes:
-    """AES key for Chromium v10 cookies on Linux (slack-chromium / headless Chrome)."""
+    """AES key for Chromium v10 encrypted session values on Linux."""
     from Cryptodome.Protocol.KDF import PBKDF2
 
     return PBKDF2(b"peanuts", b"saltysalt", dkLen=16, count=1)
 
 
 def _decrypt_chrome_linux_v10_cookie(encrypted_value: bytes) -> str:
-    """
-    Decrypt Chromium v10 cookie blobs written by Linux Chrome (AES-128-CBC).
-
-    Profiles from slack-chromium use this format; browser_cookie3 often fails there.
-    """
+    """Decrypt Chromium v10 encrypted session blobs (AES-128-CBC)."""
     if not encrypted_value.startswith(b"v10"):
         raise ValueError("unsupported Chrome cookie encryption (expected v10 prefix)")
     from Cryptodome.Cipher import AES
@@ -178,7 +170,7 @@ def _decrypt_chrome_linux_v10_cookie(encrypted_value: bytes) -> str:
 
 
 def _read_xoxd_cookie_from_sqlite(cookies_file: Path) -> str | None:
-    """Read Slack cookie 'd' via SQLite + Linux v10 decryption (slack-chromium profiles)."""
+    """Read session value from SQLite storage with Linux v10 decryption."""
     import sqlite3
 
     conn = sqlite3.connect(f"file:{cookies_file}?mode=ro", uri=True)
@@ -205,10 +197,10 @@ def _read_xoxd_cookie_from_sqlite(cookies_file: Path) -> str | None:
 
 
 def _read_xoxd_cookie(profile_root: Path) -> str | None:
-    """Read Slack session cookie 'd' from the Chrome profile."""
+    """Read secondary session credential from configured storage."""
     cookies_file = _cookies_path(profile_root)
     if not cookies_file.is_file():
-        logger.warning("Cookies database not found at %s", cookies_file)
+        logger.warning("Session storage database not found at %s", cookies_file)
         return None
     try:
         import browser_cookie3
@@ -228,22 +220,17 @@ def _read_xoxd_cookie(profile_root: Path) -> str | None:
         if value:
             return value
     except Exception as e:
-        logger.warning("Error reading cookie 'd' from SQLite: %s", e)
+        logger.warning("Error reading session credential from SQLite: %s", e)
         return None
 
-    logger.warning("xoxd token (cookie 'd') not found in %s", cookies_file)
+    logger.warning("Secondary session credential not found in %s", cookies_file)
     return None
 
 
 def extract_slack_tokens_from_config(
     local_config: dict, xoxd: str, team_id: str
 ) -> dict | None:
-    """
-    Extract xoxc and xoxd tokens from parsed localConfig and cookie value.
-
-    Returns:
-        dict with xoxc, xoxd, team_id, team_name, user_id or None
-    """
+    """Build session credential dict from parsed localConfig, or None."""
     try:
         teams = local_config.get("teams", {})
         team_data = teams.get(team_id)
@@ -258,10 +245,10 @@ def extract_slack_tokens_from_config(
         team_name = team_data.get("name")
         user_id = team_data.get("user_id")
         if not xoxc_token:
-            logger.warning("xoxc token not found in team data")
+            logger.warning("Primary session credential not found in team data")
             return None
         if not xoxd:
-            logger.warning("xoxd token (cookie 'd') not found")
+            logger.warning("Secondary session credential not found")
             return None
         tokens = {
             "xoxc": xoxc_token,
@@ -270,10 +257,10 @@ def extract_slack_tokens_from_config(
             "team_name": team_name,
             "user_id": user_id,
         }
-        logger.debug("Tokens extracted for team %s", team_name)
+        logger.debug("Session credentials loaded for team %s", team_name)
         return tokens
     except Exception as e:
-        logger.warning("Error extracting tokens: %s", e)
+        logger.warning("Error loading session credentials: %s", e)
         return None
 
 
@@ -288,7 +275,7 @@ def get_all_team_ids_from_config(local_config: dict) -> list[str]:
 
 
 def get_all_team_ids(local_config: dict | None = None) -> list[str]:
-    """Get team IDs from localConfig; reads profile if local_config not provided."""
+    """Get team IDs from localConfig; reads workspace storage if not provided."""
     if local_config is not None:
         return get_all_team_ids_from_config(local_config)
     try:
@@ -303,7 +290,7 @@ def get_all_team_ids(local_config: dict | None = None) -> list[str]:
 
 
 def is_slack_internal_token_auth_error(error: str | None) -> bool:
-    """True if Slack API error indicates expired or invalid xoxc/xoxd session."""
+    """True if Slack API error indicates expired or invalid session credentials."""
     return (error or "").strip() in SLACK_INTERNAL_TOKEN_AUTH_ERRORS
 
 
@@ -312,11 +299,7 @@ def probe_slack_internal_tokens(
     xoxd: str,
     file_id: str = SLACK_TOKEN_PROBE_FILE_ID,
 ) -> bool:
-    """
-    Return True if xoxc/xoxd authenticate against Slack files.info.
-
-    Uses a dummy file id: file_not_found and other non-auth errors still mean tokens work.
-    """
+    """Return True if session credentials authenticate against Slack files.info."""
     xoxc = (xoxc or "").strip()
     xoxd = (xoxd or "").strip()
     if not xoxc or not xoxd:
@@ -345,12 +328,8 @@ def probe_slack_internal_tokens(
 
 
 def extract_slack_tokens_auto(team_id: str) -> dict | None:
-    """
-    Read xoxc/xoxd from CHROME_PROFILE_PATH (logged-in Slack session on disk).
-
-    Stop slack-chromium (slack-session profile) before calling to avoid LevelDB locks.
-    """
-    logger.debug("Starting Slack token extraction for team %s", team_id)
+    """Load session credentials for team_id from configured workspace paths."""
+    logger.debug("Loading Slack session credentials for team %s", team_id)
     try:
         profile_root = _resolve_chrome_profile_root()
     except ValueError as e:
@@ -358,15 +337,14 @@ def extract_slack_tokens_auto(team_id: str) -> dict | None:
         return None
     if not profile_root.is_dir():
         logger.error(
-            "Chrome profile not found at %s. Log in via slack-session (noVNC) or run "
-            "manage.py extract_slack_tokens after login.",
+            "Session storage not found at %s. See .env.example.",
             profile_root,
         )
         return None
     local_config = _read_local_config_v2(profile_root)
     if not local_config:
         logger.error(
-            "Failed to read localConfig_v2 from profile. Ensure Slack is logged in at app.slack.com."
+            "Failed to read session configuration from workspace storage. See .env.example."
         )
         return None
     team_ids = get_all_team_ids_from_config(local_config)
@@ -375,12 +353,12 @@ def extract_slack_tokens_auto(team_id: str) -> dict | None:
     xoxd = _read_xoxd_cookie(profile_root)
     if not xoxd:
         logger.error(
-            "Failed to read cookie 'd'. Profile may be from a different OS or browser still running."
+            "Failed to read secondary session credential from workspace storage."
         )
         return None
-    logger.debug("Extracting tokens for team ID: %s", team_id)
+    logger.debug("Loading session credentials for team ID: %s", team_id)
     tokens = extract_slack_tokens_from_config(local_config, xoxd, team_id)
     if tokens:
         return tokens
-    logger.warning("Failed to extract tokens for team %s", team_id)
+    logger.warning("Failed to load session credentials for team %s", team_id)
     return None

@@ -14,10 +14,20 @@ from discord_activity_tracker.management.commands.run_discord_activity_tracker i
     DiscordActivityCollector,
     task_discord_sync,
 )
+from discord_activity_tracker.sync.chat_exporter import ChannelDayExport
 
 
 def _phony_token() -> str:
     return secrets.token_hex(16)
+
+
+def _channel_day_export(
+    path,
+    *,
+    day_str: str = "2026-01-15",
+    channel_id: int = 0,
+) -> ChannelDayExport:
+    return ChannelDayExport(path=path, day_str=day_str, channel_id=channel_id)
 
 
 def _minimal_envelope(guild_id: int, channel_id: int):
@@ -55,6 +65,7 @@ def test_task_discord_sync_skip_returns_early(settings):
         channel_ids=[],
         after_date=None,
         before_date=None,
+        per_channel_incremental=False,
         collector=collector,
     )
 
@@ -74,6 +85,7 @@ def test_task_discord_sync_dry_run_returns_early(settings):
         channel_ids=[],
         after_date=None,
         before_date=None,
+        per_channel_incremental=False,
         collector=collector,
     )
 
@@ -95,7 +107,7 @@ def test_task_discord_sync_happy_path_rename_raw(settings, tmp_path, monkeypatch
     jpath.write_text(json.dumps(_minimal_envelope(gid, cid)), encoding="utf-8")
 
     def fake_export(**_kwargs):
-        return [jpath]
+        return [_channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)]
 
     cmd = MagicMock()
     cmd.stdout = StringIO()
@@ -133,11 +145,13 @@ def test_task_discord_sync_happy_path_rename_raw(settings, tmp_path, monkeypatch
             channel_ids=[],
             after_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
             before_date=None,
+            per_channel_incremental=False,
             collector=collector,
         )
 
-    dest = raw_ch / "2026-01-01.json"
+    dest = raw_ch / "2026-01-15.json"
     assert dest.is_file()
+    assert not jpath.exists()
 
 
 @pytest.mark.django_db
@@ -162,7 +176,9 @@ def test_task_discord_sync_skips_channel_not_in_allowlist(settings, tmp_path):
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.export_guild_to_json",
-            return_value=[jpath],
+            return_value=[
+                _channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)
+            ],
         ),
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.get_exporter_staging_dir",
@@ -188,6 +204,7 @@ def test_task_discord_sync_skips_channel_not_in_allowlist(settings, tmp_path):
             channel_ids=[999999],
             after_date=None,
             before_date=None,
+            per_channel_incremental=False,
             collector=collector,
         )
 
@@ -218,7 +235,9 @@ def test_task_discord_sync_staging_validation_error_keeps_file(
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.export_guild_to_json",
-            return_value=[jpath],
+            return_value=[
+                _channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)
+            ],
         ),
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.get_exporter_staging_dir",
@@ -244,6 +263,7 @@ def test_task_discord_sync_staging_validation_error_keeps_file(
             channel_ids=[],
             after_date=None,
             before_date=None,
+            per_channel_incremental=False,
             collector=collector,
         )
     assert jpath.is_file()
@@ -269,7 +289,9 @@ def test_task_discord_sync_value_error_unlinks(settings, tmp_path):
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.export_guild_to_json",
-            return_value=[jpath],
+            return_value=[
+                _channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)
+            ],
         ),
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.get_exporter_staging_dir",
@@ -295,6 +317,7 @@ def test_task_discord_sync_value_error_unlinks(settings, tmp_path):
             channel_ids=[],
             after_date=None,
             before_date=None,
+            per_channel_incremental=False,
             collector=collector,
         )
     assert not jpath.exists()
@@ -327,6 +350,7 @@ def test_task_discord_sync_exporter_error_becomes_command_error(settings, tmp_pa
                 channel_ids=[],
                 after_date=None,
                 before_date=None,
+                per_channel_incremental=False,
                 collector=collector,
             )
 
@@ -352,7 +376,9 @@ def test_task_discord_sync_persist_raises_unlinks(settings, tmp_path):
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.export_guild_to_json",
-            return_value=[jpath],
+            return_value=[
+                _channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)
+            ],
         ),
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.get_exporter_staging_dir",
@@ -378,6 +404,7 @@ def test_task_discord_sync_persist_raises_unlinks(settings, tmp_path):
             channel_ids=[],
             after_date=None,
             before_date=None,
+            per_channel_incremental=False,
             collector=collector,
         )
     assert not jpath.exists()
@@ -404,7 +431,9 @@ def test_task_discord_sync_stdout_includes_before_date(settings, tmp_path):
     with (
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.export_guild_to_json",
-            return_value=[jpath],
+            return_value=[
+                _channel_day_export(jpath, day_str="2026-01-15", channel_id=cid)
+            ],
         ),
         patch(
             "discord_activity_tracker.management.commands.run_discord_activity_tracker.get_exporter_staging_dir",
@@ -430,6 +459,7 @@ def test_task_discord_sync_stdout_includes_before_date(settings, tmp_path):
             channel_ids=[],
             after_date=None,
             before_date=before,
+            per_channel_incremental=False,
             collector=collector,
         )
     out = cmd.stdout.getvalue()

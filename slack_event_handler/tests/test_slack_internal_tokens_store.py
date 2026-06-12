@@ -106,7 +106,7 @@ def test_get_or_load_logs_when_reextracted_tokens_still_invalid(
     assert pair is None
     mock_extract.assert_called_once_with("T1")
     assert "still invalid" in caplog.text
-    assert "slack-tokens-refresh" in caplog.text
+    assert ".env.example" in caplog.text
 
 
 @override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True, WORKSPACE_DIR="/tmp/ws")

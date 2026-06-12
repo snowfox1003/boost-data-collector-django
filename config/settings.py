@@ -455,6 +455,19 @@ SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS = int(
 # Discord configuration (for discord_activity_tracker)
 DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()
 DISCORD_USER_TOKEN = (env("DISCORD_USER_TOKEN", default="") or "").strip()
+ALLOW_INTERNAL_DISCORD_TOKENS = (
+    env("ALLOW_INTERNAL_DISCORD_TOKENS", default="") or ""
+).strip().lower() == "true"
+DISCORD_INTERNAL_TOKENS_JSON = (
+    env("DISCORD_INTERNAL_TOKENS_JSON", default="") or ""
+).strip()
+# Chrome user-data dir for Discord user token extraction (logged-in session on disk)
+_DEFAULT_DISCORD_CHROME_PROFILE = str(
+    WORKSPACE_DIR / "discord_activity_tracker" / "chrome_profile"
+)
+DISCORD_CHROME_PROFILE_PATH = (
+    env("DISCORD_CHROME_PROFILE_PATH", default=_DEFAULT_DISCORD_CHROME_PROFILE) or ""
+).strip()
 _discord_server_id_str = (env("DISCORD_SERVER_ID", default="") or "").strip()
 DISCORD_SERVER_ID: int | None = (
     int(_discord_server_id_str) if _discord_server_id_str.isdigit() else None

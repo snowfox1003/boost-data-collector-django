@@ -43,7 +43,7 @@ def _cmd_collector(**opts):
 def test_resolve_bounds_since_after_until_resets(monkeypatch, caplog):
     """since > until logs warning and falls back so bounds are recomputed."""
     caplog.set_level("WARNING")
-    after, before = _resolve_exporter_date_bounds(
+    after, before, _per_ch = _resolve_exporter_date_bounds(
         {"since": "2026-06-10", "until": "2026-06-01"},
         guild_snowflake=1,
         channel_ids=[],
@@ -102,7 +102,7 @@ def test_handle_core_dry_run_skip_sync_only(monkeypatch, settings):
     ):
         collector.cmd._handle_core(collector.options, collector)
     out = collector.stdout.getvalue()
-    assert "full history" in out or "none" in out.lower()
+    assert "today" in out.lower()
 
 
 @pytest.mark.django_db
@@ -223,7 +223,7 @@ def test_task_preprocess_workspace_dry_run(tmp_path, settings):
 
 
 def test_resolve_bounds_since_naive_becomes_utc():
-    after, before = _resolve_exporter_date_bounds(
+    after, before, _per_ch = _resolve_exporter_date_bounds(
         {"since": "2026-04-01T00:00:00", "until": None},
         guild_snowflake=1,
         channel_ids=[],

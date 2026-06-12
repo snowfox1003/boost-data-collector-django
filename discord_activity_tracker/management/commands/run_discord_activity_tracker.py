@@ -18,14 +18,15 @@ Phases (see ``DiscordActivityCollector`` and task helpers in this module):
     4. **Pinecone** — ``task_discord_pinecone_sync`` when ``PINECONE_DISCORD_*`` are set
        and ``--skip-pinecone`` is not used.
 
-Required settings for a full sync: ``DISCORD_USER_TOKEN``, ``DISCORD_SERVER_ID``.
+Required settings for a full sync: configured Discord credentials (see ``.env.example``),
+``DISCORD_SERVER_ID``.
 Channel scope uses ``DISCORD_CHANNEL_IDS`` unless overridden by ``--channels``.
 
 CLI flags are documented on ``Command.add_argument`` ``help=`` strings and in
 ``docs/service_api/discord_activity_tracker.md``.
 
 Raises:
-    django.core.management.base.CommandError: Missing token/guild, invalid
+    django.core.management.base.CommandError: Missing credentials/guild, invalid
     ``--since``/``--until`` parse, or DiscordChatExporter failure (wrapped from
     ``DiscordChatExporterError``). Other exceptions from the collector may propagate
     after logging from ``_handle_core``.
@@ -65,13 +66,14 @@ from discord_activity_tracker.sync.exporter_window import (
     latest_message_created_at_for_guild,
 )
 from discord_activity_tracker.sync.chat_exporter import (
+    ChannelDayExport,
     DiscordChatExporterError,
     _safe_int,
     convert_exporter_message_to_dict,
     export_guild_to_json,
-    filter_discord_export_json_paths,
     parse_exported_json,
 )
+from discord_activity_tracker.sync.raw_archive import merge_exporter_json
 from discord_activity_tracker.sync.messages import _process_messages_in_batches
 from discord_activity_tracker.workspace import (
     clear_exporter_staging_dir,
@@ -100,15 +102,19 @@ def _resolve_exporter_date_bounds(
     *,
     guild_snowflake: int,
     channel_ids: list[int],
-) -> tuple[datetime | None, datetime | None]:
-    """Compute ``after_date`` / ``before_date`` in UTC for DiscordChatExporter.
+) -> tuple[datetime | None, datetime | None, bool]:
+    """Compute exporter date bounds and whether incremental mode is per-channel.
 
-    - With ``--since``: lower bound is that timestamp.
-    - Without ``--since``: lower bound is the latest stored ``message_created_at`` for this
-      guild (scoped to the channel allowlist when set), or ``None`` if the DB has no rows
-      (full-history export / no ``--after`` filter).
+    - With ``--since``: lower bound is that timestamp for every channel.
+    - Without ``--since``: each channel resumes from the UTC day start of its own latest
+      stored message (overlap re-export; duplicates merged by message id). Channels with
+      no rows export today (UTC) only.
     - With ``--until``: upper bound is that timestamp.
     - Without ``--until``: upper bound is ``None`` (export through the present; no ``--before``).
+
+    Returns ``(after_date, before_date, per_channel_incremental)``. When
+    ``per_channel_incremental`` is true, ``after_date`` is only used for logging /
+    checkpoint display (guild-wide latest), not passed to DiscordChatExporter.
     """
     since_s = (options.get("since") or "").strip() or None
     until_s = (options.get("until") or "").strip() or None
@@ -145,7 +151,7 @@ def _resolve_exporter_date_bounds(
             )
         else:
             logger.debug(
-                "exporter lower bound: none (--since omitted, empty DB for guild scope)",
+                "exporter lower bound: today UTC only (--since omitted, empty DB for guild scope)",
             )
 
     if until is not None:
@@ -153,13 +159,14 @@ def _resolve_exporter_date_bounds(
     else:
         before_date = None
 
-    return after_date, before_date
+    per_channel_incremental = since is None
+    return after_date, before_date, per_channel_incremental
 
 
 def task_preprocess_workspace(*, dry_run: bool) -> None:
     """Ensure ``WORKSPACE_DIR/raw/discord_activity_tracker`` and staging dirs exist."""
-    # get_exporter_staging_dir() calls get_raw_dir(); both trees are mkdir'd here.
     get_exporter_staging_dir()
+    get_raw_dir()
     if dry_run:
         logger.info(
             "dry-run would ensure raw workspace under %s",
@@ -176,6 +183,7 @@ def task_discord_sync(
     channel_ids: list[int],
     after_date: datetime | None,
     before_date: datetime | None,
+    per_channel_incremental: bool,
     collector: "DiscordActivityCollector",
 ) -> int:
     """DiscordChatExporter → parse → db_sync → archive JSON per channel."""
@@ -194,7 +202,12 @@ def task_discord_sync(
     clear_exporter_staging_dir()
 
     collector.stdout.write("=== Discord sync (fetch → db_sync → save_raw) ===")
-    if after_date:
+    if per_channel_incremental:
+        collector.stdout.write(
+            "Incremental: per-channel lower bound (UTC day start of latest stored "
+            "message per channel; duplicates merged by message id)"
+        )
+    elif after_date:
         collector.stdout.write(
             f"Incremental: fetching messages after {after_date.isoformat()} UTC"
         )
@@ -206,23 +219,24 @@ def task_discord_sync(
         )
 
     try:
-        json_files = export_guild_to_json(
+        exports: list[ChannelDayExport] = export_guild_to_json(
             user_token=user_token,
             guild_id=guild_id,
             output_dir=staging,
-            after_date=after_date,
+            after_date=after_date if not per_channel_incremental else None,
             before_date=before_date,
             channel_ids=channel_ids or None,
+            per_channel_incremental=per_channel_incremental,
         )
     except DiscordChatExporterError as exc:
         raise CommandError(f"DiscordChatExporter failed: {exc}") from exc
 
-    json_files = filter_discord_export_json_paths(json_files)
-
-    collector.stdout.write(f"Exported {len(json_files)} channel file(s)")
+    collector.stdout.write(f"Exported {len(exports)} channel-day file(s)")
 
     processed_total = 0
-    for i, json_path in enumerate(json_files, 1):
+    for i, export in enumerate(exports, 1):
+        json_path = export.path
+        day_str = export.day_str
         try:
             data = parse_exported_json(json_path)
             envelope = validate_envelope(data, source=json_path.name)
@@ -240,7 +254,8 @@ def task_discord_sync(
                 continue
 
             collector.stdout.write(
-                f"  [{i}/{len(json_files)}] #{ch_name}: {len(messages)} messages"
+                f"  [{i}/{len(exports)}] #{ch_name} / {day_str}: "
+                f"{len(messages)} message(s) fetched"
             )
             count = asyncio.run(
                 collector._persist_channel(guild_info, channel_info, messages)
@@ -248,9 +263,12 @@ def task_discord_sync(
             processed_total += count
 
             channel_raw_dir = get_channel_raw_dir(srv_id, ch_id)
-            date_tag = after_date.strftime("%Y-%m-%d") if after_date else "full"
-            dest = channel_raw_dir / f"{date_tag}.json"
-            json_path.rename(dest)
+            dest = channel_raw_dir / f"{day_str}.json"
+            merged_count = merge_exporter_json(dest, data, day=day_str)
+            collector.stdout.write(
+                f"      archived {merged_count} message(s) -> {dest.name}"
+            )
+            json_path.unlink(missing_ok=True)
 
         except StagingValidationError as exc:
             logger.error(
@@ -375,7 +393,7 @@ class DiscordActivityCollector(AbstractCollector):
         guild_id: int | None = getattr(settings, "DISCORD_SERVER_ID", None)
         if not guild_id:
             return None
-        after_date, _before = _resolve_exporter_date_bounds(
+        after_date, _before, _per_ch = _resolve_exporter_date_bounds(
             self.options,
             guild_snowflake=guild_id,
             channel_ids=self.channel_ids,
@@ -452,7 +470,7 @@ class Command(BaseCollectorCommand):
         restrict channels and skip Pinecone.
 
     Raises:
-        CommandError: If ``DISCORD_USER_TOKEN`` or ``DISCORD_SERVER_ID`` is unset, or
+        CommandError: If Discord credentials or ``DISCORD_SERVER_ID`` is unset, or
         date options fail to parse, or DiscordChatExporter fails (see ``task_discord_sync``).
 
     See Also:
@@ -509,7 +527,7 @@ class Command(BaseCollectorCommand):
             dest="since",
             help="Exporter lower bound (--after): YYYY-MM-DD or ISO-8601 (UTC). "
             "If omitted, uses the latest message time already in the DB for this guild "
-            "(and channel allowlist), or full history when the DB has no rows.",
+            "(and channel allowlist), or today (UTC) only when the DB has no rows.",
         )
         parser.add_argument(
             "--until",
@@ -569,19 +587,25 @@ class Command(BaseCollectorCommand):
             }
         )
 
-        user_token = (getattr(settings, "DISCORD_USER_TOKEN", "") or "").strip()
+        from discord_activity_tracker.utils.discord_internal_tokens_store import (
+            get_or_load_discord_user_token,
+        )
+
+        user_token = get_or_load_discord_user_token()
         guild_id: int | None = getattr(settings, "DISCORD_SERVER_ID", None)
 
         if not user_token:
-            raise CommandError("DISCORD_USER_TOKEN not configured.")
+            raise CommandError("Discord credentials not configured. See .env.example.")
         if not guild_id:
             raise CommandError("DISCORD_SERVER_ID not configured.")
 
         try:
-            after_date, before_date = _resolve_exporter_date_bounds(
-                options,
-                guild_snowflake=guild_id,
-                channel_ids=collector.channel_ids,
+            after_date, before_date, per_channel_incremental = (
+                _resolve_exporter_date_bounds(
+                    options,
+                    guild_snowflake=guild_id,
+                    channel_ids=collector.channel_ids,
+                )
             )
         except CommandError:
             raise
@@ -617,13 +641,18 @@ class Command(BaseCollectorCommand):
                 collector.stdout.write(
                     f"  Channel allowlist: {collector.channel_ids or 'all channels'}"
                 )
-                if after_date:
+                if per_channel_incremental:
+                    collector.stdout.write(
+                        "  Lower bound (--after): per-channel (UTC day of latest "
+                        "stored message; empty channel = today UTC only)"
+                    )
+                elif after_date:
                     collector.stdout.write(
                         f"  Lower bound (--after): {after_date.isoformat()} UTC"
                     )
                 else:
                     collector.stdout.write(
-                        "  Lower bound (--after): none (full history; empty DB or no since)"
+                        "  Lower bound (--after): today (UTC) only (empty DB, no --since)"
                     )
                 if before_date:
                     collector.stdout.write(
@@ -646,6 +675,7 @@ class Command(BaseCollectorCommand):
                 channel_ids=collector.channel_ids,
                 after_date=after_date,
                 before_date=before_date,
+                per_channel_incremental=per_channel_incremental,
                 collector=collector,
             )
 

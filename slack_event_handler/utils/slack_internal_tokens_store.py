@@ -1,6 +1,4 @@
-"""
-Persist Slack internal session tokens (xoxc/xoxd) as JSON under workspace/slack_event_handler/.
-"""
+"""Persist Slack session credentials as JSON under workspace/slack_event_handler/."""
 
 from __future__ import annotations
 
@@ -17,12 +15,7 @@ from slack_event_handler.workspace import get_slack_internal_tokens_json_path
 
 logger = logging.getLogger(__name__)
 
-# Shown when JSON/profile tokens fail auth even after re-extract from CHROME_PROFILE_PATH.
-SLACK_TOKENS_RELOGIN_HINT = (
-    "Chrome session may be expired, profile missing, or slack-chromium is still running "
-    "(LevelDB lock). Log in via make slack-tokens-refresh (noVNC http://127.0.0.1:7900) "
-    "or make slack-tokens-reextract if the profile is already signed in."
-)
+SLACK_TOKENS_RELOGIN_HINT = "Session credentials invalid or unavailable. Check workspace configuration per .env.example."
 
 
 def slack_internal_tokens_json_path() -> Path:
@@ -74,7 +67,7 @@ def save_slack_internal_tokens(
     team_name: str | None = None,
     user_id: str | None = None,
 ) -> Path:
-    """Write xoxc/xoxd for team_id into workspace JSON. Returns path written."""
+    """Write session credentials for team_id into workspace JSON. Returns path written."""
     team_id = (team_id or "").strip()
     xoxc = (xoxc or "").strip()
     xoxd = (xoxd or "").strip()
@@ -124,7 +117,7 @@ def load_slack_internal_tokens(team_id: str) -> dict[str, str] | None:
 
 
 def extract_and_save_slack_internal_tokens(team_id: str) -> tuple[str, str] | None:
-    """Read xoxc/xoxd from CHROME_PROFILE_PATH and persist to workspace JSON."""
+    """Load session credentials from workspace storage and persist to workspace JSON."""
     from slack_event_handler.utils.slack_tokens import extract_slack_tokens_auto
 
     tokens = extract_slack_tokens_auto(team_id)
@@ -141,11 +134,7 @@ def extract_and_save_slack_internal_tokens(team_id: str) -> tuple[str, str] | No
 
 
 def get_slack_internal_token_pair(team_id: str | None = None) -> tuple[str, str] | None:
-    """
-    Return (xoxc, xoxd) when ALLOW_INTERNAL_SLACK_TOKENS is enabled.
-
-    Reads workspace JSON (not .env). Pass team_id or uses default from SLACK_TEAM_IDS.
-    """
+    """Return session credential pair from workspace JSON when internal mode is enabled."""
     allow = getattr(settings, "ALLOW_INTERNAL_SLACK_TOKENS", False)
     if isinstance(allow, str):
         allow = allow.strip().lower() == "true"
@@ -176,26 +165,25 @@ def _resolve_team_id(team_id: str | None = None) -> str:
 
 
 def log_slack_internal_tokens_still_invalid(team_id: str) -> None:
-    """Log a clear error when tokens remain invalid after re-extract from Chrome profile."""
+    """Log when session credentials remain invalid after refresh."""
     logger.error(
-        "Slack internal tokens still invalid for team %s after re-extract from "
-        "CHROME_PROFILE_PATH. %s",
+        "Slack session credentials still invalid for team %s. %s",
         team_id,
         SLACK_TOKENS_RELOGIN_HINT,
     )
 
 
 def log_slack_internal_tokens_extract_failed(team_id: str) -> None:
-    """Log a clear error when token extraction from Chrome profile fails."""
+    """Log when session credentials could not be loaded from workspace storage."""
     logger.error(
-        "Failed to extract Slack internal tokens from CHROME_PROFILE_PATH for team %s. %s",
+        "Failed to load Slack session credentials for team %s. %s",
         team_id,
         SLACK_TOKENS_RELOGIN_HINT,
     )
 
 
 def _extract_validate_and_return(team_id: str) -> tuple[str, str] | None:
-    """Re-extract from profile, save JSON, and return pair only if auth probe passes."""
+    """Refresh credentials from workspace storage; return pair only if auth probe passes."""
     from slack_event_handler.utils.slack_tokens import probe_slack_internal_tokens
 
     pair = extract_and_save_slack_internal_tokens(team_id)
@@ -212,11 +200,10 @@ def get_or_load_slack_internal_token_pair(
     team_id: str | None = None,
 ) -> tuple[str, str] | None:
     """
-    Return (xoxc, xoxd) from workspace JSON.
+    Return session credential pair from workspace JSON.
 
-    If JSON is missing, or stored tokens fail an auth probe, re-extract from
-    CHROME_PROFILE_PATH and update JSON automatically (no manual make target).
-    Returns None and logs a clear error if re-extracted tokens are still invalid.
+    Refreshes from workspace storage when JSON is missing or credentials fail auth probe.
+    Returns None if credentials remain invalid.
     """
     from slack_event_handler.utils.slack_tokens import probe_slack_internal_tokens
 
@@ -235,14 +222,13 @@ def get_or_load_slack_internal_token_pair(
         if probe_slack_internal_tokens(pair[0], pair[1]):
             return pair
         logger.info(
-            "Slack internal tokens in JSON are stale for team %s; "
-            "re-extracting from Chrome profile",
+            "Slack session credentials in JSON are stale for team %s; refreshing",
             tid,
         )
         return _extract_validate_and_return(tid)
 
     logger.info(
-        "Slack internal tokens not in JSON; extracting from Chrome profile for team %s",
+        "Slack session credentials not in JSON; loading for team %s",
         tid,
     )
     return _extract_validate_and_return(tid)

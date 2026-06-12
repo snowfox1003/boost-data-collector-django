@@ -1,4 +1,11 @@
-"""Workspace utilities - path helpers for raw export JSON and per-server data."""
+"""
+Workspace utilities - path helpers for raw export JSON and per-server data.
+
+Layout: workspace/discord_activity_tracker/
+  - chrome_profile/            (session storage for exporter credentials)
+  - discord_internal_tokens.json (session credentials, not .env)
+  - _exporter_staging/         (temporary DiscordChatExporter output; cleared each run)
+"""
 
 from pathlib import Path
 
@@ -10,11 +17,25 @@ _APP_SLUG = "discord_activity_tracker"
 
 # Pre-exported DiscordChatExporter JSON dropped here for DB import (see backfill command).
 CPP_DISCUSSION_IMPORT_SUBDIR = "Discussion - c-cpp-discussion"
+CHROME_PROFILE_DIRNAME = "chrome_profile"
+DISCORD_INTERNAL_TOKENS_FILENAME = "discord_internal_tokens.json"
 
 
 def get_workspace_root() -> Path:
     """Return workspace/discord_activity_tracker/."""
     return get_workspace_path(_APP_SLUG)
+
+
+def get_chrome_profile_path() -> Path:
+    """Session storage directory for Discord exporter credentials."""
+    path = get_workspace_root() / CHROME_PROFILE_DIRNAME
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_discord_internal_tokens_json_path() -> Path:
+    """JSON file storing Discord session credentials."""
+    return get_workspace_root() / DISCORD_INTERNAL_TOKENS_FILENAME
 
 
 def get_cpp_discussion_import_dir() -> Path:
@@ -32,8 +53,8 @@ def get_raw_dir() -> Path:
 
 
 def get_exporter_staging_dir() -> Path:
-    """Temporary directory for DiscordChatExporter guild output before per-channel archival."""
-    path = get_raw_dir() / "_exporter_staging"
+    """Temporary directory for DiscordChatExporter output before per-day archival."""
+    path = get_workspace_root() / "_exporter_staging"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

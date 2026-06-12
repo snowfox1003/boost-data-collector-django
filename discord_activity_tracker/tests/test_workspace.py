@@ -7,6 +7,7 @@ import pytest
 from discord_activity_tracker.workspace import (
     get_channel_json_path,
     get_channel_raw_dir,
+    get_exporter_staging_dir,
     get_messages_json_path,
     get_raw_dir,
     get_server_dir,
@@ -43,6 +44,16 @@ def test_get_channel_raw_dir_nested(settings, tmp_path):
     p = get_channel_raw_dir(4242, 9001)
     assert p == tmp_path / "raw" / "discord_activity_tracker" / "4242" / "9001"
     assert p.is_dir()
+
+
+def test_get_exporter_staging_dir_under_workspace_root(mock_discord_workspace):
+    with patch(
+        "discord_activity_tracker.workspace.get_workspace_path",
+        return_value=mock_discord_workspace,
+    ):
+        staging = get_exporter_staging_dir()
+    assert staging == mock_discord_workspace / "_exporter_staging"
+    assert staging.is_dir()
 
 
 def test_get_server_dir(mock_discord_workspace):

@@ -1,4 +1,4 @@
-"""DiscordChatExporter CLI wrapper for user token-based scraping."""
+"""DiscordChatExporter CLI wrapper for configured exporter credentials."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -21,6 +22,7 @@ from core.utils.datetime_parsing import (
 
 from discord_activity_tracker.protocol_impl import DiscordActivityRecord
 
+from .exporter_window import iter_channel_export_days, resolve_channel_export_after
 from .utils import format_discord_url
 from ..workspace import get_workspace_root
 
@@ -61,6 +63,15 @@ DISCORD_CHAT_EXPORTER_RELEASES_URL = (
 
 class DiscordChatExporterError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class ChannelDayExport:
+    """One DiscordChatExporter JSON file for a channel and UTC calendar day."""
+
+    path: Path
+    day_str: str
+    channel_id: int
 
 
 def _default_cli_basename() -> str:
@@ -444,19 +455,23 @@ def _append_export_window(
         )
 
 
-def _export_guild_sequential(
+def _is_empty_channel_export_error(message: str) -> bool:
+    """True when DiscordChatExporter reports no messages for the requested window."""
+    lower = message.lower()
+    return (
+        "no messages" in lower
+        or "channel is empty" in lower
+        or "does not contain" in lower
+    )
+
+
+def _resolve_export_channel_ids(
     cli_path: Path,
     user_token: str,
     guild_id: int,
-    output_dir: Path,
-    after_date: Optional[datetime],
-    before_date: Optional[datetime],
     include_threads: str,
     channel_ids: Optional[Sequence[int]],
-) -> None:
-    logger.info(
-        "DiscordChatExporter sequential mode (DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT)"
-    )
+) -> List[int]:
     if channel_ids:
         seen: set[int] = set()
         ids: List[int] = []
@@ -469,42 +484,50 @@ def _export_guild_sequential(
             "export runs directly (avoids OOM/SIGKILL on huge guilds)",
             len(ids),
         )
-    else:
-        raw_ids = _run_channels_listing(
+        return ids
+    return list(
+        _run_channels_listing(
             cli_path, user_token, guild_id, include_threads=include_threads
         )
-        ids = list(raw_ids)
-    if not ids:
-        raise DiscordChatExporterError(
-            "No channels to export after listing the guild (check DISCORD_CHANNEL_IDS / "
-            "--channels filter, token access, or INCLUDE_VC if you need voice channels)."
-        )
-    logger.info("Exporting %d channel(s) one process at a time", len(ids))
-    for ch_id in ids:
-        # `export` (per-channel) does not support --include-threads or --respect-rate-limits
-        # in DiscordChatExporter 2.40+; thread inclusion applies to `channels` / `exportguild` only.
-        cmd = _cli_argv_head(cli_path) + [
-            "export",
-            "--token",
-            user_token,
-            "--channel",
-            str(ch_id),
-            "--output",
-            str(output_dir) + os.sep,
-            "--format",
-            "Json",
-            "--parallel",
-            "1",
-            "--markdown",
-            "True",
-        ]
-        _append_export_window(cmd, after_date, before_date)
-        logger.info("Running DiscordChatExporter export for channel %s", ch_id)
-        _run_exporter_streaming(cmd, cli_path=cli_path)
-    logger.info("Sequential export completed successfully")
+    )
 
 
-def _export_guild_exportguild(
+def export_channel_window_to_json(
+    cli_path: Path,
+    user_token: str,
+    channel_id: int,
+    output_path: Path,
+    after_date: Optional[datetime],
+    before_date: Optional[datetime],
+) -> Path:
+    """Run DiscordChatExporter ``export`` for one channel and time window."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = _cli_argv_head(cli_path) + [
+        "export",
+        "--token",
+        user_token,
+        "--channel",
+        str(channel_id),
+        "--output",
+        str(output_path),
+        "--format",
+        "Json",
+        "--parallel",
+        "1",
+        "--markdown",
+        "True",
+    ]
+    _append_export_window(cmd, after_date, before_date)
+    logger.info(
+        "Running DiscordChatExporter export for channel %s -> %s",
+        channel_id,
+        output_path.name,
+    )
+    _run_exporter_streaming(cmd, cli_path=cli_path)
+    return output_path
+
+
+def _export_guild_by_channel_day(
     cli_path: Path,
     user_token: str,
     guild_id: int,
@@ -512,30 +535,76 @@ def _export_guild_exportguild(
     after_date: Optional[datetime],
     before_date: Optional[datetime],
     include_threads: str,
-) -> None:
-    cmd = _cli_argv_head(cli_path) + [
-        "exportguild",
-        "--token",
-        user_token,
-        "--guild",
-        str(guild_id),
-        "--output",
-        str(output_dir) + os.sep,
-        "--format",
-        "Json",
-        "--include-threads",
-        include_threads,
-        "--include-vc",
-        _cli_bool(_get_include_voice_channels()),
-        "--parallel",
-        str(_get_parallel_workers()),
-        "--markdown",
-        "True",
-    ]
-    _append_export_window(cmd, after_date, before_date)
-    logger.info("Running DiscordChatExporter exportguild for guild %s", guild_id)
-    _run_exporter_streaming(cmd, cli_path=cli_path)
-    logger.info("Exportguild completed successfully")
+    channel_ids: Optional[Sequence[int]],
+    *,
+    per_channel_incremental: bool = False,
+) -> List[ChannelDayExport]:
+    """Export each channel for each UTC day in the resolved window."""
+    ids = _resolve_export_channel_ids(
+        cli_path, user_token, guild_id, include_threads, channel_ids
+    )
+    if not ids:
+        raise DiscordChatExporterError(
+            "No channels to export after listing the guild (check DISCORD_CHANNEL_IDS / "
+            "--channels filter, token access, or INCLUDE_VC if you need voice channels)."
+        )
+
+    explicit_after = after_date
+    results: List[ChannelDayExport] = []
+    for ch_id in ids:
+        ch_after = resolve_channel_export_after(
+            guild_id,
+            ch_id,
+            explicit_after=explicit_after,
+        )
+        days = iter_channel_export_days(after=ch_after, before=before_date)
+        if not days:
+            logger.debug("No UTC day windows for channel %s", ch_id)
+            continue
+        logger.info(
+            "Exporting channel %s x %d UTC day(s) (after=%s)",
+            ch_id,
+            len(days),
+            ch_after.isoformat() if ch_after else "none",
+        )
+        for day_str, window_after, window_before in days:
+            output_path = output_dir / f"{ch_id}_{day_str}.json"
+            try:
+                export_channel_window_to_json(
+                    cli_path,
+                    user_token,
+                    ch_id,
+                    output_path,
+                    window_after,
+                    window_before,
+                )
+            except DiscordChatExporterError as exc:
+                if _is_empty_channel_export_error(str(exc)):
+                    logger.info(
+                        "No messages for channel %s on %s UTC, skipping",
+                        ch_id,
+                        day_str,
+                    )
+                    output_path.unlink(missing_ok=True)
+                    continue
+                raise
+            if output_path.is_file():
+                results.append(
+                    ChannelDayExport(
+                        path=output_path,
+                        day_str=day_str,
+                        channel_id=ch_id,
+                    )
+                )
+            else:
+                logger.debug(
+                    "DiscordChatExporter produced no file for channel %s on %s",
+                    ch_id,
+                    day_str,
+                )
+
+    logger.info("Per-channel per-day export completed (%d file(s))", len(results))
+    return results
 
 
 def filter_discord_export_json_paths(paths: Iterable[Path]) -> List[Path]:
@@ -556,8 +625,10 @@ def export_guild_to_json(
     before_date: Optional[datetime] = None,
     include_threads: str = "None",
     channel_ids: Optional[Sequence[int]] = None,
-) -> List[Path]:
-    """Export all channels from a guild. Returns list of JSON file paths."""
+    *,
+    per_channel_incremental: bool = False,
+) -> List[ChannelDayExport]:
+    """Export guild channels one UTC day at a time. Returns per-day export descriptors."""
     from django.conf import settings
 
     cli_path = _get_cli_path()
@@ -587,28 +658,55 @@ def export_guild_to_json(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    export_results: List[ChannelDayExport] = []
+
+    def _run_export(active_token: str) -> None:
+        nonlocal export_results
+        export_results = _export_guild_by_channel_day(
+            cli_path,
+            active_token,
+            guild_id,
+            output_dir,
+            after_date,
+            before_date,
+            include_threads,
+            channel_ids,
+            per_channel_incremental=per_channel_incremental,
+        )
+
     try:
-        if _get_sequential_export():
-            _export_guild_sequential(
-                cli_path,
-                user_token,
-                guild_id,
-                output_dir,
-                after_date,
-                before_date,
-                include_threads,
-                channel_ids,
+        try:
+            _run_export(user_token)
+        except DiscordChatExporterError as exc:
+            from discord_activity_tracker.utils.discord_internal_tokens_store import (
+                DISCORD_TOKENS_RELOGIN_HINT,
+                extract_and_save_discord_internal_tokens,
             )
-        else:
-            _export_guild_exportguild(
-                cli_path,
-                user_token,
-                guild_id,
-                output_dir,
-                after_date,
-                before_date,
-                include_threads,
+            from discord_activity_tracker.utils.discord_tokens import (
+                is_discord_exporter_auth_error,
             )
+
+            allow_internal = getattr(settings, "ALLOW_INTERNAL_DISCORD_TOKENS", False)
+            if isinstance(allow_internal, str):
+                allow_internal = allow_internal.strip().lower() == "true"
+            if allow_internal and is_discord_exporter_auth_error(str(exc)):
+                logger.info(
+                    "DiscordChatExporter auth failure; refreshing session credentials"
+                )
+                refreshed = extract_and_save_discord_internal_tokens()
+                if refreshed and refreshed != user_token:
+                    logger.info(
+                        "Retrying DiscordChatExporter with refreshed credentials"
+                    )
+                    _run_export(refreshed)
+                else:
+                    logger.error(
+                        "Discord export auth failed and credential refresh did not help. %s",
+                        DISCORD_TOKENS_RELOGIN_HINT,
+                    )
+                    raise
+            else:
+                raise
     except DiscordChatExporterError:
         raise
     except OSError as e:
@@ -625,9 +723,8 @@ def export_guild_to_json(
         logger.exception("Unexpected error running DiscordChatExporter: %s", e)
         raise DiscordChatExporterError(f"Unexpected error: {e}") from e
 
-    json_files = _sorted_discord_export_json_paths(output_dir)
-    logger.info("Found %d exported JSON files", len(json_files))
-    return json_files
+    logger.info("Found %d exported JSON files", len(export_results))
+    return export_results
 
 
 def parse_exported_json(json_path: Path) -> Dict[str, Any]:
@@ -751,18 +848,17 @@ def export_and_parse_guild(
     after_date: Optional[datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Export guild via CLI and parse all resulting JSON files."""
-    json_files = export_guild_to_json(
+    exports = export_guild_to_json(
         user_token=user_token,
         guild_id=guild_id,
         output_dir=output_dir,
         after_date=after_date,
     )
 
-    json_files = filter_discord_export_json_paths(json_files)
-
     parsed_channels = []
 
-    for json_path in json_files:
+    for export in exports:
+        json_path = export.path
         try:
             data = parse_exported_json(json_path)
 

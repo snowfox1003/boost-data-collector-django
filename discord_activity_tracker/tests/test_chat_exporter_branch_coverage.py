@@ -126,11 +126,7 @@ def test_export_guild_os_error_errno_8_wraps(tmp_path, monkeypatch):
             "discord_activity_tracker.sync.chat_exporter.validate_discord_chat_exporter_cli_architecture",
         ),
         patch(
-            "discord_activity_tracker.sync.chat_exporter._get_sequential_export",
-            return_value=False,
-        ),
-        patch(
-            "discord_activity_tracker.sync.chat_exporter._export_guild_exportguild",
+            "discord_activity_tracker.sync.chat_exporter._export_guild_by_channel_day",
             side_effect=err,
         ),
     ):
