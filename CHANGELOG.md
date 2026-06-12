@@ -11,27 +11,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`reddit_activity_tracker`:** new collector for r/cpp — OAuth fetcher (client credentials or bearer/session cookie), incremental resume from DB `created_utc`, comment-first discovery with full comment trees, DB upserts and per-record workspace JSON, `RedditUser` profile in `cppa_user_tracker`, and daily Celery schedule (`run_reddit_activity_tracker` at 17:00 UTC).
+- **`core.collectors` / `TrackerResult`:** `AbstractCollector.collect()` must return `TrackerResult`; `run()` validates the result, backfills `duration_seconds`, and exposes `last_result` after a successful `post_collect()`. Shared DTOs (`GenericTrackerResult`, `GenericIncrementalState`) and optional incremental checkpoint hooks (`load_incremental_state` / `persist_incremental_state`). All in-monorepo collectors migrated to frozen `protocol_impl` DTOs; `BaseCollectorCommand` logs structured `result_repr` / `result_json` when the result is a `TrackerResultDataclass` subclass.
+- **`core.collectors` lifecycle hooks:** optional `pre_collect()`, `post_collect()`, and `on_error(exc)` on `AbstractCollector` (`_CollectorLifecycleMixin`); `run()` orchestrates the hook sequence before re-raising on failure.
 - **Protocol DTO serialization:** `core.protocol_dto` base dataclasses (`TrackerResultDataclass`, `IncrementalStateDataclass`, `ActivityRecordDataclass`) provide canonical `asdict()`, `to_json()`, `from_dict()`, and truncated `__repr__` on all tracker `protocol_impl` frozen dataclasses; `core.collectors.GenericActivityRecord` added for the default `ActivityRecord` implementation.
-- **Stability policy** ([`STABILITY.md`](STABILITY.md)): documents stable vs evolving vs unstable interfaces for production and contributors; README links to it.
 - **`core.adapters`:** stable adapter protocols and implementations for Pinecone (`PineconeAdapter`), Slack Web API (`SlackWebApiAdapter`), and GitHub REST/GraphQL (`GitHubApiAdapter`). The `pinecone` SDK is imported only from `core/adapters/pinecone.py`; `cppa_pinecone_sync.ingestion` uses `PineconeClientProtocol` with injectable fakes for tests.
-
-### Documentation
-
-- Document **`pandoc`** as a **system** dependency (not installed by `pip` / `pypandoc` alone); centralize install steps for macOS, Debian/Ubuntu, and Windows in the root README and link from contributor setup docs.
+- **`core.errors`:** `AuthenticationError` mapped to `CollectorFailureCategory.AUTH` in `classify_failure()` for credential-rejection observability (WG21 and other collectors).
+- **API contract and idempotency tests:** recorded JSON fixtures in `tests/fixtures/api_contracts/` exercise GitHub/Slack Pydantic boundary parsers; `tests/test_idempotency_under_retry.py` asserts duplicate-safe `get_or_create_*` service calls under `transaction.atomic()`.
+- **Stability policy** ([`STABILITY.md`](STABILITY.md)): documents stable vs evolving vs unstable interfaces for production and contributors; README links to it.
+- **Pyright coverage** for `cppa_user_tracker` and `cppa_pinecone_sync` (added to `pyrightconfig.json`; both apps pass at configured `basic` strictness).
 
 ### Changed
 
-- **core.collectors:** `BaseCollectorCommand` logs `result_repr` and `result_json` in structured `extra` when the run result is a `TrackerResultDataclass` subclass.
-- **core.collectors:** `AbstractCollector.last_result` is set only after `post_collect()` completes successfully (including default incremental checkpoint persistence), matching the documented “most recent successful run” semantics.
-- **discord_activity_tracker:** `backfill_discord_activity_tracker` reports per-file import failures on `DiscordCollectionTrackerResult` (`success=False`, `errors`, `failed_files` count) instead of always returning `success=True`.
+- **discord_activity_tracker:** per-channel incremental lower bounds (each channel resumes from its own latest message, not guild-wide max); per-channel per-UTC-day DiscordChatExporter runs; daily raw JSON archives merge by message id under `raw/discord_activity_tracker/<server_id>/<channel_id>/`; `backfill_discord_activity_tracker` reports per-file import failures on `DiscordCollectionTrackerResult` (`success=False`, `errors`, `failed_files` count) instead of always returning `success=True`.
+- **slack_event_handler:** replaces Selenium-based xoxc/xoxd flow with Chrome-profile token extraction (`plyvel`, `browser-cookie3`) persisted in `workspace/slack_event_handler/slack_internal_tokens.json`; optional Compose profile `slack-session` (`slack-chromium` + noVNC). Workspace data moved from `cppa_slack_transcript_tracker/` to `workspace/slack_event_handler/` (`scripts/migrate_slack_workspace_paths.sh`). `plyvel` omitted on Windows native venv (LevelDB read skipped; cookie/SQLite paths unchanged).
 - **core.protocols / ActivityRecord:** `occurred_at` is timezone-aware UTC `datetime | None`; `source_system` is `SourceSystem` (`StrEnum`); `activity_type` is branded `ActivityType`; `actor_external_id` is `ActorExternalId` (`NewType`). Legacy string payloads use `core.activity_types.migrate_legacy_activity_fields` and `activity_record_to_legacy_dict` on GitHub/Discord `protocol_impl` dataclasses.
-- **Celery schedule:** Added `discord` group to `config/boost_collector_schedule.yaml` (`run_discord_activity_tracker` daily at 16:40 UTC).
-- **core.collectors:** Removed deprecated `CollectorBase` and `DjangoCommandCollector`; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).
+- **boost_mailing_list_tracker:** pilot identity-hub decoupling — `MailingListMessage.sender` ORM FK replaced with soft `sender_profile_id` (`BigIntegerField`); profiles resolved via `cppa_user_tracker.services` at boundaries (see [`docs/adr/identity-hub-decoupling.md`](docs/adr/identity-hub-decoupling.md)).
+- **Concurrency refactor:** module-level locks/semaphores replaced with dedicated state classes across GitHub ops, Slack ops, `github_activity_tracker`, and `slack_event_handler` job queue; topology documented in [`docs/CONCURRENCY.md`](docs/CONCURRENCY.md) (behavior unchanged).
+- **Celery schedule:** `discord` group in `config/boost_collector_schedule.yaml` (`run_discord_activity_tracker` daily at 16:40 UTC).
 - Resolved five cross-app import tech-debt edges: Pinecone via `cppa_pinecone_sync.sync_api`, dashboard model shim removed, CSV owner lookup via `cppa_user_tracker.services`, clang imports via `github_activity_tracker.sync_api`.
 - Added **import-linter** contracts and pre-commit hook to prevent regressions.
 - Enforced **service-layer-only ORM writes** with `scripts/check_service_layer_writes.py` and pre-commit; moved remaining direct writes (repo metadata sync, star bulk-update, GitHub file backfill, BoostVersion import, commit file-change backfill) into `github_activity_tracker.services` / `boost_library_tracker.services`. Allowlist [`.service-layer-write-allowlist.json`](.service-layer-write-allowlist.json) is empty by default for new debt only.
-- **slack_event_handler:** Workspace under `workspace/slack_event_handler/`; huddle support configuration moved to workspace paths.
 - Pydantic boundary schemas at GitHub, Slack, and Discord ingestion (`api_schemas.py` per app; Discord ChatExporter uses `staging_schema.py`); fetchers validate with `model_validate()`; services accept typed payloads; `classify_failure` maps validation errors to `VALIDATION`.
+- **CI / Deploy:** [Security audit](.github/workflows/security-audit.yml) workflow runs **pip-audit** on every PR against `requirements.lock` and `requirements-dev.lock`; Deploy workflow adds `workflow_dispatch` with `ref` input (`develop` | `main`) for cross-repo triggers.
+
+### Removed
+
+- Deprecated **`CollectorBase`** and **`DjangoCommandCollector`**; the supported collector contract is **`AbstractCollector`** + **`BaseCollectorCommand`** (see docs).
+
+### Fixed
+
+- **slack_event_handler:** concurrent `enqueue_job` / worker dequeue could overwrite per-team queue state and silently drop jobs; fixed with per-team advisory file locking (`modify_state`, `state_file_lock`).
+
+### Security
+
+- **pip-audit** in CI on every pull request; bumped **idna** (`>=3.15`, CVE-2026-45409) and **pytest** (`>=9.0.3`, CVE-2025-71176) in lockfiles.
+
+### Documentation
+
+- **[`docs/Tutorial_building_a_collector.md`](docs/Tutorial_building_a_collector.md):** end-to-end collector tutorial (`startcollector`, `AbstractCollector` hooks, pytest, YAML/Celery scheduling, deployment); linked from CONTRIBUTING, README, Onboarding, and how-to docs.
+- **[`docs/Architecture_overview.md`](docs/Architecture_overview.md):** system-design entry point (domain apps, persistence, coupling); onboarding 1:1 runbooks under `docs/onboarding/`; bus-factor deliverables in [`docs/BUS_FACTOR_DELIVERABLES.md`](docs/BUS_FACTOR_DELIVERABLES.md).
+- **ADRs:** [`docs/adr/paradigm-unification.md`](docs/adr/paradigm-unification.md) (batch vs event-driven collection paradigms) and [`docs/adr/identity-hub-decoupling.md`](docs/adr/identity-hub-decoupling.md); index at [`docs/adr/README.md`](docs/adr/README.md).
+- Document **`pandoc`** as a **system** dependency (not installed by `pip` / `pypandoc` alone); centralize install steps for macOS, Debian/Ubuntu, and Windows in the root README and link from contributor setup docs.
+- **`.github/pull_request_template.md`** for consistent PR bodies; branch-protection and CODEOWNERS runbook updates.
 
 ## [0.1.0] - 2026-05-22
 
