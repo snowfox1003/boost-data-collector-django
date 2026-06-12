@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-12
+
 ### Added
 
 - **`reddit_activity_tracker`:** new collector for r/cpp — OAuth fetcher (client credentials or bearer/session cookie), incremental resume from DB `created_utc`, comment-first discovery with full comment trees, DB upserts and per-record workspace JSON, `RedditUser` profile in `cppa_user_tracker`, and daily Celery schedule (`run_reddit_activity_tracker` at 17:00 UTC).
