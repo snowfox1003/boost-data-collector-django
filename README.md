@@ -52,7 +52,7 @@ The **`pandoc`** executable must be on your **`PATH`** when you run **`run_boost
 
 **When you need it:** Running or debugging the Boost library docs collector without mocks. Many unit tests mock conversion and do not require pandoc on your machine.
 
-**CI:** The GitHub Actions **`test`** job installs pandoc on **`ubuntu-latest`**. The **`lint`** and **`pyright`** jobs do not install it. Developers on macOS or Windows should install pandoc locally if they run integration-style tests or the real collector.
+**CI:** The GitHub Actions **`test-ubuntu`**, **`test-macos`**, and **`test-windows`** jobs install pandoc (apt / Homebrew / Chocolatey) before pytest. The **`lint`** and **`pyright`** jobs do not install it. **`compose-smoke`** (Docker stack validation) runs on **`ubuntu-latest`** only.
 
 ### Initial setup
 
@@ -172,7 +172,18 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=9
 
 Coverage writes a local **`.coverage`** file (binary data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs three jobs on pushes/PRs (see the workflow for triggers): **`lint`** (pre-commit on all files), **`pyright`** (static analysis from `pyrightconfig.json`), and **`test`** (pytest with Postgres, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`). The **`test`** job installs **`pandoc`** via apt on Ubuntu; on macOS or Windows, install pandoc yourself if you run the full suite or docs-tracker paths that invoke real conversion (see [System dependencies](#system-dependencies)).
+**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs on pushes/PRs (see the workflow for triggers):
+
+| Job | OS | What it validates |
+| --- | --- | --- |
+| `test-ubuntu` | Linux | Full pytest + Postgres service container |
+| `test-macos` | macOS | Full pytest + native Postgres |
+| `test-windows` | Windows | Full pytest + native Postgres (no `plyvel`) |
+| `lint` | Linux | pre-commit on all files |
+| `pyright` | Linux | Static analysis from `pyrightconfig.json` |
+| `compose-smoke` | Linux | Docker Compose stack |
+
+All three **`test-*`** jobs use `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`. Treat failures on these jobs as merge-blocking; add them as required status checks on protected branches if they are not already (see [docs/CODEOWNERS_and_branch_protection.md](docs/CODEOWNERS_and_branch_protection.md)).
 
 6. Run a subset of tests (e.g. one app or one file):
 

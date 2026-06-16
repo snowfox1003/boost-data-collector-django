@@ -3,6 +3,7 @@
 #   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.13 --python-platform linux
 #   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13 --python-platform linux
 # Do not compile on Windows alone: browser-cookie3 pulls pywin32 into the lock and breaks Linux CI.
+# After recompiling, confirm plyvel keeps `; sys_platform != "win32"` in both lock files (uv may omit it).
 
 # --- Core web / config ---
 Django>=4.2,<5
@@ -15,9 +16,11 @@ urllib3>=2.0,<3
 idna>=3.15,<4
 # PYSEC-2026-175..179: ensure patched PyJWT (transitive via PyGithub, redis).
 PyJWT>=2.13.0,<3
+# GHSA-537c-gmf6-5ccf: fixed in cryptography 48.0.1 (transitive via google-auth, etc.).
+cryptography>=48.0.1,<49
 discord.py>=2.3.0,<3
-# CVE-2026-34993, CVE-2026-47265: fixed in aiohttp 3.14.0 (transitive via discord.py).
-aiohttp>=3.14.0,<4
+# CVE-2026-34993, CVE-2026-47265: fixed in aiohttp 3.14.0; CVE-2026-54273..54280: fixed in 3.14.1.
+aiohttp>=3.14.1,<4
 python-dateutil>=2.8.0,<3
 celery[redis]>=5.3,<6
 redis>=5.0,<6

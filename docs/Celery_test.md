@@ -23,7 +23,7 @@ Open a terminal in the project root and run:
 celery -A config worker -l info
 ```
 
-**Windows:** The project configures the worker to use the `solo` pool on Windows automatically, so you don't get `PermissionError: [WinError 5]`. If you still see that error, run: `celery -A config worker -l info --pool=solo`
+**Windows:** The project configures the worker to use the `solo` pool on Windows automatically, so you don't get `PermissionError: [WinError 5]`. If you still see that error, run: `celery -A config worker -l info --pool=solo`. CI runs the full pytest suite on **`windows-latest`** (`test-windows` job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)).
 
 Leave this running. You should see something like:
 

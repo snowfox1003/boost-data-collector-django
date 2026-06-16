@@ -87,7 +87,7 @@ jobs:
         run: |
           uv run python scripts/validate_collector_scaffold.py
 
-  test:
+  test-ubuntu:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -114,83 +114,67 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-        with:
-          python-version: "3.13"
-
-      - name: Cache uv
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-test
-          restore-keys: |
-            ${{ runner.os }}-uv-
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends pandoc libleveldb-dev g++
 
-      # Fully pinned tree (requirements-dev.in → requirements-dev.lock).
-      - name: Install dependencies
-        env:
-          SETUPTOOLS_SCM_WRITE_TO_SOURCE: "1"
-        run: |
-          uv venv
-          uv pip install -r requirements-dev.lock
-          uv pip install -e .
-
-      # Same DATABASE_URL as pytest; 127.0.0.1 avoids occasional localhost → IPv6 quirks on runners.
-      - name: Verify PostgreSQL connection
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
-          SECRET_KEY: for-testing-only
-          DJANGO_SETTINGS_MODULE: config.test_settings
-        run: |
-          uv run python <<'PY'
-          import django
-
-          django.setup()
-          from django.db import connection
-
-          connection.ensure_connection()
-          with connection.cursor() as cursor:
-              cursor.execute("SELECT 1")
-          host = connection.settings_dict.get("HOST") or ""
-          name = connection.settings_dict.get("NAME") or ""
-          print(f"PostgreSQL OK (host={host!r}, database={name!r})")
-          PY
-
-      - name: Test with pytest
-        env:
-          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
-          SECRET_KEY: for-testing-only
-          DJANGO_SETTINGS_MODULE: config.test_settings
-        run: |
-          uv run pytest --cov --cov-report=html --cov-fail-under=90 --cov-report=xml --junitxml=junit.xml -v
-
-      - name: Upload HTML coverage report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Run pytest
+        uses: ./.github/actions/run-pytest
         with:
-          name: coverage-html
-          path: htmlcov/
-          retention-days: 30
+          database-url: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          artifact-suffix: ubuntu
 
-      - name: Upload XML coverage report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: coverage-xml
-          path: coverage.xml
+  test-macos:
+    runs-on: macos-latest
+    timeout-minutes: 25
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          name: pytest-results
-          path: junit.xml
+          fetch-depth: 0
+
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@c4dda34aae1c821e3a771b68b73b13af3198a7ee # v8
+        with:
+          postgres-version: "16"
+
+      - name: Install system dependencies
+        run: |
+          brew install pandoc leveldb
+          echo "CPPFLAGS=-I$(brew --prefix leveldb)/include" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$(brew --prefix leveldb)/lib" >> "$GITHUB_ENV"
+
+      - name: Run pytest
+        uses: ./.github/actions/run-pytest
+        with:
+          database-url: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          artifact-suffix: macos
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@c4dda34aae1c821e3a771b68b73b13af3198a7ee # v8
+        with:
+          postgres-version: "16"
+
+      - name: Install system dependencies
+        run: choco install pandoc -y
+
+      - name: Run pytest
+        uses: ./.github/actions/run-pytest
+        with:
+          database-url: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          artifact-suffix: windows
 
   compose-smoke:
     runs-on: ubuntu-latest

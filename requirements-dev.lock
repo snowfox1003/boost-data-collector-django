@@ -2,7 +2,7 @@
 #    uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13 --python-platform linux
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.14.0
+aiohttp==3.14.1
     # via
     #   -r requirements.in
     #   discord-py
@@ -53,8 +53,9 @@ click-repl==0.3.0
     # via celery
 coverage==7.14.0
     # via pytest-cov
-cryptography==48.0.0
+cryptography==48.0.1
     # via
+    #   -r requirements.in
     #   google-auth
     #   pyjwt
 discord-py==2.7.1
@@ -159,7 +160,7 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
-plyvel==1.5.1
+plyvel==1.5.1 ; sys_platform != "win32"
     # via -r requirements.in
 portalocker==2.10.1
     # via -r requirements.in

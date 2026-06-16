@@ -14,6 +14,16 @@ For each protected branch (for example `main` or `develop`):
 
 Without step 4, owners may still appear as suggested reviewers, but merges are not blocked on owner review.
 
+### Required status checks (CI)
+
+Branch protection on `develop` currently enforces CODEOWNERS review and approvals only—it does **not** require CI jobs to pass before merge. To block merges when tests fail, enable **Require status checks to pass before merging** and add at least:
+
+- `test-ubuntu`
+- `test-macos`
+- `test-windows`
+
+Optionally add `lint`, `pyright`, `compose-smoke`, and jobs from [`.github/workflows/security-audit.yml`](../.github/workflows/security-audit.yml) per team policy. Job names must match the workflow job `id` values exactly.
+
 **Status (`develop`):** Branch protection with **Require review from Code Owners** and **1** required approval was enabled on `cppalliance/boost-data-collector` (verified 2026-05-26). Re-check with:
 
 ```bash
