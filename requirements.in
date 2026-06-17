@@ -52,7 +52,8 @@ browser-cookie3>=0.19,<1
 
 # --- wg21_paper_tracker / cppa_youtube_script_tracker ---
 google-api-python-client>=2.100,<3
-yt-dlp>=2026.2.21,<2027
+# CVE-2026-50019, CVE-2026-50023, CVE-2026-50574, GHSA-69qj-pvh9-c5wg: fixed in 2026.6.9.
+yt-dlp>=2026.6.9,<2027
 
 # --- slack_event_handler (GitHub PR comments) ---
 PyGithub>=2.0,<3

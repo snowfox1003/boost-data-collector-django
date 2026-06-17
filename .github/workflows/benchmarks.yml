@@ -1,7 +1,31 @@
+# Performance benchmarks on push/PR to main/develop (code changes only).
+# Phase 1: benchmark job fails on regression but is NOT a required branch check yet.
+# Baselines live in benchmarks/baselines.json and are updated via deliberate PRs only.
 name: Benchmarks
 
 on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
   workflow_dispatch:
+    inputs:
+      skip_regression_check:
+        description: "Run benchmarks but skip baseline comparison (baseline calibration)"
+        type: boolean
+        default: false
+      regression_ratio:
+        description: "Fail if median > baseline x R (e.g. 1.10 = 10% slower)"
+        type: string
+        default: "1.10"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,20 +88,30 @@ jobs:
           SECRET_KEY: for-testing-only
           DJANGO_SETTINGS_MODULE: config.test_settings
           RUN_BENCHMARKS: "1"
+          BENCHMARK_COMMIT_N: "50"
         run: |
           uv run pytest benchmarks/ -m benchmark --benchmark-only \
             --benchmark-json=bench.json -v \
-            --benchmark-disable-gc
+            --benchmark-disable-gc \
+            --benchmark-min-rounds=5 \
+            --benchmark-warmup=on
 
       - name: Compare to baselines
-        if: success()
+        if: >-
+          success() &&
+          !(github.event_name == 'workflow_dispatch' && inputs.skip_regression_check)
+        env:
+          BENCHMARK_REGRESSION_RATIO: >-
+            ${{ github.event_name == 'workflow_dispatch' && inputs.regression_ratio || '1.10' }}
         run: |
-          uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.json
+          uv run python benchmarks/compare_to_baseline.py \
+            bench.json benchmarks/baselines.json \
+            --regression-ratio "$BENCHMARK_REGRESSION_RATIO"
 
       - name: Upload benchmark JSON
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: benchmark-json
+          name: benchmark-json-${{ github.run_id }}
           path: bench.json
           retention-days: 30

@@ -24,6 +24,11 @@ Branch protection on `develop` currently enforces CODEOWNERS review and approval
 
 Optionally add `lint`, `pyright`, `compose-smoke`, and jobs from [`.github/workflows/security-audit.yml`](../.github/workflows/security-audit.yml) per team policy. Job names must match the workflow job `id` values exactly.
 
+**Performance benchmarks (`benchmark` job):** [`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs on push/PR to `main` and `develop` and compares results to [`benchmarks/baselines.json`](../benchmarks/baselines.json). Rollout:
+
+1. **Phase 1 (current):** The `benchmark` job runs on qualifying changes and **fails on regression**, but is **not** listed as a required status check—merges are not blocked while the gate stabilizes.
+2. **Phase 2 (after ~2 weeks of stable green runs on `develop`):** Add `benchmark` to required status checks alongside `test-ubuntu`, `test-macos`, and `test-windows`.
+
 **Status (`develop`):** Branch protection with **Require review from Code Owners** and **1** required approval was enabled on `cppalliance/boost-data-collector` (verified 2026-05-26). Re-check with:
 
 ```bash

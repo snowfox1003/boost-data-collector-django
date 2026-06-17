@@ -313,5 +313,5 @@ wcwidth==0.7.0
     # via prompt-toolkit
 yarl==1.23.0
     # via aiohttp
-yt-dlp==2026.3.17
+yt-dlp==2026.6.9
     # via -r requirements.in

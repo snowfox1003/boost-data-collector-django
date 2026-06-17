@@ -127,13 +127,22 @@ export BENCHMARK_COMMIT_N=50
 
 uv run pytest benchmarks/ -m benchmark --benchmark-only \
   --benchmark-json=bench.json -v \
-  --benchmark-disable-gc
+  --benchmark-disable-gc \
+  --benchmark-min-rounds=5 \
+  --benchmark-warmup=on
 uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.json
 ```
 
-**Baselines:** [`benchmarks/baselines.json`](benchmarks/baselines.json) stores maximum acceptable **median** seconds per scenario (for the configured `n`). The compare script fails if any median exceeds `baseline_median × 1.25` (more than 25% slower than the reference). After a deliberate performance change or a CI image upgrade, update `median_seconds` (and `n` if you change `BENCHMARK_COMMIT_N`) using `stats.median` from the generated JSON.
+**Baselines:** [`benchmarks/baselines.json`](benchmarks/baselines.json) stores maximum acceptable **median** seconds per scenario (for the configured `n`). The compare script fails if any median exceeds `baseline_median × 1.10` (more than 10% slower than the reference). Override with `--regression-ratio` or `BENCHMARK_REGRESSION_RATIO`. After a deliberate performance change or a CI image upgrade, update `median_seconds` (and `n` if you change `BENCHMARK_COMMIT_N`) using `stats.median` from the generated JSON.
 
-**CI:** The [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) workflow runs on **`workflow_dispatch`** only, uploads `bench.json` as an artifact, and runs the compare step on success.
+**Updating baselines (deliberate, not automatic):**
+
+1. Run benchmarks locally, or trigger [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) via **workflow_dispatch** with **skip regression check** enabled.
+2. Download the `benchmark-json-<run_id>` artifact (or use local `bench.json`).
+3. Copy each scenario's `stats.median` into `benchmarks/baselines.json` and keep `"n"` in sync with `BENCHMARK_COMMIT_N`.
+4. Open a PR that changes only `baselines.json`, with a short note explaining why (perf improvement, CI runner change, etc.).
+
+**CI:** [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) runs on **push** and **pull requests** targeting **`main`** and **`develop`** (doc-only changes are skipped via `paths-ignore`, same as the main CI workflow). It uploads `bench.json` as an artifact, compares medians against the checked-in baselines at the 10% threshold, and also supports **workflow_dispatch** for manual runs and baseline calibration. During initial rollout the `benchmark` job is **informational** (not a required branch-protection check); see [docs/CODEOWNERS_and_branch_protection.md](docs/CODEOWNERS_and_branch_protection.md).
 
 ## Dependency security audit
 
