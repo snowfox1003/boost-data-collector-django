@@ -249,8 +249,8 @@ Add to `/opt/boost-data-collector/.env` (see commented examples in [`.env.exampl
 | -------- | -------- | ------- | ----- |
 | `DATABASE_URL` or `DB_*` | yes | — | Same as Django; script rewrites `host.docker.internal` → `127.0.0.1` |
 | `BACKUP_GCS_BUCKET` | yes | — | Private GCS bucket name |
-| `BACKUP_FILE_PREFIX` | no | `bdc/` | GCS path prefix; basename is `bdc-YYYYMMDD.dump` |
-| `BACKUP_GCS_PREFIX` | no | `bdc/` | When unset, uses `BACKUP_FILE_PREFIX` |
+| `BACKUP_FILE_PREFIX` | no | `bdc` | Dump basename stem → `bdc-YYYYMMDD.dump` (path segments stripped) |
+| `BACKUP_GCS_PREFIX` | no | `bdc/` | GCS object prefix; trailing `/` added if missing |
 | `BACKUP_STAGING_DIR` | no | `/var/backups/boost-data-collector` | Local dump directory |
 | `BACKUP_RETENTION_DAYS` | no | `7` | GCS objects to keep; `0` disables pruning |
 | `BACKUP_DELETE_LOCAL_AFTER_UPLOAD` | no | `true` | Remove local dump after success |
@@ -262,7 +262,8 @@ Example `.env` fragment:
 
 ```bash
 BACKUP_GCS_BUCKET=your-backup-bucket
-BACKUP_FILE_PREFIX=bdc/
+BACKUP_FILE_PREFIX=bdc
+BACKUP_GCS_PREFIX=boost-data-collector/staging/
 # Optional if DATABASE_URL uses host.docker.internal for Docker only:
 # BACKUP_DATABASE_URL=postgres://bdc:REPLACE_WITH_STRONG_PASSWORD@127.0.0.1:5432/boost_dashboard
 ```
@@ -271,7 +272,7 @@ BACKUP_FILE_PREFIX=bdc/
 
 Run as the **deploy user** (not root), daily at an off-peak time on the **VM host**. This is separate from collector scheduling: daily collector runs are driven by **Celery Beat** inside the Docker stack (`celery_beat` service), which reads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) at Django startup (see [Workflow.md](Workflow.md)). Beat times are **UTC** (`default_time` per group).
 
-A common choice is **03:00 UTC** — after the midnight batch and before the afternoon batch. Change the cron hour if you edit the YAML or add interval tasks.
+A common choice is **23:00 UTC** — after the afternoon Celery Beat batch (last group `reddit` at 17:00 UTC) and before the midnight batch (`github` at 00:05 UTC). Adjust the hour if you edit the YAML or add interval tasks. Cron uses the **system timezone** unless you set `TZ=UTC` in the cron file (see example below).
 
 Create a log directory owned by the deploy user (once per server; replace `YOUR_DEPLOY_USER`):
 
@@ -282,6 +283,7 @@ chmod 700 /home/YOUR_DEPLOY_USER/log
 
 ```cron
 # /etc/cron.d/bdc-db-backup (or deploy user's crontab -e)
+TZ=UTC
 0 23 * * * YOUR_DEPLOY_USER /opt/boost-data-collector/scripts/backup_database.sh >> /home/YOUR_DEPLOY_USER/log/bdc-db-backup.log 2>&1
 ```
 
@@ -309,7 +311,7 @@ StandardError=append:/home/YOUR_DEPLOY_USER/log/bdc-db-backup.log
 Description=Daily PostgreSQL backup to GCS
 
 [Timer]
-OnCalendar=*-*-* 03:00:00 UTC
+OnCalendar=*-*-* 23:00:00 UTC
 Persistent=true
 
 [Install]

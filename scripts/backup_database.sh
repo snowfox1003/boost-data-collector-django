@@ -34,8 +34,8 @@ Environment (see docs/Deployment.md):
   DATABASE_URL or DB_*     Database credentials (same as Django)
   BACKUP_DATABASE_URL      Optional override for backup connections
   BACKUP_GCS_BUCKET        Required GCS bucket name
-  BACKUP_GCS_PREFIX        Optional; defaults to BACKUP_FILE_PREFIX (bdc/)
-  BACKUP_FILE_PREFIX       Default bdc/ → files named bdc-YYYYMMDD.dump
+  BACKUP_GCS_PREFIX        Optional GCS object prefix (slashes ok; trailing / added)
+  BACKUP_FILE_PREFIX       Default bdc → dump basename bdc-YYYYMMDD.dump
   BACKUP_STAGING_DIR       Default /var/backups/boost-data-collector
   BACKUP_RETENTION_DAYS    Default 7; set 0 to keep all GCS dumps (no pruning)
   BACKUP_DELETE_LOCAL_AFTER_UPLOAD  Default true
@@ -101,13 +101,16 @@ for _py_candidate in python3 python; do
     break
   fi
 done
-BACKUP_FILE_PREFIX="${BACKUP_FILE_PREFIX:-bdc/}"
+BACKUP_FILE_PREFIX="${BACKUP_FILE_PREFIX:-bdc}"
+BACKUP_FILE_PREFIX="${BACKUP_FILE_PREFIX%/}"
+BACKUP_FILE_PREFIX="${BACKUP_FILE_PREFIX##*/}"
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/backups/boost-data-collector}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 BACKUP_DELETE_LOCAL_AFTER_UPLOAD="${BACKUP_DELETE_LOCAL_AFTER_UPLOAD:-true}"
 
-PREFIX_STEM="${BACKUP_FILE_PREFIX%/}"
-GCS_PREFIX="${BACKUP_GCS_PREFIX:-$BACKUP_FILE_PREFIX}"
+PREFIX_STEM="$BACKUP_FILE_PREFIX"
+GCS_PREFIX="${BACKUP_GCS_PREFIX:-${PREFIX_STEM}/}"
+GCS_PREFIX="${GCS_PREFIX%/}/"
 DUMP_BASENAME="${PREFIX_STEM}-$(date -u +%Y%m%d).dump"
 DUMP_FILE="${BACKUP_STAGING_DIR}/${DUMP_BASENAME}"
 
@@ -347,7 +350,10 @@ ensure_staging_dir() {
   if [[ ! -d "$BACKUP_STAGING_DIR" ]]; then
     mkdir -p "$BACKUP_STAGING_DIR"
   fi
-  chmod 700 "$BACKUP_STAGING_DIR" 2>/dev/null || true
+  if ! chmod 700 "$BACKUP_STAGING_DIR"; then
+    error "Unable to set secure permissions on ${BACKUP_STAGING_DIR}"
+    exit 1
+  fi
 }
 
 run_retention() {
@@ -362,7 +368,7 @@ run_retention() {
 
   log "Retention: listing ${gcs_glob} (keep last ${BACKUP_RETENTION_DAYS} day(s))"
   local listing
-  if ! listing="$("$GCLOUD" storage ls "$gcs_glob" 2>/dev/null || true)"; then
+  if ! listing="$("$GCLOUD" storage ls "$gcs_glob" 2>/dev/null)"; then
     error "Failed to list GCS objects at ${gcs_glob}"
     return 4
   fi
