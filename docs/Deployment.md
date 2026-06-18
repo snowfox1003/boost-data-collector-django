@@ -180,14 +180,15 @@ Compose already sets `extra_hosts: host.docker.internal:host-gateway` on app con
 
 Use a private bucket name you control (placeholder: `your-backup-bucket`).
 
-- Upload artifacts manually at first (e.g. workspace zip + DB dump).
 - Prefer **`gcloud storage`** over legacy `gsutil` for copies; it is typically much faster on large objects.
+- **Automated database backups** run on the VM via [`scripts/backup_database.sh`](../scripts/backup_database.sh) (see [Automated database backups](#automated-database-backups) below).
+- Workspace and one-off seed artifacts can still be copied manually.
 
 Example: copy from bucket to the VM, then unpack (paths are illustrative):
 
 ```bash
 gcloud storage cp "gs://your-backup-bucket/workspace-2026-03-24.zip" .
-gcloud storage cp "gs://your-backup-bucket/app-database-2026-03-25.dump" .
+gcloud storage cp "gs://your-backup-bucket/bdc/bdc-20260325.dump" .
 unzip workspace-2026-03-24.zip -d /path/to/workspace-parent
 ```
 
@@ -196,6 +197,152 @@ Sync workspace back to the bucket (first full sync can take a long time; later s
 ```bash
 gcloud storage rsync /opt/boost-data-collector/workspace gs://your-backup-bucket/workspace --recursive
 ```
+
+#### Automated database backups
+
+Daily `pg_dump` uploads to GCS are handled by [`scripts/backup_database.sh`](../scripts/backup_database.sh). The script:
+
+1. Reads database credentials from `/opt/boost-data-collector/.env` (or `--env-file`).
+2. Writes a custom-format dump (`pg_dump -Fc`) named `bdc-YYYYMMDD.dump` under a local staging directory.
+3. Uploads to `gs://BUCKET/bdc/bdc-YYYYMMDD.dump` (prefix configurable).
+4. Deletes GCS objects older than **7 days** (configurable).
+5. Exits non-zero with `ERROR:` logs on failure (suitable for cron alerts).
+
+**Host prerequisites (one-time)**
+
+```bash
+sudo apt install -y postgresql-client   # pg_dump / pg_restore
+# gcloud CLI — install if not already present: https://cloud.google.com/sdk/docs/install
+sudo mkdir -p /var/backups/boost-data-collector
+sudo chown YOUR_DEPLOY_USER:YOUR_DEPLOY_USER /var/backups/boost-data-collector
+chmod 700 /var/backups/boost-data-collector
+```
+
+Ensure `pg_hba.conf` allows the backup database user from `127.0.0.1` when the app uses `host.docker.internal` in `DATABASE_URL` (see [Alternative: restore as `bdc` over TCP](#alternative-restore-as-bdc-over-tcp-127001)).
+
+**GCS bucket**
+
+- Create a **private** bucket (uniform bucket-level access, no public access).
+- Replace `your-backup-bucket` with your real bucket name in `.env` and examples below.
+- Optional: add a GCS lifecycle rule to delete objects under `bdc/` after 8 days (the script enforces 7-day retention).
+
+**IAM for the deploy user**
+
+Grant the VM deploy user (`SSH_USER`, same account as GitHub Actions deploy) permission to create, list, read, and delete objects in the bucket:
+
+| Permission | Purpose |
+| ---------- | ------- |
+| `storage.objects.create` | Upload dumps |
+| `storage.objects.get` | Verify uploads |
+| `storage.objects.list` | Retention listing |
+| `storage.objects.delete` | Prune old dumps |
+
+Convenient role: **Storage Object Admin** (`roles/storage.objectAdmin`) on the bucket.
+
+The deploy user must already be able to run `gcloud storage` (Application Default Credentials or `gcloud auth login` on the VM).
+
+**Environment variables**
+
+Add to `/opt/boost-data-collector/.env` (see commented examples in [`.env.example`](../.env.example)):
+
+| Variable | Required | Default | Notes |
+| -------- | -------- | ------- | ----- |
+| `DATABASE_URL` or `DB_*` | yes | — | Same as Django; script rewrites `host.docker.internal` → `127.0.0.1` |
+| `BACKUP_GCS_BUCKET` | yes | — | Private GCS bucket name |
+| `BACKUP_FILE_PREFIX` | no | `bdc/` | GCS path prefix; basename is `bdc-YYYYMMDD.dump` |
+| `BACKUP_GCS_PREFIX` | no | `bdc/` | When unset, uses `BACKUP_FILE_PREFIX` |
+| `BACKUP_STAGING_DIR` | no | `/var/backups/boost-data-collector` | Local dump directory |
+| `BACKUP_RETENTION_DAYS` | no | `7` | GCS objects to keep; `0` disables pruning |
+| `BACKUP_DELETE_LOCAL_AFTER_UPLOAD` | no | `true` | Remove local dump after success |
+| `DISCORD_WEBHOOK_URL` / `SLACK_WEBHOOK_URL` | no | — | Optional success/failure webhook (same vars as deploy notify) |
+| `BACKUP_NOTIFICATIONS` | no | `true` | Set `false` to skip backup webhook posts |
+| `BACKUP_DATABASE_URL` | no | — | Optional override (e.g. explicit `127.0.0.1` URL) |
+
+Example `.env` fragment:
+
+```bash
+BACKUP_GCS_BUCKET=your-backup-bucket
+BACKUP_FILE_PREFIX=bdc/
+# Optional if DATABASE_URL uses host.docker.internal for Docker only:
+# BACKUP_DATABASE_URL=postgres://bdc:REPLACE_WITH_STRONG_PASSWORD@127.0.0.1:5432/boost_dashboard
+```
+
+**Cron job**
+
+Run as the **deploy user** (not root), daily at an off-peak time on the **VM host**. This is separate from collector scheduling: daily collector runs are driven by **Celery Beat** inside the Docker stack (`celery_beat` service), which reads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) at Django startup (see [Workflow.md](Workflow.md)). Beat times are **UTC** (`default_time` per group).
+
+A common choice is **03:00 UTC** — after the midnight batch and before the afternoon batch. Change the cron hour if you edit the YAML or add interval tasks.
+
+Create a log directory owned by the deploy user (once per server; replace `YOUR_DEPLOY_USER`):
+
+```bash
+mkdir -p /home/YOUR_DEPLOY_USER/log
+chmod 700 /home/YOUR_DEPLOY_USER/log
+```
+
+```cron
+# /etc/cron.d/bdc-db-backup (or deploy user's crontab -e)
+0 23 * * * YOUR_DEPLOY_USER /opt/boost-data-collector/scripts/backup_database.sh >> /home/YOUR_DEPLOY_USER/log/bdc-db-backup.log 2>&1
+```
+
+If you use the deploy user's crontab (`crontab -e`) instead of `/etc/cron.d/`, omit the username column and you may use `~/log/bdc-db-backup.log` for the log path.
+
+The script loads `$DEPLOY_DIR/.env` automatically (`DEPLOY_DIR` defaults to `/opt/boost-data-collector`).
+
+Optional **systemd timer** alternative:
+
+```ini
+# /etc/systemd/system/bdc-db-backup.service
+[Unit]
+Description=Boost Data Collector PostgreSQL backup to GCS
+
+[Service]
+Type=oneshot
+User=YOUR_DEPLOY_USER
+WorkingDirectory=/opt/boost-data-collector
+ExecStart=/opt/boost-data-collector/scripts/backup_database.sh
+StandardOutput=append:/home/YOUR_DEPLOY_USER/log/bdc-db-backup.log
+StandardError=append:/home/YOUR_DEPLOY_USER/log/bdc-db-backup.log
+
+# /etc/systemd/system/bdc-db-backup.timer
+[Unit]
+Description=Daily PostgreSQL backup to GCS
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable with `sudo systemctl enable --now bdc-db-backup.timer`.
+
+**Restore from an automated backup**
+
+1. Download the dump (custom format — use `pg_restore`, not `psql -f`):
+
+   ```bash
+   gcloud storage cp "gs://your-backup-bucket/bdc/bdc-20260618.dump" ~/
+   chmod 600 ~/bdc-20260618.dump
+   ```
+
+2. Restore using the steps in [Restoring from `pg_dump` (custom format)](#restoring-from-pg_dump-custom-format) below (socket superuser or TCP as `bdc`).
+
+3. If you restored as `postgres`, re-run the post-restore `GRANT` block for `bdc`.
+
+**Smoke test checklist**
+
+On staging or production after deploy pulls the script:
+
+1. `scripts/backup_database.sh --help` — confirm usage text.
+2. Manual run: `/opt/boost-data-collector/scripts/backup_database.sh` — exit 0; log shows dump size and `gs://…/bdc/bdc-YYYYMMDD.dump`.
+3. `gcloud storage ls "gs://your-backup-bucket/bdc/bdc-*.dump"` — today's object is present.
+4. `scripts/backup_database.sh --list-retention` — lists only objects older than 7 days (none on first run).
+5. Optional retention test: upload `gs://your-backup-bucket/bdc/bdc-20190101.dump`, re-run the script, confirm the old object is removed.
+6. Failure test: temporarily set invalid `BACKUP_GCS_BUCKET`; confirm non-zero exit and `ERROR:` on stderr.
+
+Script flags: `--dry-run` (dump + upload, retention deletes logged only), `--list-retention` (retention preview only), `--env-file PATH`.
 
 ### Repository checkout and permissions
 
