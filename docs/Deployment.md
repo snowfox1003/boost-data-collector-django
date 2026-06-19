@@ -188,7 +188,7 @@ Example: copy from bucket to the VM, then unpack (paths are illustrative):
 
 ```bash
 gcloud storage cp "gs://your-backup-bucket/workspace-2026-03-24.zip" .
-gcloud storage cp "gs://your-backup-bucket/bdc/bdc-20260325.dump" .
+gcloud storage cp "gs://your-backup-bucket/boost-data-collector/staging/bdc-20260325.dump" .
 unzip workspace-2026-03-24.zip -d /path/to/workspace-parent
 ```
 
@@ -204,7 +204,7 @@ Daily `pg_dump` uploads to GCS are handled by [`scripts/backup_database.sh`](../
 
 1. Reads database credentials from `/opt/boost-data-collector/.env` (or `--env-file`).
 2. Writes a custom-format dump (`pg_dump -Fc`) named `bdc-YYYYMMDD.dump` under a local staging directory.
-3. Uploads to `gs://BUCKET/bdc/bdc-YYYYMMDD.dump` (prefix configurable).
+3. Uploads to `gs://BUCKET/boost-data-collector/staging/bdc-YYYYMMDD.dump` when using the example `.env` below (prefix configurable via `BACKUP_GCS_PREFIX`; default `bdc/` → `gs://BUCKET/bdc/bdc-YYYYMMDD.dump`).
 4. Deletes GCS objects older than **7 days** (configurable).
 5. Exits non-zero with `ERROR:` logs on failure (suitable for cron alerts).
 
@@ -268,6 +268,8 @@ BACKUP_GCS_PREFIX=boost-data-collector/staging/
 # BACKUP_DATABASE_URL=postgres://bdc:REPLACE_WITH_STRONG_PASSWORD@127.0.0.1:5432/boost_dashboard
 ```
 
+Restore, smoke-test, and retention examples below use this prefix (`boost-data-collector/staging/`). If you omit `BACKUP_GCS_PREFIX`, substitute `bdc/` in those paths.
+
 **Cron job**
 
 Run as the **deploy user** (not root), daily at an off-peak time on the **VM host**. This is separate from collector scheduling: daily collector runs are driven by **Celery Beat** inside the Docker stack (`celery_beat` service), which reads [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml) at Django startup (see [Workflow.md](Workflow.md)). Beat times are **UTC** (`default_time` per group).
@@ -325,7 +327,7 @@ Enable with `sudo systemctl enable --now bdc-db-backup.timer`.
 1. Download the dump (custom format — use `pg_restore`, not `psql -f`):
 
    ```bash
-   gcloud storage cp "gs://your-backup-bucket/bdc/bdc-20260618.dump" ~/
+   gcloud storage cp "gs://your-backup-bucket/boost-data-collector/staging/bdc-20260618.dump" ~/
    chmod 600 ~/bdc-20260618.dump
    ```
 
@@ -338,10 +340,10 @@ Enable with `sudo systemctl enable --now bdc-db-backup.timer`.
 On staging or production after deploy pulls the script:
 
 1. `scripts/backup_database.sh --help` — confirm usage text.
-2. Manual run: `/opt/boost-data-collector/scripts/backup_database.sh` — exit 0; log shows dump size and `gs://…/bdc/bdc-YYYYMMDD.dump`.
-3. `gcloud storage ls "gs://your-backup-bucket/bdc/bdc-*.dump"` — today's object is present.
+2. Manual run: `/opt/boost-data-collector/scripts/backup_database.sh` — exit 0; log shows dump size and `gs://…/boost-data-collector/staging/bdc-YYYYMMDD.dump`.
+3. `gcloud storage ls "gs://your-backup-bucket/boost-data-collector/staging/bdc-*.dump"` — today's object is present.
 4. `scripts/backup_database.sh --list-retention` — lists only objects older than 7 days (none on first run).
-5. Optional retention test: upload `gs://your-backup-bucket/bdc/bdc-20190101.dump`, re-run the script, confirm the old object is removed.
+5. Optional retention test: upload `gs://your-backup-bucket/boost-data-collector/staging/bdc-20190101.dump`, re-run the script, confirm the old object is removed.
 6. Failure test: temporarily set invalid `BACKUP_GCS_BUCKET`; confirm non-zero exit and `ERROR:` on stderr.
 
 Script flags: `--dry-run` (dump + upload, retention deletes logged only), `--list-retention` (retention preview only), `--env-file PATH`.
