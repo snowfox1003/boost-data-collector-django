@@ -12,8 +12,8 @@
 
 | Function | Parameters | Return type | Summary |
 | --- | --- | --- | --- |
-| `get_latest_comment_created_utc` |  | int | Return max created_utc across comments, or 0 when empty. |
-| `get_latest_submission_created_utc` |  | int | Return max created_utc across submissions, or 0 when empty. |
+| `get_latest_comment_created_utc` | *, subreddit: str \| None = None | int | Return max created_utc across comments, optionally scoped to one subreddit. |
+| `get_latest_submission_created_utc` | *, subreddit: str \| None = None | int | Return max created_utc across submissions, optionally scoped to one subreddit. |
 | `get_or_create_submission_stub` | submission_id: str, *, subreddit: str = 'cpp' | RedditSubmission | Ensure a submission row exists for FK when only a comment link_id is known. |
 | `resolve_submission_for_comment` | comment_data: dict, submissions_by_id: dict[str, RedditSubmission] | RedditSubmission | Return the submission row for a period comment, creating a stub if needed. |
 | `submission_id_from_link_id` | link_id: str | str \| None | — |

@@ -19,7 +19,6 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-SUBREDDIT = "cpp"
 MAX_RETRIES = 5
 RETRY_BASE_DELAY = 2.0
 RATE_LIMIT_LOW_WATERMARK = getattr(settings, "REDDIT_RATE_LIMIT_LOW_WATERMARK", 2.0)
@@ -352,7 +351,7 @@ class RedditSession:
         start_ts: int,
         end_ts: int,
         *,
-        subreddit: str = SUBREDDIT,
+        subreddit: str,
     ) -> list[dict]:
         """Paginate /r/{subreddit}/comments and keep items created in range."""
         comments: list[dict] = []
@@ -402,7 +401,7 @@ class RedditSession:
         start_ts: int,
         end_ts: int,
         *,
-        subreddit: str = SUBREDDIT,
+        subreddit: str,
     ) -> list[dict]:
         """Paginate /r/{subreddit}/new and keep submissions created in range."""
         posts: dict[str, dict] = {}

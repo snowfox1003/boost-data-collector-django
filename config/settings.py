@@ -3,6 +3,7 @@ Django settings for Boost Data Collector project.
 Uses django-environ for environment variables.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -451,6 +452,46 @@ REDDIT_REQUEST_INTERVAL = env.float("REQUEST_INTERVAL", default=1.0)
 # Pause when X-Ratelimit-Remaining drops below this value. Env: RATE_LIMIT_LOW_WATERMARK.
 REDDIT_RATE_LIMIT_LOW_WATERMARK = env.float("RATE_LIMIT_LOW_WATERMARK", default=2.0)
 REDDIT_DEFAULT_LOOKBACK_DAYS = env.int("REDDIT_DEFAULT_LOOKBACK_DAYS", default=30)
+# Comma-separated subreddit names to scrape (r/ prefix optional)
+_reddit_subreddits_str = (
+    env("REDDIT_SUBREDDITS", default="cpp,cpp_questions,programming") or ""
+).strip()
+REDDIT_SUBREDDITS: list[str] = [
+    s.strip().removeprefix("r/") for s in _reddit_subreddits_str.split(",") if s.strip()
+]
+_DEFAULT_REDDIT_KEYWORD_FILTERS: dict[str, list[str]] = {
+    "programming": ["boost", "c++", "cpp"],
+}
+_reddit_keyword_filters_raw = (
+    env("REDDIT_SUBREDDIT_KEYWORD_FILTERS", default="") or ""
+).strip()
+if _reddit_keyword_filters_raw:
+    try:
+        _parsed_keyword_filters = json.loads(_reddit_keyword_filters_raw)
+        if isinstance(_parsed_keyword_filters, dict):
+            REDDIT_SUBREDDIT_KEYWORD_FILTERS: dict[str, list[str]] = {
+                str(k).strip().removeprefix("r/"): [str(kw) for kw in v]
+                for k, v in _parsed_keyword_filters.items()
+                if isinstance(v, list)
+            }
+        else:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "REDDIT_SUBREDDIT_KEYWORD_FILTERS must be a JSON object; got %s. "
+                "Using defaults.",
+                type(_parsed_keyword_filters).__name__,
+            )
+            REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
+    except json.JSONDecodeError:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "REDDIT_SUBREDDIT_KEYWORD_FILTERS is not valid JSON; using defaults."
+        )
+        REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
+else:
+    REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)

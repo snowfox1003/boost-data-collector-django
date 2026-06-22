@@ -49,6 +49,7 @@ groups:
       - command: run_boost_mailing_list_tracker
         schedule: daily
 
+  # Subreddit targets come from REDDIT_SUBREDDITS env (default: cpp,cpp_questions,programming).
   reddit:
     default_time: "17:00"
     tasks:
