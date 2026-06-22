@@ -26,6 +26,10 @@ RUN pip install --no-cache-dir -r requirements.lock
 
 COPY . .
 
+# .git is excluded by .dockerignore; generate core/_version.py (no longer committed).
+RUN pip install --no-cache-dir setuptools-scm \
+    && python scripts/generate_version_file.py
+
 RUN mkdir -p logs staticfiles workspace celerybeat
 
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
