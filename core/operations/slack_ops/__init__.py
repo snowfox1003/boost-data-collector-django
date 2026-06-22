@@ -1,5 +1,5 @@
 """
-Slack operations: channel list/join, messages, client, fetcher (file download, huddle transcript).
+Slack operations: channel list/join, messages, client, fetcher (file download).
 Similar layout to core.operations.github_ops; use get_slack_client() or token helpers.
 """
 
@@ -14,7 +14,6 @@ from core.operations.slack_ops.client import SlackAPIClient
 from core.operations.slack_ops.fetcher import (
     SlackFetcher,
     download_file,
-    fetch_huddle_transcript,
     get_file_info,
     get_slack_fetcher,
 )
@@ -30,7 +29,6 @@ __all__ = [
     "channel_join",
     "channel_list",
     "download_file",
-    "fetch_huddle_transcript",
     "get_channel_messages",
     "get_default_team_key",
     "get_file_info",

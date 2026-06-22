@@ -5,16 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-from django.test.utils import override_settings
 
 from core.operations.slack_ops.fetcher import (
     SlackFetcher,
     download_file,
-    fetch_huddle_transcript,
     get_file_info,
     get_slack_fetcher,
 )
-from slack_event_handler.utils import slack_internal_tokens_store as token_store
 
 
 @pytest.fixture(autouse=True)
@@ -212,44 +209,6 @@ def test_get_slack_fetcher_factory():
     assert isinstance(get_slack_fetcher("x"), SlackFetcher)
 
 
-@override_settings(WORKSPACE_DIR="/tmp/ws")
-def test_save_slack_internal_tokens_json(tmp_path, settings):
-    settings.WORKSPACE_DIR = str(tmp_path)
-    path = token_store.save_slack_internal_tokens("T1", "xc", "xd")
-    assert path.is_file()
-    loaded = token_store.load_slack_internal_tokens("T1")
-    assert loaded["xoxc"] == "xc"
-    assert loaded["xoxd"] == "xd"
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True, WORKSPACE_DIR="/tmp/ws")
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_transcript_ok(_mock_team, mock_post, _mock_load):
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"ok": True, "file": {}}
-    mock_post.return_value = mock_resp
-    assert fetch_huddle_transcript("F1")["ok"] is True
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_transcript_connection_error(_mock_team, mock_post, _pair):
-    mock_post.side_effect = requests.exceptions.ConnectionError("down")
-    with patch("core.operations.slack_ops.fetcher.time.sleep"):
-        assert fetch_huddle_transcript("F1") is None
-
-
 def test_get_file_info_returns_slack_error_payload():
     client = MagicMock()
     client.files_info.return_value = {"ok": False, "error": "file_not_found"}
@@ -341,169 +300,3 @@ def test_get_file_and_download_with_private_url(tmp_path):
         finfo, path = f.get_file_and_download("F1", save_path=str(tmp_path))
         assert finfo["ok"]
         assert path.endswith("n.txt")
-
-
-def test_save_slack_internal_tokens_write_error(tmp_path, settings):
-    settings.WORKSPACE_DIR = str(tmp_path)
-    with patch.object(token_store, "_write_document", side_effect=OSError("perm")):
-        with pytest.raises(OSError):
-            token_store.save_slack_internal_tokens("T1", "a", "b")
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_loads_tokens_from_json(
-    _mock_team,
-    mock_post,
-    _mock_load,
-):
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"ok": True, "file": {}}
-    mock_post.return_value = mock_resp
-    assert fetch_huddle_transcript("F9")["ok"] is True
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=None,
-)
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value=None)
-def test_fetch_huddle_missing_tokens_and_no_team(_mock_team, _mock_load):
-    assert fetch_huddle_transcript("F1") is None
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=None,
-)
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_extract_returns_invalid(_mock_team, _mock_load):
-    assert fetch_huddle_transcript("F1") is None
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store._extract_validate_and_return",
-    return_value=("nxc", "nxd"),
-)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_reextracts_from_profile_on_auth_error(
-    _mock_team,
-    mock_post,
-    _mock_load,
-    _mock_reextract,
-):
-    ok_resp = MagicMock()
-    ok_resp.raise_for_status = MagicMock()
-    ok_resp.json.return_value = {"ok": True, "file": {}}
-    bad_resp = MagicMock()
-    bad_resp.raise_for_status = MagicMock()
-    bad_resp.json.return_value = {"ok": False, "error": "token_revoked"}
-    mock_post.side_effect = [bad_resp, ok_resp]
-    assert fetch_huddle_transcript("Fx")["ok"] is True
-    _mock_reextract.assert_called_once_with("T1")
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store._extract_validate_and_return",
-    return_value=("nxc", "nxd"),
-)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_reextracts_after_connection_error_then_auth_error(
-    _mock_team,
-    mock_post,
-    _mock_load,
-    _mock_reextract,
-):
-    """Auth on a later attempt must still trigger one re-extract (not gated on attempt == 0)."""
-    ok_resp = MagicMock()
-    ok_resp.raise_for_status = MagicMock()
-    ok_resp.json.return_value = {"ok": True, "file": {}}
-    bad_resp = MagicMock()
-    bad_resp.raise_for_status = MagicMock()
-    bad_resp.json.return_value = {"ok": False, "error": "token_revoked"}
-    mock_post.side_effect = [
-        requests.exceptions.ConnectionError("down"),
-        bad_resp,
-        ok_resp,
-    ]
-    with patch("core.operations.slack_ops.fetcher.time.sleep"):
-        assert fetch_huddle_transcript("Fx")["ok"] is True
-    _mock_reextract.assert_called_once_with("T1")
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store._extract_validate_and_return",
-    return_value=None,
-)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_auth_error_when_reextract_fails(
-    _mock_team, mock_post, _mock_load, _mock_reextract, caplog
-):
-    import logging
-
-    bad_resp = MagicMock()
-    bad_resp.raise_for_status = MagicMock()
-    bad_resp.json.return_value = {"ok": False, "error": "token_revoked"}
-    mock_post.return_value = bad_resp
-    with caplog.at_level(logging.ERROR):
-        assert fetch_huddle_transcript("Fx") is None
-    _mock_reextract.assert_called_once_with("T1")
-    assert ".env.example" in caplog.text
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_returns_error_payload_when_not_ok(
-    _mock_team, mock_post, _mock_pair
-):
-    mock_resp = MagicMock()
-    mock_resp.raise_for_status = MagicMock()
-    mock_resp.json.return_value = {"ok": False, "error": "invalid"}
-    mock_post.return_value = mock_resp
-    out = fetch_huddle_transcript("Fz")
-    assert out["ok"] is False
-
-
-@override_settings(ALLOW_INTERNAL_SLACK_TOKENS=True)
-@patch(
-    "slack_event_handler.utils.slack_internal_tokens_store.get_or_load_slack_internal_token_pair",
-    return_value=("xc", "xd"),
-)
-@patch("core.operations.slack_ops.fetcher.requests.post")
-@patch("core.operations.slack_ops.fetcher.get_default_team_key", return_value="T1")
-def test_fetch_huddle_unexpected_exception_returns_none(
-    _mock_team, mock_post, _mock_pair
-):
-    mock_post.side_effect = ValueError("weird")
-    assert fetch_huddle_transcript("Fe") is None

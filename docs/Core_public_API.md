@@ -33,8 +33,6 @@ All **application** collectors listed below subclass **`AbstractCollector`** (`n
 | `run_cppa_slack_tracker` | `CppaSlackTrackerCollector` | `cppa_slack_tracker.management.commands.run_cppa_slack_tracker` |
 | `run_cppa_youtube_script_tracker` | `CppaYoutubeScriptTrackerCollector` | `cppa_youtube_script_tracker.management.commands.run_cppa_youtube_script_tracker` |
 | `run_wg21_paper_tracker` | `Wg21PaperTrackerCollector` | `wg21_paper_tracker.collectors` |
-| `run_discord_activity_tracker` | `DiscordActivityCollector` | `discord_activity_tracker.management.commands.run_discord_activity_tracker` |
-| `backfill_discord_activity_tracker` | `DiscordBackfillCollector` | `discord_activity_tracker.management.commands.backfill_discord_activity_tracker` |
 
 ## Failure classification
 
@@ -57,13 +55,13 @@ Structural contracts for **data** that crosses tracker layers (sync outcomes, ac
 | `core.protocols.IncrementalState` | `@runtime_checkable` protocol: `checkpoint_token`, `human_readable_marker`, `extras`. |
 | `core.protocols.require_tracker_result` / `require_activity_record` / `require_incremental_state` | Runtime guards raising `TypeError` when an object does not satisfy the protocol. |
 
-Implementations are frozen dataclasses in each tracker app's `protocol_impl.py` (for example `github_activity_tracker.protocol_impl`, `discord_activity_tracker.protocol_impl`, `boost_library_tracker.protocol_impl`). They subclass shared bases in **`core.protocol_dto`** (`TrackerResultDataclass`, `IncrementalStateDataclass`, `ActivityRecordDataclass`) which provide canonical `asdict()`, `to_json()`, `from_dict()`, and log-friendly `__repr__`. Simple collectors may return `GenericTrackerResult` directly. Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
+Implementations are frozen dataclasses in each tracker app's `protocol_impl.py` (for example `github_activity_tracker.protocol_impl`, `boost_library_tracker.protocol_impl`). They subclass shared bases in **`core.protocol_dto`** (`TrackerResultDataclass`, `IncrementalStateDataclass`, `ActivityRecordDataclass`) which provide canonical `asdict()`, `to_json()`, `from_dict()`, and log-friendly `__repr__`. Simple collectors may return `GenericTrackerResult` directly. Prefer dataclasses over plain `dict` for reliable `isinstance` checks with `@runtime_checkable`.
 
 `BaseCollectorCommand` structured logs include `result_repr` and `result_json` in `extra` when the collector returns a `TrackerResultDataclass` subclass.
 
 `AbstractCollector.collect()` must return a `TrackerResult`. Override `load_incremental_state()` / `persist_incremental_state()` when a collector needs checkpoint read/write between runs (default hooks are no-ops).
 
-**Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, `discord_activity_tracker`, `cppa_slack_tracker`, `cppa_user_tracker`, and `cppa_pinecone_sync`, and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
+**Local static check:** with dev dependencies installed (`requirements-dev.lock`), from the repo root run **`uv run pyright`** (same as the **`pyright`** job in [`.github/workflows/actions.yml`](../.github/workflows/actions.yml)). Root **`pyrightconfig.json`** scopes analysis to `core`, `github_activity_tracker`, `cppa_slack_tracker`, `cppa_user_tracker`, and `cppa_pinecone_sync`, and excludes **`core/pyright_samples/**`** from that run; **`core/tests/test_protocols.py`** still exercises positive/negative protocol assignment snippets via subprocess.
 
 ## External adapters
 

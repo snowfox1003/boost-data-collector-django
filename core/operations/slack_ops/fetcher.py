@@ -1,6 +1,6 @@
 """
-Slack Fetcher: file download, user/channel info, huddle transcript.
-Uses SlackAPIClient for API calls; huddle transcript uses workspace session credentials.
+Slack Fetcher: file download, user/channel info.
+Uses SlackAPIClient for API calls.
 """
 
 import os
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class SlackFetcher:
-    """Slack Fetcher: user/channel/file info via SlackAPIClient; file download and huddle transcript."""
+    """Slack Fetcher: user/channel/file info via SlackAPIClient; file download."""
 
     def __init__(self, bot_token=None):
         token = (bot_token or "").strip()
@@ -209,102 +209,3 @@ def download_file(file_url, save_path=None, filename=None, bot_token=None):
     """Download a file from Slack (standalone function)."""
     fetcher = SlackFetcher(bot_token)
     return fetcher.download_file(file_url, save_path, filename)
-
-
-def fetch_huddle_transcript(file_id):
-    """
-    Fetch huddle transcript/file info using session credentials from workspace JSON.
-
-    Stale credentials are refreshed automatically. On auth errors, one refresh retry
-    is attempted before giving up.
-    """
-    from slack_event_handler.utils.slack_internal_tokens_store import (
-        SLACK_TOKENS_RELOGIN_HINT,
-        _extract_validate_and_return,
-        get_or_load_slack_internal_token_pair,
-        log_slack_internal_tokens_still_invalid,
-    )
-    from slack_event_handler.utils.slack_tokens import (
-        is_slack_internal_token_auth_error,
-    )
-
-    team_id = get_default_team_key() or None
-    pair = get_or_load_slack_internal_token_pair(team_id)
-    if not pair:
-        if team_id:
-            logger.error(
-                "Cannot fetch huddle transcript for file %s: no valid session "
-                "credentials for team %s. %s",
-                file_id,
-                team_id,
-                SLACK_TOKENS_RELOGIN_HINT,
-            )
-        else:
-            logger.error(
-                "Cannot fetch huddle transcript for file %s: no Slack team id "
-                "(set SLACK_TEAM_IDS) and no valid session credentials. %s",
-                file_id,
-                SLACK_TOKENS_RELOGIN_HINT,
-            )
-        return None
-
-    xoxc_token, xoxd_token = pair
-    url = "https://slack.com/api/files.info"
-    headers = {"Authorization": f"Bearer {xoxc_token}"}
-    cookies = {"d": xoxd_token}
-    data = {"file": file_id, "include_transcription": "true"}
-    max_retries, retry_delay = 3, 2
-    reextracted = False
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                url, headers=headers, cookies=cookies, data=data, timeout=30
-            )
-            response.raise_for_status()
-            result = response.json()
-            if result.get("ok"):
-                logger.debug("Fetched file info for: %s", file_id)
-                return result
-            err = (result.get("error") or "").strip()
-            if team_id and is_slack_internal_token_auth_error(err) and not reextracted:
-                reextracted = True
-                logger.info(
-                    "Slack auth error (%s); refreshing session credentials",
-                    err,
-                )
-                new_pair = _extract_validate_and_return(team_id)
-                if new_pair:
-                    xoxc_token, xoxd_token = new_pair
-                    headers = {"Authorization": f"Bearer {xoxc_token}"}
-                    cookies = {"d": xoxd_token}
-                    continue
-                logger.error(
-                    "Cannot fetch huddle transcript for file %s: credential refresh did not "
-                    "yield valid session for team %s. %s",
-                    file_id,
-                    team_id,
-                    SLACK_TOKENS_RELOGIN_HINT,
-                )
-                return None
-            if reextracted and team_id and is_slack_internal_token_auth_error(err):
-                log_slack_internal_tokens_still_invalid(team_id)
-                logger.error(
-                    "Cannot fetch huddle transcript for file %s: Slack auth error (%s) "
-                    "after credential refresh. %s",
-                    file_id,
-                    err,
-                    SLACK_TOKENS_RELOGIN_HINT,
-                )
-                return result
-            logger.warning("Slack API error: %s", err or "Unknown error")
-            return result
-        except (ConnectionError, Timeout, RequestException) as e:
-            if attempt < max_retries - 1:
-                time.sleep(retry_delay * (2**attempt))
-            else:
-                logger.exception("Slack API request error: %s", e)
-                return None
-        except Exception as e:
-            logger.exception("Unexpected error: %s", e)
-            return None
-    return None

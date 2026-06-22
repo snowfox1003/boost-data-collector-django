@@ -22,10 +22,6 @@ from clang_github_tracker.protocol_impl import (
 from cppa_pinecone_sync.protocol_impl import PineconeSyncTrackerResult
 from cppa_slack_tracker.protocol_impl import SlackIncrementalState, SlackTrackerResult
 from cppa_youtube_script_tracker.protocol_impl import YoutubeScriptTrackerResult
-from discord_activity_tracker.protocol_impl import (
-    DiscordCollectionTrackerResult,
-    DiscordIncrementalState,
-)
 from github_activity_tracker.protocol_impl import (
     GitHubIncrementalState,
     GitHubSyncTrackerResult,
@@ -38,7 +34,6 @@ from wg21_paper_tracker.protocol_impl import Wg21PaperTrackerResult
     [
         GenericTrackerResult.ok(),
         GitHubSyncTrackerResult(success=True, counts={"issues": 1}),
-        DiscordCollectionTrackerResult(success=True, counts={"messages": 2}),
         PineconeSyncTrackerResult.from_sync_dict(
             {"upserted": 1, "total": 1, "failed_count": 0}
         ),
@@ -62,7 +57,6 @@ def test_tracker_result_isinstance(result: TrackerResult) -> None:
     [
         GenericIncrementalState(checkpoint_token="t", human_readable_marker="m"),
         GitHubIncrementalState.from_repo_watermark(repo_id=1, marker="2024"),
-        DiscordIncrementalState.from_after_date(after=None),
         MailingListIncrementalState.from_start_date("2024-01-01"),
         SlackIncrementalState.from_team(team_id="T1", start_date="2024-01-01"),
         ClangGithubIncrementalState.from_watermarks(

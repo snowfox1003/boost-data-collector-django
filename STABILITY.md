@@ -61,7 +61,6 @@ These per-collector command names appear in [config/boost_collector_schedule.yam
 - `collect_boost_libraries`
 - `run_wg21_paper_tracker`
 - `run_cppa_slack_tracker`
-- `run_discord_activity_tracker`
 - `run_boost_mailing_list_tracker`
 
 Other `manage.py` commands exist for manual runs, backfills, and development; only commands **listed in your deployed schedule YAML** (plus **`run_scheduled_collectors`**) are Tier A for that deployment.
@@ -149,7 +148,7 @@ No compatibility promise. May change in any release without deprecation.
 - Imports of tracker internals bypassing `sync_api` (e.g. `github_activity_tracker.fetcher`, `cppa_pinecone_sync.sync` from apps covered by import-linter).
 - Workspace directory layouts under `WORKSPACE_DIR`, except paths explicitly documented in [`.env.example`](.env.example) and [docs/Workspace.md](docs/Workspace.md). **Per-app JSON schemas** under `workspace/` are not stable.
 - Docker Compose service names (`web`, `celery_worker`, `celery_beat`) and host ports are not Tier A unless documented here in a future release.
-- `slack_event_handler` internals, management commands not in your schedule, scripts under `scripts/`, tests, and Django admin customization.
+- Optional apps registered via `config/local_settings.py`, management commands not in your schedule, scripts under `scripts/`, tests, and Django admin customization.
 
 ## Deprecation
 

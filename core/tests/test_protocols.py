@@ -9,12 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from core.activity_types import (
-    ActivityType,
-    SourceSystem,
-    actor_external_id,
-    parse_activity_occurred_at,
-)
 from core.protocols import (
     ActivityRecord,
     IncrementalState,
@@ -24,10 +18,6 @@ from core.protocols import (
     require_tracker_result,
 )
 from core.tracker_result import GenericTrackerResult
-from discord_activity_tracker.protocol_impl import (
-    DiscordActivityRecord,
-    DiscordCollectionTrackerResult,
-)
 from github_activity_tracker.protocol_impl import (
     GitHubActivityRecord,
     GitHubIncrementalState,
@@ -60,19 +50,6 @@ def test_require_incremental_state_raises_type_error_on_bad_object() -> None:
         require_incremental_state(NotState())
 
 
-def test_activity_record_isinstance_discord_dataclass() -> None:
-    rec = DiscordActivityRecord(
-        source_system=SourceSystem.DISCORD,
-        external_id="1:2:3",
-        occurred_at=parse_activity_occurred_at("2024-01-01T00:00:00Z"),
-        activity_type=ActivityType.discord_message("Default"),
-        actor_external_id=actor_external_id("99"),
-        source_url="https://discord.com/channels/1/2/3",
-        summary="hi",
-    )
-    assert isinstance(rec, ActivityRecord)
-
-
 def test_incremental_state_isinstance_github() -> None:
     st = GitHubIncrementalState.from_repo_watermark(repo_id=42, marker="2024-06")
     assert isinstance(st, IncrementalState)
@@ -82,13 +59,6 @@ def test_activity_record_isinstance_github_from_issue() -> None:
     rec = GitHubActivityRecord.from_issue(repo_id=7, issue_number=123, summary="title")
     assert isinstance(rec, ActivityRecord)
     assert "7:issue:123" in rec.external_id
-
-
-def test_tracker_result_isinstance_discord_dataclass() -> None:
-    r = DiscordCollectionTrackerResult(
-        success=True, counts={"messages": 5, "channels": 1}
-    )
-    assert isinstance(r, TrackerResult)
 
 
 def test_require_tracker_result_raises_type_error_on_bad_object() -> None:

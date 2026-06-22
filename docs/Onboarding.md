@@ -53,10 +53,8 @@ These are the Django apps under **`INSTALLED_APPS`** (excluding `django.contrib.
 | **cppa_pinecone_sync** | Vector index | Pinecone upsert / failure tracking; used by doc and GitHub pipelines. |
 | **clang_github_tracker** | LLVM/clang mirror | **`run_clang_github_tracker`**; heavy workspace/raw patterns. |
 | **cppa_slack_tracker** | Slack messages | **`run_cppa_slack_tracker`**. |
-| **discord_activity_tracker** | Discord | **`run_discord_activity_tracker`**, **`run_discord_exporter`**. |
 | **wg21_paper_tracker** | WG21 papers | **`run_wg21_paper_tracker`**. |
 | **cppa_youtube_script_tracker** | YouTube scripts | **`run_cppa_youtube_script_tracker`**. |
-| **slack_event_handler** | Slack events | **`run_slack_event_handler`** (webhook/event path differs from tracker sync). |
 
 **Finding the real command names:** Run `python manage.py help` or list `<app>/management/commands/*.py`. **`config/boost_collector_schedule.yaml`** lists what production *schedules*; names must match actual Django commands (if something fails with “Unknown command”, the YAML or docs may be ahead of or behind the repo).
 

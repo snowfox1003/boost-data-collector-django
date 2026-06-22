@@ -47,9 +47,6 @@ groups:
     tasks:
       - command: run_cppa_slack_tracker
         schedule: daily
-      - command: run_discord_activity_tracker
-        schedule: interval
-        minutes: 60
 
   mailing_list:
     default_time: "00:10"

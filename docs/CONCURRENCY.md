@@ -17,25 +17,12 @@ For isolating external SDK state behind explicit types, see [`core/adapters/prot
 | `_ChannelJoinCoordinator._stop_event` | same | Signal background join thread to exit | Process-global | Used with `_check_lock`, not nested |
 | `_CloneRegistry._lock` | `github_activity_tracker/workspace.py` | Set of clone paths for end-of-run cleanup | Process-global | After per-repo lock when nested (see below) |
 | `_RepoLockRegistry._guard` + per-repo locks | `github_activity_tracker/big_commit.py` | Concurrent clone/fetch for same repo | Per (owner, repo) | Before clone registry lock when nested |
-| `_TeamThreadLockRegistry._guard` + per-path locks | `slack_event_handler/utils/state.py` | In-process mutex paired with file advisory lock | Per state file path | Before file lock (see below) |
-| Advisory file lock | `slack_event_handler/utils/state.py` | Per-team JSON state read-modify-write | Per team / file | After in-process team lock |
-| `_JobQueueRuntime._apps_lock` | `slack_event_handler/utils/job_queue.py` | Per-team Bolt app registry | Per team | Independent of busy lock and state locks |
-| `_JobQueueRuntime._busy_lock` | same | Per-team “waiting for rate slot” flag | Per team | Independent of apps lock and state locks |
 
 ---
 
 ## Acquisition-order rules
 
-Only two places nest locks within a subsystem. **No cross-module lock nesting** exists.
-
-### Slack PR-bot state (`slack_event_handler`)
-
-1. `_TeamThreadLockRegistry` in-process lock (per state file path)
-2. Advisory file lock (`fcntl` on Unix, `portalocker` on Windows)
-
-Always this order inside `state_file_lock()`. The registry guard is held only briefly to create/lookup per-path locks; it is never held while waiting on the file lock.
-
-`_JobQueueRuntime._apps_lock` and `_JobQueueRuntime._busy_lock` are never held together and never nest inside `state_file_lock`.
+Only one place nests locks within a subsystem. **No cross-module lock nesting** exists.
 
 ### GitHub big commits (`github_activity_tracker`)
 
@@ -51,8 +38,6 @@ Always this order inside `state_file_lock()`. The registry guard is held only br
 | Component | Location | Mechanism |
 |-----------|----------|-----------|
 | `PineconeIngestion` | `cppa_pinecone_sync/ingestion.py` | `ThreadPoolExecutor` scoped to `update_documents` batches |
-| `DiscordSyncClient` | `discord_activity_tracker/sync/client.py` | Dedicated `_asyncio_loop` per client instance |
-| Huddle dedup cache | `slack_event_handler/utils/slack_listener.py` | Instance `_processed_file_ids_lock` |
 | Log handler emit | `config/logging_handlers.py` | Instance `_emit_lock` on handler class |
 
 ---

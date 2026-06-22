@@ -2,8 +2,7 @@
 # unless pinning is required for a known breakage. Regenerate locks after edits (Linux/CI/Docker):
 #   python -m uv pip compile requirements.in -o requirements.lock --python-version 3.13 --python-platform linux
 #   python -m uv pip compile requirements-dev.in -o requirements-dev.lock --python-version 3.13 --python-platform linux
-# Do not compile on Windows alone: browser-cookie3 pulls pywin32 into the lock and breaks Linux CI.
-# After recompiling, confirm plyvel keeps `; sys_platform != "win32"` in both lock files (uv may omit it).
+# Compile locks on Linux/CI/Docker (not Windows alone) so platform-specific markers stay consistent.
 
 # --- Core web / config ---
 Django>=4.2,<5
@@ -18,8 +17,6 @@ idna>=3.15,<4
 PyJWT>=2.13.0,<3
 # GHSA-537c-gmf6-5ccf: fixed in cryptography 48.0.1 (transitive via google-auth, etc.).
 cryptography>=48.0.1,<49
-discord.py>=2.3.0,<3
-# CVE-2026-34993, CVE-2026-47265: fixed in aiohttp 3.14.0; CVE-2026-54273..54280: fixed in 3.14.1.
 aiohttp>=3.14.1,<4
 python-dateutil>=2.8.0,<3
 celery[redis]>=5.3,<6
@@ -43,18 +40,7 @@ python-json-logger>=2.0,<4
 slack-bolt>=1.18,<2
 pytz>=2024.1,<2026
 
-# --- slack_event_handler: Chrome profile read for Slack xoxc/xoxd token extraction ---
-# (slack_event_handler.utils.slack_tokens; used from core.operations.slack_ops.fetcher)
-# plyvel builds from source: install LevelDB headers (Debian: libleveldb-dev; macOS: brew install leveldb).
-# Omitted on Windows (no reliable LevelDB C++ build); cookie/SQLite paths still work there.
-plyvel>=1.5,<2; sys_platform != "win32"
-browser-cookie3>=0.19,<1
-
 # --- wg21_paper_tracker / cppa_youtube_script_tracker ---
 google-api-python-client>=2.100,<3
 # CVE-2026-50019, CVE-2026-50023, CVE-2026-50574, GHSA-69qj-pvh9-c5wg: fixed in 2026.6.9.
 yt-dlp>=2026.6.9,<2027
-
-# --- slack_event_handler (GitHub PR comments) ---
-PyGithub>=2.0,<3
-portalocker>=2.8,<3

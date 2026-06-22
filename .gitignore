@@ -19,6 +19,7 @@ db.sqlite3
 staticfiles/
 media/
 .test_artifacts/
+config/boost_collector_schedule.local.yaml
 # Ephemeral probe app + pyrightconfig for scripts/validate_collector_scaffold.py (entire tree ignored above).
 
 # Testing / coverage
@@ -46,8 +47,6 @@ celerybeat.pid
 *.swo
 .cursor/
 
-# Optional legacy CLI folder under the Django app (default CLI lives in workspace/.../script/)
-discord_activity_tracker/tools/
 # macOS
 .DS_Store
 ._*

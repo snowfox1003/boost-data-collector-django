@@ -20,16 +20,10 @@ workspace/                                    # WORKSPACE_DIR (configurable via 
 │   │       └── prs/<number>.json
 │   └── boost_mailing_list_tracker/           # Raw API responses (kept, not removed)
 │       └── <list_name>/<msg_id>.json
-│   └── discord_activity_tracker/             # DiscordChatExporter output (see below)
-│       └── <server_id>/<channel_id>/         # Archived JSON after DB import (YYYY-MM-DD.json)
 ├── clang_github_tracker/                    # Markdown export for clang_github_tracker (md_export/)
 ├── boost_mailing_list_tracker/               # Mailing list messages (see below)
 │   └── <list_name>/
 │       └── messages/<msg_id>.json            # Formatted cache (processed then removed)
-├── discord_activity_tracker/                 # CLI install + backfill drop folder
-│   ├── _exporter_staging/                    # Temporary per-day export (cleared each run)
-│   ├── script/                               # DiscordChatExporter.Cli (default layout; optional)
-│   └── Discussion - c-cpp-discussion/      # Pre-exported JSON for backfill (removed after import)
 └── shared/                                   # Temp files used by more than one app
 ```
 
@@ -48,13 +42,6 @@ So the workspace acts as a short-lived cache: files are deleted once they are in
 3. **start_date** – If `start_date` is not provided, the fetcher uses the day after the latest `sent_at` in the database so only new emails are fetched.
 
 So: **raw/** = permanent archive of scraped API responses; **messages/** = short-lived cache (removed after DB persist).
-
-### discord_activity_tracker paths
-
-1. **`run_discord_activity_tracker`** — DiscordChatExporter runs **per channel per UTC day**, writing scratch JSON under `discord_activity_tracker/_exporter_staging/`. Each file is parsed, upserted into the DB, then **merged** into `raw/discord_activity_tracker/<server_id>/<channel_id>/YYYY-MM-DD.json` (same-day re-runs append/update by message id).
-2. **`backfill_discord_activity_tracker`** — Place DiscordChatExporter JSON under `discord_activity_tracker/Discussion - c-cpp-discussion/` (any depth). Each file is imported, then **deleted** so it is not processed twice.
-
-See [service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md) and [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md).
 
 ## Configuration
 
@@ -122,33 +109,6 @@ for json_path in iter_existing_message_jsons("boost@lists.boost.org"):
     ...
 ```
 
-**discord_activity_tracker** (raw archive, staging, backfill folder):
-
-```python
-from discord_activity_tracker.workspace import (
-    get_workspace_root,
-    get_raw_dir,
-    get_exporter_staging_dir,
-    get_channel_raw_dir,
-    get_cpp_discussion_import_dir,
-)
-
-# workspace/discord_activity_tracker/ (CLI script/, backfill drop folder)
-app_root = get_workspace_root()
-
-# workspace/raw/discord_activity_tracker/ (archived per-channel JSON)
-raw_root = get_raw_dir()
-
-# Staging dir used before per-channel archival
-staging = get_exporter_staging_dir()
-
-# workspace/raw/discord_activity_tracker/<server_id>/<channel_id>/
-channel_dir = get_channel_raw_dir(server_id=123, channel_id=456)
-
-# Backfill import root: .../Discussion - c-cpp-discussion/
-drop = get_cpp_discussion_import_dir()
-```
-
 **Generic (any app):**
 
 ```python
@@ -212,7 +172,6 @@ Related settings (see `config/settings.py`):
 
 - **github_activity_tracker:** JSON cache for commits, issues, and PRs; files are removed after being saved to the DB.
 - **boost_mailing_list_tracker:** JSON cache for mailing list messages; files are removed after being saved to the DB.
-- **discord_activity_tracker:** Exporter CLI under `discord_activity_tracker/script/` (or `DISCORD_CHAT_EXPORTER_CLI`); **raw/** subtree keeps archived exports; backfill JSON in `Discussion - c-cpp-discussion/` is deleted after import.
 - **boost_library_tracker:** Downloaded PDFs, converted documents.
 - **shared:** Files that multiple apps read or write; clean up when no longer needed.
 

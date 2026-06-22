@@ -64,7 +64,6 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `boost_library_docs_tracker` | `boost_library_docs_tracker/services.py` | BoostDocContent and BoostLibraryDocumentation (doc scrape and sync status). |
 | `boost_usage_tracker`     | `boost_usage_tracker/services.py`     | External repos, Boost usage, missing-header tmp. |
 | `cppa_pinecone_sync`       | `cppa_pinecone_sync/services.py`       | Pinecone fail list and sync status writes.                  |
-| `discord_activity_tracker` | `discord_activity_tracker/services.py` | Servers, channels, messages, reactions (Discord user profiles in cppa_user_tracker). |
 | `cppa_youtube_script_tracker` | `cppa_youtube_script_tracker/services.py` | YouTube channels, videos, tags, transcript state, speaker links. |
 | `clang_github_tracker` | `clang_github_tracker/services.py` | Clang/llvm GitHub issue, PR, and commit upserts; fetch watermarks. |
 | `boost_mailing_list_tracker` | `boost_mailing_list_tracker/services.py` | Mailing list messages and names. |

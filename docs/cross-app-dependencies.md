@@ -25,7 +25,7 @@ document.  `core` is excluded because it is shared infrastructure, not a peer tr
 
 | App | Role | Has models? |
 | --- | --- | --- |
-| `cppa_user_tracker` | Identity hub — GitHub, Discord, Slack, WG21, mailing-list, and YouTube speaker profiles | Yes |
+| `cppa_user_tracker` | Identity hub — GitHub, Slack, Reddit, WG21, mailing-list, and YouTube speaker profiles | Yes |
 | `github_activity_tracker` | GitHub repos, files, commits, issues, pull requests | Yes |
 | `boost_library_tracker` | Boost libraries, versions, files, dependencies, maintainer roles | Yes |
 | `boost_library_docs_tracker` | Boost documentation content and sync status | Yes |
@@ -35,11 +35,9 @@ document.  `core` is excluded because it is shared infrastructure, not a peer tr
 | `cppa_pinecone_sync` | Pinecone vector sync status | Yes |
 | `clang_github_tracker` | Clang/LLVM GitHub activity | Yes |
 | `cppa_slack_tracker` | Slack teams, channels, messages | Yes |
-| `discord_activity_tracker` | Discord servers, channels, messages | Yes |
 | `reddit_activity_tracker` | Reddit subreddit submissions and comments | Yes |
 | `wg21_paper_tracker` | WG21 paper tracking | Yes |
 | `cppa_youtube_script_tracker` | YouTube video metadata and transcripts | Yes |
-| `slack_event_handler` | Slack event listener | No (no domain models) |
 | `boost_collector_runner` | YAML-driven schedule orchestration | No (no domain models) |
 
 ---
@@ -74,7 +72,6 @@ These are hard database-level dependencies.  They cannot be removed without migr
 | `wg21_paper_tracker` | `cppa_user_tracker` | FK | `WG21PaperAuthor.profile` → `WG21PaperAuthorProfile` | Intentional — paper author identity |
 | `cppa_youtube_script_tracker` | `cppa_user_tracker` | FK | `YouTubeVideoSpeaker.speaker` → `YoutubeSpeaker` | Intentional — speaker identity |
 | `cppa_slack_tracker` | `cppa_user_tracker` | Direct import + FK | `SlackChannel.creator`, `SlackMessage.user`, `SlackChannelMembership.user`, `SlackChannelMembershipChangeLog.user` → `SlackUser` | Intentional — channel/message author identity |
-| `discord_activity_tracker` | `cppa_user_tracker` | Direct import + FK | `DiscordMessage.author` → `DiscordProfile` | Intentional — message author identity |
 
 ---
 
@@ -89,7 +86,6 @@ queries a foreign app's model via `.objects`:
 
 | Source file | Foreign model queried | Query pattern | Intentional or tech debt |
 | --- | --- | --- | --- |
-| `discord_activity_tracker/services.py` | `cppa_user_tracker.DiscordProfile` | `.objects.filter(discord_user_id__in=...)` | Intentional — bulk prefetch before delegating to `cppa_user_tracker.services`; avoids N+1 |
 | `boost_usage_tracker/post_process.py` | `boost_library_tracker.BoostFile` | `.objects.filter(github_file__filename__endswith=...)` | Intentional — resolves Boost header path to BoostFile; no service wrapper exists yet |
 | `boost_usage_tracker/update_boostusage_from_csv.py` | `github_activity_tracker.GitHubFile` | `.objects.filter(repo_id=..., filename=...)` | Intentional — CSV import resolves FK targets by field values |
 | `boost_usage_tracker/update_boostusage_from_csv.py` | `boost_library_tracker.BoostFile` | `.objects.filter(github_file__filename=...)` | Intentional — CSV import resolves Boost header FK |
@@ -163,9 +159,6 @@ The **Kind** column classifies the imported symbol:
 | `cppa_slack_tracker` | `…/services.py` | `cppa_user_tracker` | `SlackUser`, `get_or_create_slack_user` | model + service | Intentional — correctly delegates user upsert |
 | `cppa_slack_tracker` | `…/sync/sync_user.py` | `cppa_user_tracker` | `get_or_create_slack_user` | service | Intentional — correctly delegates |
 | `cppa_slack_tracker` | `…/run_cppa_slack_tracker.py` | `cppa_pinecone_sync` | `sync_to_pinecone` | sync_api / lazy | Intentional — Pinecone upsert via `cppa_pinecone_sync.sync_api` from collector `sync_pinecone()` |
-| `discord_activity_tracker` | `…/models.py` | `cppa_user_tracker` | `DiscordProfile` | model | Intentional — FK base class (see schema coupling §1) |
-| `discord_activity_tracker` | `…/services.py` | `cppa_user_tracker` | `DiscordProfile`, `get_or_create_discord_profile` | model + service | Intentional — services reference FK target and delegate upsert |
-| `discord_activity_tracker` | `…/sync/messages.py` | `cppa_user_tracker` | `get_or_create_discord_profile` | service | Intentional — correctly delegates |
 | `wg21_paper_tracker` | `…/services.py` | `cppa_user_tracker` | `WG21PaperAuthorProfile`, `get_or_create_wg21_paper_author_profile` | model + service | Intentional — correctly delegates author identity |
 | `wg21_paper_tracker` | `…/import_wg21_metadata_from_csv.py` | `cppa_user_tracker` | `get_or_create_wg21_paper_author_profile` | service / lazy | Intentional — CSV import delegates author upsert |
 | `cppa_youtube_script_tracker` | `…/run_cppa_youtube_script_tracker.py` | `cppa_user_tracker` | `get_or_create_youtube_speaker` | service | Intentional — correctly delegates speaker upsert |
@@ -200,7 +193,6 @@ flowchart LR
     cppa_pinecone[cppa_pinecone_sync]
     clang_github[clang_github_tracker]
     cppa_slack[cppa_slack_tracker]
-    discord_act[discord_activity_tracker]
     wg21_paper[wg21_paper_tracker]
     cppa_youtube[cppa_youtube_script_tracker]
     boost_runner[boost_collector_runner]
@@ -221,7 +213,6 @@ flowchart LR
     cppa_youtube -->|"ORM + import"| cppa_user
     cppa_slack -->|"ORM + import"| cppa_user
     cppa_slack -.->|"services (lazy)"| cppa_pinecone
-    discord_act -->|"ORM + import"| cppa_user
     clang_github -->|"sync_api"| github_act
     boost_runner -.->|"import (lazy)"| boost_lib
 ```

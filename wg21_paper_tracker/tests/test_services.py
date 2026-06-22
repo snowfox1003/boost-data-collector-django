@@ -8,6 +8,7 @@ import pytest
 from wg21_paper_tracker.services import (
     get_or_create_mailing,
     get_or_create_paper,
+    get_or_create_paper_author,
     mark_paper_downloaded,
 )
 
@@ -258,3 +259,149 @@ def test_mark_paper_downloaded_normalizes_paper_id(db):
     mark_paper_downloaded("  P1000R0  ", year=2025)
     paper.refresh_from_db()
     assert paper.is_downloaded is True
+
+
+# --- get_or_create_paper edge cases ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_requires_paper_id(db):
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    with pytest.raises(ValueError, match="paper_id is required"):
+        get_or_create_paper(
+            paper_id="",
+            url="https://example.com/p.pdf",
+            title="T",
+            document_date=None,
+            mailing=mailing,
+            year=2025,
+        )
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_promotes_placeholder_year(db):
+    """Placeholder row (year=0) is promoted when a real year is supplied."""
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    placeholder, created_placeholder = get_or_create_paper(
+        paper_id="p5000",
+        url="https://example.com/p5000-draft.pdf",
+        title="Draft",
+        document_date=None,
+        mailing=mailing,
+        year=None,
+    )
+    assert created_placeholder is True
+    assert placeholder.year == 0
+
+    paper, created = get_or_create_paper(
+        paper_id="p5000",
+        url="https://example.com/p5000.pdf",
+        title="Final",
+        document_date=date(2025, 3, 1),
+        mailing=mailing,
+        year=2025,
+    )
+    assert created is False
+    paper.refresh_from_db()
+    assert paper.pk == placeholder.pk
+    assert paper.year == 2025
+    assert paper.title == "Final"
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_replaces_authors_on_update(db):
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    paper, _ = get_or_create_paper(
+        paper_id="p7777",
+        url="https://example.com/p7777.pdf",
+        title="T",
+        document_date=None,
+        mailing=mailing,
+        author_names=["Alice"],
+        year=2025,
+    )
+    assert paper.authors.count() == 1
+
+    paper2, created2 = get_or_create_paper(
+        paper_id="p7777",
+        url="https://example.com/p7777.pdf",
+        title="T",
+        document_date=None,
+        mailing=mailing,
+        author_names=["Bob", "Carol"],
+        year=2025,
+    )
+    assert created2 is False
+    assert paper2.pk == paper.pk
+    names = list(
+        paper2.authors.order_by("author_order").values_list(
+            "profile__display_name", flat=True
+        )
+    )
+    assert names == ["Bob", "Carol"]
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_invalid_year_stored_as_zero(db):
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    paper, _ = get_or_create_paper(
+        paper_id="p8888",
+        url="https://example.com/p8888.pdf",
+        title="T",
+        document_date=None,
+        mailing=mailing,
+        year=99999,
+    )
+    assert paper.year == 0
+
+
+@pytest.mark.django_db
+def test_mark_paper_downloaded_requires_non_empty_paper_id(db):
+    with pytest.raises(ValueError, match="paper_id is required"):
+        mark_paper_downloaded("", year=2025)
+
+
+# --- get_or_create_paper_author ---
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_author_creates_and_updates_order(db):
+    from cppa_user_tracker.services import get_or_create_wg21_paper_author_profile
+
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    paper, _ = get_or_create_paper(
+        paper_id="p3333",
+        url="https://example.com/p3333.pdf",
+        title="T",
+        document_date=None,
+        mailing=mailing,
+        year=2025,
+    )
+    profile, _ = get_or_create_wg21_paper_author_profile("Author One")
+
+    link, created = get_or_create_paper_author(paper, profile, 1)
+    assert created is True
+    assert link.author_order == 1
+
+    link2, created2 = get_or_create_paper_author(paper, profile, 2)
+    assert created2 is False
+    link2.refresh_from_db()
+    assert link2.author_order == 2
+
+
+@pytest.mark.django_db
+def test_get_or_create_paper_author_rejects_invalid_order(db):
+    from cppa_user_tracker.services import get_or_create_wg21_paper_author_profile
+
+    mailing, _ = get_or_create_mailing("2025-01", "Title")
+    paper, _ = get_or_create_paper(
+        paper_id="p4444",
+        url="https://example.com/p4444.pdf",
+        title="T",
+        document_date=None,
+        mailing=mailing,
+        year=2025,
+    )
+    profile, _ = get_or_create_wg21_paper_author_profile("Author")
+    with pytest.raises(ValueError, match="author_order must be a positive integer"):
+        get_or_create_paper_author(paper, profile, 0)

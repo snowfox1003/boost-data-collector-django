@@ -83,9 +83,9 @@ If you operate a deployment and suspect a leak or breach, **rotate** at least th
 
 | Category | Examples / environment variables |
 | --- | --- |
-| **GitHub** | `GITHUB_TOKEN`, `GITHUB_TOKENS_SCRAPING` (multi-token pool), `GITHUB_TOKEN_WRITE`; PAT-style tokens used by integrations (for example `SLACK_PR_BOT_GITHUB_TOKEN` if it is a PAT) |
+| **GitHub** | `GITHUB_TOKEN`, `GITHUB_TOKENS_SCRAPING` (multi-token pool), `GITHUB_TOKEN_WRITE` |
 | **Slack** | `SLACK_BOT_TOKEN_<team_id>`, `SLACK_APP_TOKEN_<team_id>` |
-| **Discord** | `DISCORD_TOKEN` |
+| **Notifications** | `DISCORD_WEBHOOK_URL`, `SLACK_WEBHOOK_URL` (optional error alerting) |
 | **Pinecone** | `PINECONE_API_KEY`, `PINECONE_PRIVATE_API_KEY`, and any host/index settings that grant write access |
 | **YouTube** | `YOUTUBE_API_KEY` |
 

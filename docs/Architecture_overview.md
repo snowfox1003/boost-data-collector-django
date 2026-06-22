@@ -46,10 +46,8 @@ Columns: **persistence** (usual durable stores), **coupling** (one-line upstream
 | **`cppa_pinecone_sync`** | Vector upserts, fail lists, sync status | Yes | PostgreSQL, Pinecone | **Upstream:** doc/GitHub/mailing collectors. **Downstream:** Pinecone index | [README](../cppa_pinecone_sync/README.md), [service_api](service_api/cppa_pinecone_sync.md), [Pinecone_preprocess_guideline](Pinecone_preprocess_guideline.md) |
 | **`clang_github_tracker`** | LLVM/Clang GitHub activity | Yes | PostgreSQL, workspace | **Upstream:** `github_activity_tracker` (via `sync_api`), `cppa_user_tracker` | [README](../clang_github_tracker/README.md), [service_api](service_api/clang_github_tracker.md) |
 | **`cppa_slack_tracker`** | Slack teams, channels, messages | Yes | PostgreSQL, workspace | **Upstream:** `cppa_user_tracker` | [README](../cppa_slack_tracker/README.md), [service_api](service_api/cppa_slack_tracker.md) |
-| **`discord_activity_tracker`** | Discord servers, channels, messages | Yes | PostgreSQL, workspace | **Upstream:** `cppa_user_tracker` | [README](../discord_activity_tracker/README.md), [service_api](service_api/discord_activity_tracker.md) |
 | **`wg21_paper_tracker`** | WG21 papers and authors | Yes | PostgreSQL, workspace | **Upstream:** `cppa_user_tracker` | [README](../wg21_paper_tracker/README.md), [service_api](service_api/wg21_paper_tracker.md) |
 | **`cppa_youtube_script_tracker`** | YouTube metadata and transcripts | Yes | PostgreSQL, workspace | **Upstream:** `cppa_user_tracker` | [README](../cppa_youtube_script_tracker/README.md), [service_api](service_api/cppa_youtube_script_tracker.md) |
-| **`slack_event_handler`** | Slack Socket Mode listener (PR bot / huddles) — **long-running**, not YAML batch | **No ORM** / no `services.py` | Workspace JSON, GitHub optional | **Upstream:** Slack events. **Downstream:** GitHub MD via operations | [README](../slack_event_handler/README.md) — *no [service_api](service_api/) page* |
 
 **Primary scheduled commands** (YAML / Celery batch via `config/boost_collector_schedule.yaml`; non-exhaustive — see [Workflow.md](Workflow.md)):
 
@@ -66,15 +64,8 @@ Columns: **persistence** (usual durable stores), **coupling** (one-line upstream
 | `cppa_pinecone_sync` | `run_cppa_pinecone_sync` |
 | `clang_github_tracker` | `run_clang_github_tracker` |
 | `cppa_slack_tracker` | `run_cppa_slack_tracker` |
-| `discord_activity_tracker` | `run_discord_activity_tracker` |
 | `wg21_paper_tracker` | `run_wg21_paper_tracker` |
 | `cppa_youtube_script_tracker` | `run_cppa_youtube_script_tracker` |
-
-**Long-running entrypoint services** (not in the YAML schedule; run as a persistent process, e.g. Compose / `runserver` integration):
-
-| App | Entry command | Notes |
-|-----|---------------|-------|
-| `slack_event_handler` | `run_slack_event_handler` | Slack Socket Mode listener (PR bot / huddles) |
 
 ---
 

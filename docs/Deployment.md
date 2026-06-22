@@ -172,7 +172,7 @@ Add the private key content (`~/.ssh/deploy_key`) as the **`SSH_PRIVATE_KEY`** s
 This matches a common production/staging layout for this repo:
 
 - **On the host:** PostgreSQL (package install), **nginx** (TLS + reverse proxy).
-- **In Docker Compose:** `web` (Gunicorn), `celery_worker`, `celery_beat`, `redis`. Optional profile **`slack-session`** (`slack-chromium` noVNC) for Slack login on headless hosts. The bundled **`db` service is commented out** in `docker-compose.yml`; the app uses **`DATABASE_URL`** to reach PostgreSQL on the host.
+- **In Docker Compose:** `web` (Gunicorn), `celery_worker`, `celery_beat`, `redis`. The bundled **`db` service is commented out** in `docker-compose.yml`; the app uses **`DATABASE_URL`** to reach PostgreSQL on the host.
 
 Compose already sets `extra_hosts: host.docker.internal:host-gateway` on app containers so `DATABASE_URL` can use host `host.docker.internal` (see `.env.example`). **`DATABASE_URL` is required** in `.env` for `docker compose` (there is no default to a bundled `db` service while that service stays commented out).
 
@@ -476,7 +476,7 @@ cd /opt/boost-data-collector && make down && make up
 
 ## Production Compose overlay
 
-For VM production, use the prod overlay (resource limits, `LOG_FORMAT=json`, `slack-session` off by default):
+For VM production, use the prod overlay (resource limits, `LOG_FORMAT=json`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d

@@ -74,6 +74,27 @@ _DEFAULT_SCHEDULE_YAML = (
 )
 
 
+def resolve_schedule_yaml_path(
+    *,
+    base_dir: Path,
+    env_path: str = "",
+) -> Path:
+    """
+    Resolve the collector schedule YAML path.
+
+    Precedence: ``env_path`` (from parent ``BOOST_COLLECTOR_SCHEDULE_YAML`` in ``.env``),
+    then the default ``config/boost_collector_schedule.yaml`` under ``base_dir``.
+    Relative paths are resolved under ``base_dir``.
+    """
+    raw = (env_path or "").strip()
+    if not raw:
+        return (base_dir / "config" / "boost_collector_schedule.yaml").resolve()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve()
+
+
 class ScheduleConfigurationError(ImproperlyConfigured):
     """Raised when the collector schedule YAML is missing or invalid in strict mode."""
 

@@ -279,11 +279,6 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     for mod_name, exc_name in (
         ("github_activity_tracker.api_schemas", "GitHubApiValidationError"),
         ("cppa_slack_tracker.api_schemas", "SlackApiValidationError"),
-        ("discord_activity_tracker.staging_schema", "StagingValidationError"),
-        (
-            "discord_activity_tracker.api_schemas",
-            "DiscordLiveSyncValidationError",
-        ),
     ):
         try:
             import importlib

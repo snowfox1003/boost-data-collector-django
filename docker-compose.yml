@@ -1,6 +1,5 @@
 # Boost Data Collector - Docker Compose
 # Runs: Redis, Django (gunicorn), Celery worker, Celery beat.
-# Optional: slack-chromium (profile slack-session) / discord-chromium (discord-session) for noVNC login.
 # DATABASE_URL must be set in .env (host Postgres, or postgres://...@db:5432/... if you enable db).
 
 services:
@@ -30,35 +29,6 @@ services:
       timeout: 3s
       retries: 5
 
-  slack-chromium:
-    profiles: ["slack-session"]
-    image: selenium/standalone-chrome:145.0-chromedriver-145.0-20260222
-    platform: linux/amd64
-    shm_size: "2g"
-    ports:
-      - "127.0.0.1:7900:7900"
-    volumes:
-      # Chrome profile only (no full workspace mount — least privilege for noVNC login).
-      - ./workspace/slack_event_handler/chrome_profile:/home/seluser/.config/google-chrome
-    environment:
-      SE_BROWSER_ARGS_USER_DATA_DIR: "--user-data-dir=/home/seluser/.config/google-chrome"
-      SE_BROWSER_ARGS_NO_SANDBOX: "--no-sandbox"
-      SE_BROWSER_ARGS_DISABLE_DEV_SHM: "--disable-dev-shm-usage"
-
-  discord-chromium:
-    profiles: ["discord-session"]
-    image: selenium/standalone-chrome:145.0-chromedriver-145.0-20260222
-    platform: linux/amd64
-    shm_size: "2g"
-    ports:
-      - "127.0.0.1:7901:7900"
-    volumes:
-      - ./workspace/discord_activity_tracker/chrome_profile:/home/seluser/.config/google-chrome
-    environment:
-      SE_BROWSER_ARGS_USER_DATA_DIR: "--user-data-dir=/home/seluser/.config/google-chrome"
-      SE_BROWSER_ARGS_NO_SANDBOX: "--no-sandbox"
-      SE_BROWSER_ARGS_DISABLE_DEV_SHM: "--disable-dev-shm-usage"
-
   web:
     build: .
     restart: unless-stopped
@@ -74,8 +44,6 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,0.0.0.0}
-      CHROME_PROFILE_PATH: /app/workspace/slack_event_handler/chrome_profile
-      DISCORD_CHROME_PROFILE_PATH: /app/workspace/discord_activity_tracker/chrome_profile
     volumes:
       - ./workspace:/app/workspace
       - ./logs:/app/logs
@@ -108,8 +76,6 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (e.g. host.docker.internal or db:5432 with db service enabled)}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      CHROME_PROFILE_PATH: /app/workspace/slack_event_handler/chrome_profile
-      DISCORD_CHROME_PROFILE_PATH: /app/workspace/discord_activity_tracker/chrome_profile
     volumes:
       - ./workspace:/app/workspace
       - ./logs:/app/logs

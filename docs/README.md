@@ -21,7 +21,6 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 | **Core API** | [Core_public_API.md](Core_public_API.md) | Stable `core` imports: collectors, error classification. |
 | **Operations** | [operations/](operations/README.md) | **Group:** shared I/O (GitHub, Discord, etc.) used by multiple apps. Index in [operations/README.md](operations/README.md). |
 | → GitHub | [operations/github.md](operations/github.md) | Clone, push, fetch file, create PR/issue/comment; token use. |
-| → DiscordChatExporter | [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md) | Install CLI, workspace path, `.env` for Tyrrrz exporter used by Discord ingestion. |
 | **Workspace** | [Workspace.md](Workspace.md) | Workspace layout and usage for file processing (`workspace/<app>/...`). |
 | **Schema** | [Schema.md](Schema.md) | Database schema and table relationships. |
 | **Development** | [Development_guideline.md](Development_guideline.md) | Development setup, app requirements, and step-by-step workflow. |
@@ -37,12 +36,11 @@ Documentation is organized **by topic**, not by app. Each doc covers one cross-c
 **Operations** = external integrations used by many apps (not the same as **Service API**, which is for DB writes). See **[operations/README.md](operations/README.md)** for the full list and when to add one.
 
 - **GitHub:** [operations/github.md](operations/github.md) — `core.operations.github_ops` (clone, push, PR, issue, comment).
-- **Discord (ingestion):** [operations/discord_chat_exporter.md](operations/discord_chat_exporter.md) — DiscordChatExporter CLI; [service_api/discord_activity_tracker.md](service_api/discord_activity_tracker.md) — commands, sync layout, Pinecone. *(Notifications / webhooks: add an operations doc when implemented.)*
 
 ## Finding app-specific info
 
 - **Service layer (create/update/delete):** [service_api/](service_api/) → e.g. [github_activity_tracker.md](service_api/github_activity_tracker.md).
-- **Operations (GitHub, Discord, …):** [operations/README.md](operations/README.md) and the docs in [operations/](operations/).
+- **Operations (GitHub, …):** [operations/README.md](operations/README.md) and the docs in [operations/](operations/).
 - **Workspace (file paths, JSON cache):** [Workspace.md](Workspace.md) — which apps use workspace and the folder layout.
 - **Schema (models):** [Schema.md](Schema.md).
 - **Workflow (when an app runs):** [Workflow.md](Workflow.md).
