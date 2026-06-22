@@ -18,6 +18,7 @@ Handoff for VM Docker Compose production and future Cloud Run work (@snowfox1003
 - Set `DATABASE_URL` in server `.env` (chmod 600), not in the image.
 - Examples: Auth Proxy → `127.0.0.1`, public IP with `?sslmode=require`, or Unix socket `host=/cloudsql/PROJECT:REGION:INSTANCE`.
 - Prod compose does **not** start a `db` service; Postgres is external.
+- **Automated backups:** daily `pg_dump` → GCS via [`scripts/backup_database.sh`](../scripts/backup_database.sh); cron, IAM, and restore steps in [Deployment.md](./Deployment.md#automated-database-backups).
 
 ## Secrets (six platforms)
 
