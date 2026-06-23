@@ -12,9 +12,10 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
+from types import TracebackType
 from typing import Protocol, runtime_checkable
 
-from core.errors import classify_failure
+from core.errors import classify_failure, sanitize_exception_message
 from core.protocols import (
     IncrementalState,
     TrackerResult,
@@ -24,6 +25,24 @@ from core.protocols import (
 from core.tracker_result import with_duration_if_missing
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_exc_info(
+    exc: BaseException,
+) -> bool | tuple[type[BaseException], BaseException, TracebackType | None]:
+    """Build logging ``exc_info`` with a redacted exception message when needed."""
+    safe_msg = sanitize_exception_message(exc)
+    if safe_msg == str(exc):
+        return True
+    try:
+        safe_exc = type(exc)(safe_msg)
+    except (TypeError, ValueError):
+        safe_exc = RuntimeError(safe_msg)
+        safe_exc.__cause__ = None
+        safe_exc.__suppress_context__ = True
+    if exc.__traceback__ is not None:
+        safe_exc.__traceback__ = exc.__traceback__
+    return (type(safe_exc), safe_exc, exc.__traceback__)
 
 
 @runtime_checkable
@@ -144,6 +163,7 @@ class _CollectorLifecycleMixin:
             collector_id,
             phase,
             category.value,
+            exc_info=_safe_exc_info(exc),
             extra={
                 "collector": collector_id,
                 "collector_phase": phase,
