@@ -870,8 +870,9 @@ def upload_folder_to_github(
     Note:
         **Thread safety:** **Thread-safe** for concurrent calls. Blob uploads share
         the process-global :class:`_BlobUploadLimiter` (max
-        ``_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT`` concurrent POSTs). Worker threads use
-        :class:`_WorkerSessionStore` (**per-thread** sessions).
+        ``_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT`` concurrent POSTs). Main and worker
+        threads use :class:`_WorkerSessionStore` (**per-thread** sessions); never
+        ``client.session`` directly.
     """
     local_folder = Path(local_folder)
     if not local_folder.is_dir():
@@ -884,28 +885,11 @@ def upload_folder_to_github(
         if client is not None:
             token = token or client.token
             base = f"{client.rest_base_url}/repos/{owner}/{repo}"
-            if token == getattr(client, "token", None):
-                session = client.session
-            else:
-                session = requests.Session()
-                session.headers.update(dict(client.session.headers))
-                session.headers.update(
-                    {
-                        "Authorization": f"token {token}",
-                        "Accept": "application/vnd.github.v3+json",
-                    }
-                )
         else:
             if token is None:
                 token = get_github_token(use="write")
             base = f"https://api.github.com/repos/{owner}/{repo}"
-            session = requests.Session()
-            session.headers.update(
-                {
-                    "Authorization": f"token {token}",
-                    "Accept": "application/vnd.github.v3+json",
-                }
-            )
+        session = _get_worker_session(token)
 
         # Get latest commit
         r = session.get(f"{base}/git/ref/heads/{branch}", timeout=30)
