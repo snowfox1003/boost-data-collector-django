@@ -552,12 +552,15 @@ def test_upload_folder_to_github_calls_create_blob_per_file(tmp_path):
     mock_client.token = "token"
     mock_client.session = mock_session
 
-    with patch(
-        "core.operations.github_ops.git_ops._create_blob_with_retry",
-        side_effect=capture_blob,
-    ), patch(
-        "core.operations.github_ops.git_ops._get_worker_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            side_effect=capture_blob,
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
     ):
         result = upload_folder_to_github(
             tmp_path, "owner", "repo", branch="main", client=mock_client
@@ -637,12 +640,15 @@ def test_upload_folder_to_github_returns_success_with_mock_client(tmp_path):
     mock_client.rest_base_url = "https://api.github.com"
     mock_client.token = "t"
     mock_client.session = mock_session
-    with patch(
-        "core.operations.github_ops.git_ops._create_blob_with_retry",
-        return_value=("f.txt", "blob_sha"),
-    ), patch(
-        "core.operations.github_ops.git_ops._get_worker_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            return_value=("f.txt", "blob_sha"),
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
     ):
         result = upload_folder_to_github(
             tmp_path,
@@ -673,16 +679,17 @@ def test_upload_folder_to_github_does_not_use_client_session(tmp_path):
     mock_client.token = "t"
     mock_client.session = MagicMock()
 
-    with patch(
-        "core.operations.github_ops.git_ops._create_blob_with_retry",
-        return_value=("f.txt", "blob_sha"),
-    ), patch(
-        "core.operations.github_ops.git_ops._get_worker_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            return_value=("f.txt", "blob_sha"),
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
     ):
-        result = upload_folder_to_github(
-            tmp_path, "owner", "repo", client=mock_client
-        )
+        result = upload_folder_to_github(tmp_path, "owner", "repo", client=mock_client)
 
     assert result["success"] is True
     mock_client.session.get.assert_not_called()
