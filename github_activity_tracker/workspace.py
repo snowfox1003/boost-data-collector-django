@@ -12,6 +12,7 @@ import os
 import stat
 import threading
 from pathlib import Path
+from typing import final
 
 import shutil
 
@@ -20,6 +21,7 @@ from config.workspace import get_workspace_path
 _APP_SLUG = "github_activity_tracker"
 
 
+@final
 class _CloneRegistry:
     """Process-global set of clone paths to delete when a run finishes.
 

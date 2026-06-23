@@ -79,6 +79,20 @@ def test_require_activity_record_raises_type_error_on_bad_object() -> None:
         require_activity_record(NotARecord())
 
 
+def test_pyright_positive_concurrency_slot_file() -> None:
+    path = _TYPING_DIR / "concurrency_slot_positive.py"
+    proc = subprocess.run(
+        [sys.executable, "-m", "pyright", str(path)],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 and "No module named pyright" in (proc.stderr or ""):
+        pytest.skip("pyright not installed (pip install -r requirements-dev.lock)")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
 def test_pyright_positive_protocol_assignment_file() -> None:
     path = _TYPING_DIR / "protocol_assignment_positive.py"
     proc = subprocess.run(

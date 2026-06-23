@@ -13,6 +13,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
+from typing import final
 
 from core.operations.github_ops import clone_repo, get_commit_file_changes
 from github_activity_tracker.workspace import (
@@ -24,6 +25,7 @@ from github_activity_tracker.workspace import (
 logger = logging.getLogger(__name__)
 
 
+@final
 class _RepoLockRegistry:
     """Per-(owner, repo) locks to prevent concurrent clone/fetch for the same repo.
 

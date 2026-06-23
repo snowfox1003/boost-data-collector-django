@@ -2,6 +2,8 @@
 Git and content operations for GitHub: clone, pull, push (with optional add/commit),
 fetch one file, upload file or folder.
 All apps use this module (and core.operations.github_ops.client) for GitHub operations.
+
+Concurrency topology and annotation conventions: :doc:`docs/CONCURRENCY`.
 """
 
 from __future__ import annotations
@@ -16,11 +18,12 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from typing import Optional, final
 from datetime import datetime, timezone
 
 import requests
 
+from core.concurrency import ConcurrencySlot
 from core.operations.github_ops.client import GitHubAPIClient
 from core.operations.github_ops.tokens import get_github_client, get_github_token
 
@@ -35,6 +38,7 @@ _UPLOAD_FOLDER_BLOB_MAX_CONCURRENT = 3
 _UPLOAD_FOLDER_403_MAX_SLEEP_SEC = 900
 
 
+@final
 class _BlobUploadLimiter:
     """Caps concurrent GitHub blob POSTs across all upload-folder executor threads.
 
@@ -44,33 +48,38 @@ class _BlobUploadLimiter:
     def __init__(self, max_concurrent: int) -> None:
         self._semaphore = threading.BoundedSemaphore(max_concurrent)
 
-    def acquire_blob_slot(self):
+    def acquire_blob_slot(self) -> ConcurrencySlot:
         return self._semaphore
 
 
+@final
 class _WorkerSessionStore:
     """Per-thread ``requests.Session`` keyed by token (not a lock).
 
     Each thread gets its own session; safe without cross-thread sharing.
+    Satisfies :class:`~core.concurrency.ThreadLocalStore` via :meth:`get_for_thread`.
     """
 
     def __init__(self) -> None:
         self._thread_local = threading.local()
 
     def get_session(self, token: str) -> requests.Session:
+        return self.get_for_thread(token)
+
+    def get_for_thread(self, key: str) -> requests.Session:
         if (
             not hasattr(self._thread_local, "session")
-            or getattr(self._thread_local, "_token", None) != token
+            or getattr(self._thread_local, "_token", None) != key
         ):
             s = requests.Session()
             s.headers.update(
                 {
-                    "Authorization": f"token {token}",
+                    "Authorization": f"token {key}",
                     "Accept": "application/vnd.github.v3+json",
                 }
             )
             self._thread_local.session = s
-            self._thread_local._token = token
+            self._thread_local._token = key
         return self._thread_local.session
 
     def reset_for_tests(self) -> None:
@@ -220,6 +229,10 @@ def clone_repo(
     If ``token`` is omitted, uses the scraping token (``get_github_token(use="scraping")``).
     Callers cloning **private** repos must pass ``token=get_github_token(use="write")``
     (or equivalent) so GitHub authenticates with a PAT that has repository access.
+
+    Note:
+        **Thread safety:** **Not thread-safe** for concurrent operations on the same
+        ``dest_dir``; caller must serialize clone/fetch/push on a shared path.
     """
     dest_dir = Path(dest_dir)
     if token is None:
@@ -849,6 +862,12 @@ def upload_folder_to_github(
     Returns:
         {"success": True, "message": "..."} on success,
         {"success": False, "message": "..."} on failure.
+
+    Note:
+        **Thread safety:** **Thread-safe** for concurrent calls. Blob uploads share
+        the process-global :class:`_BlobUploadLimiter` (max
+        ``_UPLOAD_FOLDER_BLOB_MAX_CONCURRENT`` concurrent POSTs). Worker threads use
+        :class:`_WorkerSessionStore` (**per-thread** sessions).
     """
     local_folder = Path(local_folder)
     if not local_folder.is_dir():
