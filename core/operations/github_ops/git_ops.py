@@ -67,10 +67,11 @@ class _WorkerSessionStore:
         return self.get_for_thread(token)
 
     def get_for_thread(self, key: str) -> requests.Session:
-        if (
-            not hasattr(self._thread_local, "session")
-            or getattr(self._thread_local, "_token", None) != key
-        ):
+        current_session = getattr(self._thread_local, "session", None)
+        current_token = getattr(self._thread_local, "_token", None)
+        if current_session is None or current_token != key:
+            if current_session is not None:
+                current_session.close()
             s = requests.Session()
             s.headers.update(
                 {
@@ -83,6 +84,9 @@ class _WorkerSessionStore:
         return self._thread_local.session
 
     def reset_for_tests(self) -> None:
+        current_session = getattr(self._thread_local, "session", None)
+        if current_session is not None:
+            current_session.close()
         self._thread_local = threading.local()
 
 

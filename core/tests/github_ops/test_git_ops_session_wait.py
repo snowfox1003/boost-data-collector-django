@@ -24,6 +24,16 @@ def test_get_worker_session_new_session_when_token_changes():
     assert "token-b" in b.headers["Authorization"]
 
 
+def test_get_worker_session_closes_previous_session_on_token_change():
+    go._session_store.reset_for_tests()
+    first = go._get_worker_session("token-a")
+    close = MagicMock()
+    first.close = close
+    second = go._get_worker_session("token-b")
+    close.assert_called_once()
+    assert second is not first
+
+
 def _mock_resp(headers):
     r = MagicMock()
     r.headers = headers
