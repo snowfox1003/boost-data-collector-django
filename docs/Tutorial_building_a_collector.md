@@ -43,7 +43,7 @@ Use **`--no-register`** to scaffold the app package only (no edits to `config/se
 
 ### What gets generated (14 app files + project registration)
 
-`startcollector` writes a full Django app package. When run from the **repository root** (default `--path .`), it also updates four project files and runs **`makemigrations`**. Registration is skipped when `--path` points elsewhere (for example pytest scratch dirs or CI). File bodies are built in [core/management/commands/startcollector.py](../core/management/commands/startcollector.py) and [core/management/collector_registry.py](../core/management/collector_registry.py).
+`startcollector` writes a full Django app package. When run from the **repository root** (default `--path .`), it also updates four project files via [collector_registry.py](../core/management/collector_registry.py). Registration is skipped when `--path` points elsewhere (for example pytest scratch dirs or CI) or when **`--no-register`** is set. File bodies are built in [startcollector.py](../core/management/commands/startcollector.py).
 
 ```text
 heartbeat_demo/
@@ -82,7 +82,6 @@ flowchart TB
     yaml[boost_collector_schedule.yaml commented EOF]
     importlinter[.importlinter root_packages]
     crossapp[cross-app-dependencies inventory stub]
-    makemigrations[makemigrations app_label]
   end
   subgraph manual [You do manually]
     migrate[migrate]
@@ -102,7 +101,7 @@ flowchart TB
 | `schedule_snippet.yaml` | Commented YAML reference (also appended to shared schedule file at repo root) |
 | `tests/test_run_heartbeat_demo_command.py` | Smoke test via `call_command` |
 
-**Auto-registered at repo root:** `INSTALLED_APPS` entry in [config/settings.py](../config/settings.py), commented schedule block at EOF of [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml), `root_packages` entry in [`.importlinter`](../.importlinter), stub inventory row in [cross-app-dependencies.md](cross-app-dependencies.md), and **`python manage.py makemigrations <app_label>`**.
+**Auto-registered at repo root:** `INSTALLED_APPS` entry in [config/settings.py](../config/settings.py), commented schedule block at EOF of [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml), `root_packages` entry in [`.importlinter`](../.importlinter), and stub inventory row in [cross-app-dependencies.md](cross-app-dependencies.md).
 
 **Not generated:** `collectors.py` (split from `run_*.py` when the command grows — §2.5).
 
@@ -113,7 +112,7 @@ flowchart TB
 | One Django app per collector domain | Shared PostgreSQL, isolated `services.py`, clear ownership in CODEOWNERS |
 | Command name `run_{app_label}` | Must match YAML `command:` and what Celery/`call_command` invoke |
 | Stub run-state model + `record_run()` | Proves migrations and the service-layer write path before real domain logic |
-| Hand-written `0001_initial.py` + `makemigrations` | Migration matches `models.py` on day one; `makemigrations` after registration verifies wiring |
+| Hand-written `0001_initial.py` | Migration matches stub `models.py` on day one; run **`makemigrations`** yourself only after you change models |
 | Commented schedule block at EOF | Schedule placement is reviewed in PR; avoids Beat calling a command in the wrong group |
 | Collector class inside `run_*.py` initially | Smallest first PR; split into `collectors.py` when the command grows (§2.5) |
 
@@ -152,7 +151,7 @@ class Command(BaseCollectorCommand):
 
 Note: the scaffold stores `source_key` on the collector but does **not** wire `--source-key` on the command until you add it (§3.1). That is intentional practice for your first edit.
 
-If you used **`--path`** outside the repo root or **`--no-register`**, follow the manual registration list printed by the command (INSTALLED_APPS, schedule, `.importlinter`, cross-app docs, `makemigrations`, `migrate`).
+If you used **`--path`** outside the repo root or **`--no-register`**, follow the manual registration list printed by the command (`INSTALLED_APPS`, schedule, `.importlinter`, cross-app docs, then **`migrate`**).
 
 ---
 

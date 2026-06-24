@@ -31,7 +31,8 @@ When `--path` is the repository root (default), `startcollector` also:
 2. Appends a **commented** schedule stub to **`config/boost_collector_schedule.yaml`** (move to the right group and uncomment when ready).
 3. Adds **`my_platform`** to **`root_packages`** in **`.importlinter`**.
 4. Adds a stub inventory row in **`docs/cross-app-dependencies.md`**.
-5. Runs **`python manage.py makemigrations my_platform`**.
+
+The scaffold includes **`migrations/0001_initial.py`**; no in-process **`makemigrations`** (Django would not see the new app until restart). Run **`makemigrations`** yourself only after you change `models.py`.
 
 Use **`--no-register`** or **`--path`** outside the repo root to scaffold the app package only (CI and isolated tests use this).
 

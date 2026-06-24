@@ -11,7 +11,7 @@ from django.core.management.base import CommandError
 
 _CONTRIB_PREFIX = "django.contrib."
 _INSTALLED_APPS_MARKER = "INSTALLED_APPS = ["
-_SCHEDULE_MARKER = f"startcollector: {{app_label}}"
+_SCHEDULE_MARKER = "startcollector: {app_label}"
 _IMPORTLINTER_SECTION = "[importlinter]"
 _INVENTORY_TABLE_HEADER = "| App | Role | Has models? |"
 _INVENTORY_ROW_RE = re.compile(r"^\| `([^`]+)` \|")
@@ -49,7 +49,7 @@ def insert_installed_app(content: str, app_label: str) -> str:
         project_indices.append(idx)
         project_names.append(name)
 
-    insert_at = len(lines)
+    insert_at = len(lines) - 1  # before the closing "]" line
     for pos, name in enumerate(project_names):
         if app_label < name:
             insert_at = project_indices[pos]
@@ -162,9 +162,7 @@ def append_cross_app_inventory_row(content: str, app_label: str) -> str:
             break
         line_start = next_newline + 1
 
-    new_row = (
-        f"| `{app_label}` | Collector stub (customize role) | Yes |\n"
-    )
+    new_row = f"| `{app_label}` | Collector stub (customize role) | Yes |\n"
     insert_at = rows[-1][1] if rows else table_start
     for name, pos in rows:
         if app_label < name:
@@ -189,13 +187,9 @@ class ProjectFileTarget:
 
 PROJECT_FILE_TARGETS: tuple[ProjectFileTarget, ...] = (
     ProjectFileTarget("config/settings.py", insert_installed_app),
-    ProjectFileTarget(
-        "config/boost_collector_schedule.yaml", append_schedule_entry
-    ),
+    ProjectFileTarget("config/boost_collector_schedule.yaml", append_schedule_entry),
     ProjectFileTarget(".importlinter", append_importlinter_root_package),
-    ProjectFileTarget(
-        "docs/cross-app-dependencies.md", append_cross_app_inventory_row
-    ),
+    ProjectFileTarget("docs/cross-app-dependencies.md", append_cross_app_inventory_row),
 )
 
 

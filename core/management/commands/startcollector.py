@@ -12,7 +12,6 @@ from typing import Any
 
 from django.apps import apps
 from django.conf import settings
-from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from core.management.collector_registry import register_collector_project_files
@@ -278,7 +277,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--no-register",
             action="store_true",
-            help="Do not update project config files or run makemigrations (even at repo root).",
+            help="Do not update project config files (even at repo root).",
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
@@ -294,9 +293,7 @@ class Command(BaseCommand):
         verbose = _verbose_name(app_label)
         snippet = _schedule_snippet(app_label)
         repo_root = Path(settings.BASE_DIR).resolve()
-        should_register = (
-            not no_register and base.resolve() == repo_root
-        )
+        should_register = not no_register and base.resolve() == repo_root
 
         if dry_run:
             self.stdout.write(
@@ -317,9 +314,6 @@ class Command(BaseCommand):
                     repo_root, app_label, dry_run=True
                 ):
                     self.stdout.write(f"  {line}\n")
-                self.stdout.write(
-                    f"  Would run: python manage.py makemigrations {app_label}\n"
-                )
             self.stdout.write("\n--- next steps ---\n")
             self._print_next_steps(app_label, registered=should_register)
             return
@@ -395,10 +389,6 @@ class Command(BaseCommand):
                 repo_root, app_label, dry_run=False
             ):
                 self.stdout.write(f"  {line}\n")
-            call_command("makemigrations", app_label, verbosity=1)
-            self.stdout.write(
-                f"  Ran: python manage.py makemigrations {app_label}\n"
-            )
             registered = True
 
         self._print_next_steps(app_label, registered=registered)
@@ -446,7 +436,7 @@ class Command(BaseCommand):
                     2. Append schedule_snippet.yaml to config/boost_collector_schedule.yaml (see docs/Workflow.md).
                     3. Add "{app_label}" to root_packages in .importlinter.
                     4. Add a stub row for "{app_label}" in docs/cross-app-dependencies.md.
-                    5. Run: python manage.py makemigrations {app_label} && python manage.py migrate
+                    5. Run: python manage.py migrate
                     6. After adding real service functions, run: python scripts/generate_service_docs.py
                 """
             )

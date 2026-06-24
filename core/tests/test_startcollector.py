@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import shutil
 from io import StringIO
 from pathlib import Path
@@ -66,20 +67,58 @@ def _write_fake_repo_root(root: Path) -> None:
     )
 
 
+def _installed_apps_block(content: str) -> str:
+    marker = "INSTALLED_APPS = ["
+    start = content.find(marker)
+    open_bracket = start + len(marker) - 1
+    close_bracket = content.find("]", open_bracket)
+    return content[open_bracket : close_bracket + 1]
+
+
+def _project_app_entries(block: str) -> list[str]:
+    return [
+        line.strip()
+        for line in block.splitlines()
+        if line.strip().startswith('"')
+        and not line.strip().startswith('"django.contrib')
+    ]
+
+
+def _assert_installed_app_in_settings(
+    content: str,
+    app_label: str,
+    *,
+    last_among_project_apps: bool = False,
+) -> None:
+    ast.parse(content)
+    block = _installed_apps_block(content)
+    quoted = f'"{app_label}"'
+    assert quoted in block
+    assert block.index(quoted) < block.rindex("]")
+    assert block.rstrip().endswith("]")
+    if last_among_project_apps:
+        assert _project_app_entries(block)[-1] == f'"{app_label}",'
+
+
 def test_insert_installed_app_alphabetically() -> None:
     updated = insert_installed_app(_SETTINGS_FIXTURE, "reddit_activity_tracker")
-    lines = [
-        line.strip()
-        for line in updated.splitlines()
-        if line.strip().startswith('"') and not line.strip().startswith('"django.contrib')
-    ]
-    assert lines == [
+    block = _installed_apps_block(updated)
+    assert _project_app_entries(block) == [
         '"core",',
         '"boost_collector_runner",',
         '"github_activity_tracker",',
         '"reddit_activity_tracker",',
         '"wg21_paper_tracker",',
     ]
+    _assert_installed_app_in_settings(updated, "reddit_activity_tracker")
+
+
+def test_insert_installed_app_inserts_before_closing_bracket() -> None:
+    """App labels that sort after all project apps must stay inside INSTALLED_APPS."""
+    updated = insert_installed_app(_SETTINGS_FIXTURE, "zz_last_app")
+    _assert_installed_app_in_settings(
+        updated, "zz_last_app", last_among_project_apps=True
+    )
 
 
 def test_insert_installed_app_idempotent() -> None:
@@ -96,7 +135,9 @@ def test_append_schedule_entry_commented_block() -> None:
 
 
 def test_append_importlinter_root_package_alphabetical() -> None:
-    updated = append_importlinter_root_package(_IMPORTLINTER_FIXTURE, "reddit_activity_tracker")
+    updated = append_importlinter_root_package(
+        _IMPORTLINTER_FIXTURE, "reddit_activity_tracker"
+    )
     packages = [
         line.strip()
         for line in updated.splitlines()
@@ -113,7 +154,10 @@ def test_append_cross_app_inventory_row() -> None:
     updated = append_cross_app_inventory_row(
         _CROSS_APP_FIXTURE, "reddit_activity_tracker"
     )
-    assert "| `reddit_activity_tracker` | Collector stub (customize role) | Yes |" in updated
+    assert (
+        "| `reddit_activity_tracker` | Collector stub (customize role) | Yes |"
+        in updated
+    )
     idx_github = updated.index("`github_activity_tracker`")
     idx_reddit = updated.index("`reddit_activity_tracker`")
     idx_wg21 = updated.index("`wg21_paper_tracker`")
@@ -122,9 +166,7 @@ def test_append_cross_app_inventory_row() -> None:
 
 def test_register_collector_project_files_dry_run(tmp_path: Path) -> None:
     _write_fake_repo_root(tmp_path)
-    lines = register_collector_project_files(
-        tmp_path, "zzregistrydemo", dry_run=True
-    )
+    lines = register_collector_project_files(tmp_path, "zzregistrydemo", dry_run=True)
     assert any("Would update config/settings.py" in line for line in lines)
     assert '"zzregistrydemo"' not in (tmp_path / "config" / "settings.py").read_text(
         encoding="utf-8"
@@ -242,7 +284,7 @@ def test_startcollector_dry_run_previews_registration(
     text = out.getvalue()
     assert "project registration (preview)" in text
     assert "Would update config/settings.py" in text
-    assert "Would run: python manage.py makemigrations" in text
+    assert "migrations/0001_initial.py" in text
     assert not (tmp_path / label).exists()
 
 
@@ -252,21 +294,23 @@ def test_startcollector_registers_at_repo_root(
     _write_fake_repo_root(tmp_path)
     monkeypatch.setattr(settings, "BASE_DIR", tmp_path)
     label = "zzrootregcollect"
-    with patch("core.management.commands.startcollector.call_command") as mock_call:
-        call_command("startcollector", label, "--path", str(tmp_path))
-        mock_call.assert_called_once_with("makemigrations", label, verbosity=1)
+    call_command("startcollector", label, "--path", str(tmp_path))
 
     settings_text = (tmp_path / "config" / "settings.py").read_text(encoding="utf-8")
-    schedule_text = (
-        tmp_path / "config" / "boost_collector_schedule.yaml"
-    ).read_text(encoding="utf-8")
+    schedule_text = (tmp_path / "config" / "boost_collector_schedule.yaml").read_text(
+        encoding="utf-8"
+    )
     importlinter_text = (tmp_path / ".importlinter").read_text(encoding="utf-8")
-    cross_app_text = (
-        tmp_path / "docs" / "cross-app-dependencies.md"
-    ).read_text(encoding="utf-8")
+    cross_app_text = (tmp_path / "docs" / "cross-app-dependencies.md").read_text(
+        encoding="utf-8"
+    )
 
-    assert f'"{label}"' in settings_text
+    # zzrootregcollect sorts after every fixture app — exercises last-slot insertion.
+    _assert_installed_app_in_settings(
+        settings_text, label, last_among_project_apps=True
+    )
     assert f"startcollector: {label}" in schedule_text
     assert label in importlinter_text
     assert f"| `{label}` |" in cross_app_text
+    assert (tmp_path / label / "migrations" / "0001_initial.py").is_file()
     shutil.rmtree(tmp_path / label)
