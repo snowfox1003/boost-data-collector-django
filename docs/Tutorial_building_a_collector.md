@@ -21,7 +21,7 @@ After this tutorial you can:
 - Scaffold a collector app with `python manage.py startcollector <app_label>`
 - Explain why **`validate_config`**, **`collect`**, and **`sync_pinecone`** exist and who calls them
 - Run and test the collector locally with pytest (PostgreSQL)
-- Register the command in **`config/boost_collector_schedule.yaml`** with **`enabled: false`** until ready
+- Register the command in **`config/boost_collector_schedule.yaml`** — `startcollector` appends a commented stub; you move it to the right group and enable when ready
 - Know what happens when Celery Beat and deployment run your collector
 
 ---
@@ -37,11 +37,13 @@ python manage.py startcollector heartbeat_demo --dry-run
 python manage.py startcollector heartbeat_demo
 ```
 
-`--dry-run` prints planned paths and a preview of `schedule_snippet.yaml` without writing files.
+`--dry-run` prints planned paths, project registration previews, and a preview of `schedule_snippet.yaml` without writing files.
 
-### What gets generated (14 files)
+Use **`--no-register`** to scaffold the app package only (no edits to `config/settings.py`, schedule YAML, `.importlinter`, or cross-app docs).
 
-`startcollector` writes a full Django app package. There is no separate template directory; file bodies are built in [core/management/commands/startcollector.py](../core/management/commands/startcollector.py).
+### What gets generated (14 app files + project registration)
+
+`startcollector` writes a full Django app package. When run from the **repository root** (default `--path .`), it also updates four project files via [collector_registry.py](../core/management/collector_registry.py). Registration is skipped when `--path` points elsewhere (for example pytest scratch dirs or CI) or when **`--no-register`** is set. File bodies are built in [startcollector.py](../core/management/commands/startcollector.py).
 
 ```text
 heartbeat_demo/
@@ -67,7 +69,7 @@ heartbeat_demo/
 
 ```mermaid
 flowchart TB
-  subgraph scaffold [startcollector output]
+  subgraph scaffold [startcollector app package]
     models[models.py RunState stub]
     services[services.py record_run]
     runCmd["management/commands/run_heartbeat_demo.py"]
@@ -75,12 +77,18 @@ flowchart TB
     snippet[schedule_snippet.yaml]
     test[tests/test_run_heartbeat_demo_command.py]
   end
-  subgraph manual [You do manually]
+  subgraph register [Auto at repo root]
     installed[INSTALLED_APPS]
-    yaml[boost_collector_schedule.yaml]
-    migrate[migrate]
+    yaml[boost_collector_schedule.yaml commented EOF]
+    importlinter[.importlinter root_packages]
+    crossapp[cross-app-dependencies inventory stub]
   end
-  scaffold --> manual
+  subgraph manual [You do manually]
+    migrate[migrate]
+    scheduleMove[Move schedule to correct group]
+    customize[Customize docs and domain logic]
+  end
+  scaffold --> register --> manual
 ```
 
 | File | Purpose |
@@ -90,10 +98,12 @@ flowchart TB
 | `services.py` | Stub `record_run()` — **all DB writes** for this app should stay here |
 | `management/commands/run_heartbeat_demo.py` | `HeartbeatDemoCollector` + `Command(BaseCollectorCommand)` |
 | `migrations/0001_initial.py` | Hand-written initial migration matching the stub model |
-| `schedule_snippet.yaml` | Commented YAML to paste into the shared schedule file |
+| `schedule_snippet.yaml` | Commented YAML reference (also appended to shared schedule file at repo root) |
 | `tests/test_run_heartbeat_demo_command.py` | Smoke test via `call_command` |
 
-**Not generated:** `collectors.py`, `INSTALLED_APPS` entry, or edits to `config/boost_collector_schedule.yaml`.
+**Auto-registered at repo root:** `INSTALLED_APPS` entry in [config/settings.py](../config/settings.py), commented schedule block at EOF of [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml), `root_packages` entry in [`.importlinter`](../.importlinter), and stub inventory row in [cross-app-dependencies.md](cross-app-dependencies.md).
+
+**Not generated:** `collectors.py` (split from `run_*.py` when the command grows — §2.5).
 
 ### Design decisions (why the scaffold looks like this)
 
@@ -102,15 +112,19 @@ flowchart TB
 | One Django app per collector domain | Shared PostgreSQL, isolated `services.py`, clear ownership in CODEOWNERS |
 | Command name `run_{app_label}` | Must match YAML `command:` and what Celery/`call_command` invoke |
 | Stub run-state model + `record_run()` | Proves migrations and the service-layer write path before real domain logic |
-| Hand-written `0001_initial.py` | Matches `models.py` on day one without requiring `makemigrations` first |
-| `schedule_snippet.yaml` not auto-merged | Schedule changes are reviewed in PR; avoids Beat calling a missing command |
+| Hand-written `0001_initial.py` | Migration matches stub `models.py` on day one; run **`makemigrations`** yourself only after you change models |
+| Commented schedule block at EOF | Schedule placement is reviewed in PR; avoids Beat calling a command in the wrong group |
 | Collector class inside `run_*.py` initially | Smallest first PR; split into `collectors.py` when the command grows (§2.5) |
 
-### Manual steps after scaffold
+### Steps after scaffold
 
-1. Add **`"heartbeat_demo"`** to `INSTALLED_APPS` in [config/settings.py](../config/settings.py) (keep **alphabetical** order with other project apps).
-2. Run **`python manage.py migrate`**.
-3. Run **`python manage.py run_heartbeat_demo`** — expect success output and one row in `heartbeat_demo_heartbeatdemorunstate` (table name from Django’s model naming).
+When run from the repo root, **`startcollector` already registered the app**. You still need to:
+
+1. Run **`python manage.py migrate`**.
+2. Run **`python manage.py run_heartbeat_demo`** — expect success output and one row in `heartbeat_demo_heartbeatdemorunstate` (table name from Django’s model naming).
+3. Review the commented schedule block at the end of [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml) — move it under the correct **`groups.<name>.tasks`**, uncomment, and keep **`enabled: false`** until production-ready (§5).
+4. Customize the stub row for your app in [cross-app-dependencies.md](cross-app-dependencies.md); expand §1–§3 if you add cross-app imports or FKs.
+5. When `services.py` grows, run **`python scripts/generate_service_docs.py`** and commit `docs/service_api/` updates.
 
 The generated collector follows this shape (abbreviated):
 
@@ -137,11 +151,7 @@ class Command(BaseCollectorCommand):
 
 Note: the scaffold stores `source_key` on the collector but does **not** wire `--source-key` on the command until you add it (§3.1). That is intentional practice for your first edit.
 
-Further manual steps (from [CONTRIBUTING.md](../CONTRIBUTING.md#creating-a-new-collector)):
-
-4. Merge `schedule_snippet.yaml` into [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml) (§5).
-5. If the app imports other apps or adds cross-app FKs, update [cross-app-dependencies.md](cross-app-dependencies.md).
-6. When `services.py` grows, run **`python scripts/generate_service_docs.py`** and commit `docs/service_api/` updates.
+If you used **`--path`** outside the repo root or **`--no-register`**, follow the manual registration list printed by the command (`INSTALLED_APPS`, schedule, `.importlinter`, cross-app docs, then **`migrate`**).
 
 ---
 
@@ -377,9 +387,9 @@ Scheduling is **YAML-driven** — no Python change to add a Beat entry. Full ref
 
 ### Author checklist
 
-1. Open **`heartbeat_demo/schedule_snippet.yaml`** from the scaffold.
-2. Paste a task under the right **`groups.<name>.tasks`** in [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml) (pick a group that matches runtime dependencies, e.g. `github` for GitHub-related work).
-3. Use **`enabled: false`** until the app is on `develop`/`main`, in `INSTALLED_APPS`, and migrated.
+1. Find the commented **`startcollector: heartbeat_demo`** block at the end of [config/boost_collector_schedule.yaml](../config/boost_collector_schedule.yaml) (appended automatically when you scaffold at repo root).
+2. Move the task under the right **`groups.<name>.tasks`** (pick a group that matches runtime dependencies, e.g. `github` for GitHub-related work) and uncomment the lines.
+3. Keep **`enabled: false`** until the app is on `develop`/`main` and migrated.
 4. After merge, flip **`enabled: true`** per team policy (same PR or follow-up).
 
 Example entry:
@@ -452,15 +462,14 @@ Production-scale references:
 
 ### Copy-paste checklist
 
-- [ ] `python manage.py startcollector <app_label>` from repo root
-- [ ] Add app to `INSTALLED_APPS` (alphabetical)
+- [ ] `python manage.py startcollector <app_label>` from repo root (registers project files automatically)
 - [ ] `python manage.py migrate`
 - [ ] Implement real logic in `services.py`; keep `collect()` thin
 - [ ] Subclass `AbstractCollector` + `BaseCollectorCommand` (or split `collectors.py` when large)
 - [ ] `validate_config` for fast checks; `CommandError` for bad config
 - [ ] Tests: service + command (+ collector unit tests with mocks)
-- [ ] Paste schedule entry with `enabled: false`; merge to `config/boost_collector_schedule.yaml`
-- [ ] Update `cross-app-dependencies.md` if importing other apps
+- [ ] Move commented schedule block to the correct group; set `enabled: false` until ready
+- [ ] Customize `cross-app-dependencies.md` stub; expand if importing other apps
 - [ ] `.env.example` + ops docs for new secrets
 - [ ] `generate_service_docs.py` when adding public service functions
 - [ ] `uv run pytest` and `uv run pyright` before PR

@@ -2,20 +2,25 @@
 
 **Tutorial (start here):** [Tutorial_building_a_collector.md](Tutorial_building_a_collector.md) — end-to-end walkthrough with design decisions for scaffolding, `AbstractCollector` hooks, testing, Celery scheduling, and deployment.
 
-**Preferred:** scaffold a new app from the repo root with **`python manage.py startcollector <app_label>`** (see [CONTRIBUTING.md — Creating a new collector](../CONTRIBUTING.md#creating-a-new-collector)), then follow the manual steps there (`INSTALLED_APPS`, YAML schedule, migrations, **cross-app-dependencies.md**).
+**Preferred:** scaffold a new app from the **repository root** with **`python manage.py startcollector <app_label>`** (see [Tutorial §1](Tutorial_building_a_collector.md#1-scaffolding-with-startcollector) and [CONTRIBUTING.md — Creating a new collector](../CONTRIBUTING.md#creating-a-new-collector)). When `--path` is the repo root (default), project registration runs automatically via [collector_registry.py](../core/management/collector_registry.py): **`INSTALLED_APPS`**, a commented schedule stub at EOF of **`config/boost_collector_schedule.yaml`**, **`.importlinter`**, and a stub row in **`docs/cross-app-dependencies.md`**. You still **`migrate`**, move/uncomment the schedule block, and customize cross-app docs.
+
+Use **`--no-register`** or **`--path`** outside the repo root to scaffold the app package only (CI and isolated tests). Registration is implemented in [startcollector.py](../core/management/commands/startcollector.py).
 
 **Layout note:** `startcollector` places the collector class and `BaseCollectorCommand` in **`management/commands/run_<app>.py`**. Split into a separate **`collectors.py`** when the command grows (see the tutorial §2.5). Section 4 below uses a `collectors.py` layout as an alternate copy-paste skeleton, not the default scaffold output.
 
-If you used **`startcollector`**, section 1 below is mostly satisfied (you still add the app to **`INSTALLED_APPS`**). Otherwise, this checklist assumes you already have a Django app (or are creating one) with a `management/commands/run_<your_app>.py` entry point. For a high-level diagram and GitHub pipeline notes, see the **Architecture** section in [Development_guideline.md](Development_guideline.md).
+**`startcollector` at repo root:** sections 1–2 below are already handled — do not add **`INSTALLED_APPS`** again or paste a new YAML task (move the commented EOF block instead). **Manual / copy-paste path:** follow sections 1–2 and §4 wire-up. For a high-level diagram and GitHub pipeline notes, see the **Architecture** section in [Development_guideline.md](Development_guideline.md).
 
 ## 1. App and command
 
-1. Add the app to `INSTALLED_APPS` in `config/settings.py` if it is new.
-2. Implement `management/commands/run_<name>.py` so it exits with status **0** on success and non-zero on failure (so `run_scheduled_collectors` can detect failures).
+1. **New app — manual or `--no-register`:** add the app to `INSTALLED_APPS` in `config/settings.py` (alphabetical among project apps).
+2. **New app — `startcollector` at repo root:** skip this step; `INSTALLED_APPS` is updated on disk (open a new shell or re-run commands if Django was already running).
+3. Implement `management/commands/run_<name>.py` so it exits with status **0** on success and non-zero on failure (so `run_scheduled_collectors` can detect failures).
 
 ## 2. Register the command in YAML
 
-Add a task under the right group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). That file is **committed** to the repository; [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) only points to it. Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
+**`startcollector` at repo root:** a commented block is appended to `config/boost_collector_schedule.yaml`. Move it under the right `groups.<name>.tasks`, uncomment, and keep **`enabled: false`** until the app is production-ready (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)).
+
+**Manual / copy-paste:** add a task under the right group in `config/boost_collector_schedule.yaml` (see [Workflow.md](Workflow.md#2-boost-collector-runner-and-yaml-schedule)). That file is **committed** to the repository; [`config/boost_collector_schedule.yaml.example`](../config/boost_collector_schedule.yaml.example) only points to it. Celery Beat runs **`boost_collector_runner.tasks.run_scheduled_collectors_task`** per group and schedule.
 
 ## 3. Shared abstractions (recommended)
 
@@ -238,6 +243,8 @@ groups:
 ```
 
 ### Wire-up after copy-paste
+
+This subsection is for the **manual skeleton** in §4 only. **`startcollector`** at repo root writes `migrations/0001_initial.py` and performs project registration — see [CONTRIBUTING.md](../CONTRIBUTING.md#creating-a-new-collector).
 
 1. Register **`"my_skeleton_tracker.apps.MySkeletonTrackerConfig"`** in **`INSTALLED_APPS`** in `config/settings.py` (or the short app label if your Django version auto-discovers `apps.py`; the full path is unambiguous).
 2. Run **`python manage.py makemigrations my_skeleton_tracker`** then **`python manage.py migrate`**.
