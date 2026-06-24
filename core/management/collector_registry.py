@@ -214,8 +214,14 @@ def register_collector_project_files(
     pending_writes: list[tuple[Path, str, str]] = []
     for target, path in paths:
         original = path.read_text(encoding="utf-8")
-        updated = target.apply(original, app_label)
         rel = target.relative_path
+        try:
+            updated = target.apply(original, app_label)
+        except ValueError as exc:
+            raise CommandError(
+                f"Failed to update {rel}: {exc}. "
+                f"Registration aborted before any edits; app scaffold may still exist on disk."
+            ) from exc
         if updated == original:
             log.append(f"Skipped {rel} ({app_label} already present)")
         elif dry_run:

@@ -186,6 +186,18 @@ def test_register_collector_project_files_aborts_before_writes_if_target_missing
     ) == settings_before
 
 
+def test_register_collector_project_files_apply_error_is_command_error(
+    tmp_path: Path,
+) -> None:
+    _write_fake_repo_root(tmp_path)
+    (tmp_path / "config" / "settings.py").write_text(
+        "# no INSTALLED_APPS block\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CommandError, match=r"Failed to update config/settings\.py"):
+        register_collector_project_files(tmp_path, "zzregistrydemo", dry_run=False)
+
+
 def test_startcollector_dry_run_does_not_create_app(tmp_path: Path) -> None:
     out = StringIO()
     label = "zzdryruncollect"
