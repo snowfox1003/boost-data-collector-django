@@ -1,5 +1,7 @@
 """
 Slack channel operations: list channels, join channel, run join-check (with allow/block list).
+
+Concurrency topology and annotation conventions: :doc:`docs/CONCURRENCY`.
 """
 
 from __future__ import annotations
@@ -7,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Any, Optional
+from typing import Any, Optional, final
 
 from core.operations.slack_ops.client import SlackAPIClient
 from core.operations.slack_ops.tokens import get_slack_client
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_JOIN_INTERVAL_MINUTES = 15
 
 
+@final
 class _ChannelJoinCoordinator:
     """Background channel-join scheduler state.
 
@@ -153,6 +156,12 @@ def run_channel_join_check(
     """
     Find public channels the bot is not in, apply allow/block list policy, and join them.
     Returns dict with keys: joined, failed, skipped_policy, error (optional).
+
+    Note:
+        **Thread safety:** Safe to call from any thread. Overlapping runs are only
+        prevented when invoked via :func:`start_channel_join_background` (try-acquire
+        on :class:`_ChannelJoinCoordinator`). Prefer the background scheduler for
+        periodic join checks.
     """
     if client is None:
         token = (bot_token or "").strip() or None
@@ -236,7 +245,13 @@ def run_channel_join_check(
 def start_channel_join_background(
     bot_token: Optional[str] = None,
 ) -> threading.Thread:
-    """Start a daemon thread that runs the channel-join check every N minutes."""
+    """Start a daemon thread that runs the channel-join check every N minutes.
+
+    Note:
+        **Thread safety:** Starts a **daemon thread**. At most one join-check runs at
+        a time (**try-acquire** on :class:`_ChannelJoinCoordinator`). Pair with
+        :func:`stop_channel_join_background` to signal shutdown.
+    """
 
     def _run_loop():
         config = _get_channel_join_config()
@@ -262,5 +277,10 @@ def start_channel_join_background(
 
 
 def stop_channel_join_background() -> None:
-    """Signal the background channel-join thread to stop."""
+    """Signal the background channel-join thread to stop.
+
+    Note:
+        **Thread safety:** **Thread-safe** via ``threading.Event`` on
+        :class:`_ChannelJoinCoordinator`.
+    """
     _coordinator.signal_stop()

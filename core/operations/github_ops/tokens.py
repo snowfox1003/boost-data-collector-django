@@ -3,6 +3,8 @@ GitHub token resolution: get token or API client by use case (scraping, push, wr
 
 Scraping tokens use a shared ``itertools.cycle`` for round-robin via
 :class:`_ScrapingTokenRoundRobin`.
+
+Concurrency topology and annotation conventions: :doc:`docs/CONCURRENCY`.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import itertools
 import logging
 import os
 import threading
-from typing import Literal
+from typing import Literal, final
 
 import requests
 from django.conf import settings
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 _GITHUB_TOKEN_USES = ("scraping", "push", "create_pr", "write")
 
 
+@final
 class _ScrapingTokenRoundRobin:
     """Process-global round-robin over GITHUB_TOKENS_SCRAPING.
 
@@ -63,6 +66,12 @@ def get_github_token(
     - push: same as write (GITHUB_TOKEN_WRITE or GITHUB_TOKEN)
     - create_pr: same as write (GITHUB_TOKEN_WRITE or GITHUB_TOKEN)
     - write: GITHUB_TOKEN_WRITE (create PR, issues, comments, git push) or GITHUB_TOKEN
+
+    Note:
+        **Thread safety:** ``use="scraping"`` with multiple configured tokens is
+        **thread-safe** (serialized via :class:`_ScrapingTokenRoundRobin`). Other
+        uses read Django settings / environment; **thread-safe** when settings are
+        not mutated concurrently during reads (typical deployment assumption).
     """
     if use not in _GITHUB_TOKEN_USES:
         raise ValueError(f"Unknown use {use!r}; valid: {', '.join(_GITHUB_TOKEN_USES)}")
@@ -101,6 +110,11 @@ def get_github_client(
 ) -> GitHubAPIClient | None:
     """
     Get a GitHub API client with the token for the given use case.
+
+    Note:
+        **Thread safety:** Inherits :func:`get_github_token` contract. Returns a new
+        client per call; callers must not share one :class:`GitHubAPIClient` across
+        threads unless they provide their own synchronization.
     """
     try:
         token = get_github_token(use=use)
@@ -124,6 +138,11 @@ def validate_github_token_for_use(
         ValueError: Unknown ``use``, missing token (from :func:`get_github_token`),
             rejected credentials (401/403), rate limit while validating, unreachable
             GitHub, or other HTTP/API failures during check.
+
+    Note:
+        **Thread safety:** Safe to call from multiple threads for independent
+        validation runs. Concurrent validation of the same token may hit GitHub
+        rate limits.
     """
     label = "scraping" if use == "scraping" else "write"
     # Resolve token outside get_github_client so ValueError (unknown use, missing token)

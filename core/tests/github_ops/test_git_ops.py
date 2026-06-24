@@ -552,9 +552,15 @@ def test_upload_folder_to_github_calls_create_blob_per_file(tmp_path):
     mock_client.token = "token"
     mock_client.session = mock_session
 
-    with patch(
-        "core.operations.github_ops.git_ops._create_blob_with_retry",
-        side_effect=capture_blob,
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            side_effect=capture_blob,
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
     ):
         result = upload_folder_to_github(
             tmp_path, "owner", "repo", branch="main", client=mock_client
@@ -598,9 +604,16 @@ def test_upload_folder_to_github_retries_on_403_then_succeeds(tmp_path):
     mock_client.token = "token"
     mock_client.session = mock_main_session
 
+    def _session_for_thread(_token: str):
+        import threading
+
+        if threading.current_thread() is threading.main_thread():
+            return mock_main_session
+        return mock_worker_session
+
     with patch(
         "core.operations.github_ops.git_ops._get_worker_session",
-        return_value=mock_worker_session,
+        side_effect=_session_for_thread,
     ):
         with patch("core.operations.github_ops.git_ops.time.sleep"):
             result = upload_folder_to_github(
@@ -627,9 +640,15 @@ def test_upload_folder_to_github_returns_success_with_mock_client(tmp_path):
     mock_client.rest_base_url = "https://api.github.com"
     mock_client.token = "t"
     mock_client.session = mock_session
-    with patch(
-        "core.operations.github_ops.git_ops._create_blob_with_retry",
-        return_value=("f.txt", "blob_sha"),
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            return_value=("f.txt", "blob_sha"),
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
     ):
         result = upload_folder_to_github(
             tmp_path,
@@ -640,6 +659,42 @@ def test_upload_folder_to_github_returns_success_with_mock_client(tmp_path):
         )
     assert result["success"] is True
     assert "Uploaded" in result["message"]
+
+
+def test_upload_folder_to_github_does_not_use_client_session(tmp_path):
+    """upload_folder_to_github uses per-thread store, not shared client.session."""
+    (tmp_path / "f.txt").write_text("data")
+    mock_session = MagicMock()
+    mock_session.get.side_effect = [
+        MagicMock(status_code=200, json=lambda: {"object": {"sha": "c1"}}),
+        MagicMock(status_code=200, json=lambda: {"tree": {"sha": "t1"}}),
+    ]
+    mock_session.post.side_effect = [
+        MagicMock(status_code=201, json=lambda: {"sha": "tree2"}),
+        MagicMock(status_code=201, json=lambda: {"sha": "c2"}),
+    ]
+    mock_session.patch.return_value = MagicMock(status_code=200)
+    mock_client = MagicMock()
+    mock_client.rest_base_url = "https://api.github.com"
+    mock_client.token = "t"
+    mock_client.session = MagicMock()
+
+    with (
+        patch(
+            "core.operations.github_ops.git_ops._create_blob_with_retry",
+            return_value=("f.txt", "blob_sha"),
+        ),
+        patch(
+            "core.operations.github_ops.git_ops._get_worker_session",
+            return_value=mock_session,
+        ),
+    ):
+        result = upload_folder_to_github(tmp_path, "owner", "repo", client=mock_client)
+
+    assert result["success"] is True
+    mock_client.session.get.assert_not_called()
+    mock_client.session.post.assert_not_called()
+    mock_session.get.assert_called()
 
 
 # --- _create_blob_with_retry ---
