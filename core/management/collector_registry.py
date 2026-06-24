@@ -200,29 +200,36 @@ def register_collector_project_files(
     dry_run: bool = False,
 ) -> list[str]:
     """Update project config files for a new collector app. Returns log lines."""
-    log: list[str] = []
-    for target in PROJECT_FILE_TARGETS:
-        path = repo_root / target.relative_path
+    paths = [
+        (target, repo_root / target.relative_path) for target in PROJECT_FILE_TARGETS
+    ]
+    for _target, path in paths:
         if not path.is_file():
             raise CommandError(
                 f"Expected project file missing: {path}. "
-                f"Registration skipped; app scaffold may still exist on disk."
+                f"Registration aborted before any edits; app scaffold may still exist on disk."
             )
+
+    log: list[str] = []
+    pending_writes: list[tuple[Path, str, str]] = []
+    for target, path in paths:
         original = path.read_text(encoding="utf-8")
         updated = target.apply(original, app_label)
         rel = target.relative_path
         if updated == original:
             log.append(f"Skipped {rel} ({app_label} already present)")
-            continue
-        if dry_run:
+        elif dry_run:
             log.append(f"Would update {rel}")
         else:
-            try:
-                path.write_text(updated, encoding="utf-8")
-            except OSError as exc:
-                raise CommandError(
-                    f"Failed to write {path}: {exc}. "
-                    f"App scaffold may exist; finish registration manually."
-                ) from exc
-            log.append(f"Updated {rel}")
+            pending_writes.append((path, rel, updated))
+
+    for path, rel, updated in pending_writes:
+        try:
+            path.write_text(updated, encoding="utf-8")
+        except OSError as exc:
+            raise CommandError(
+                f"Failed to write {path}: {exc}. "
+                f"App scaffold may exist; finish registration manually."
+            ) from exc
+        log.append(f"Updated {rel}")
     return log

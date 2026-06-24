@@ -173,6 +173,19 @@ def test_register_collector_project_files_dry_run(tmp_path: Path) -> None:
     )
 
 
+def test_register_collector_project_files_aborts_before_writes_if_target_missing(
+    tmp_path: Path,
+) -> None:
+    _write_fake_repo_root(tmp_path)
+    (tmp_path / "docs" / "cross-app-dependencies.md").unlink()
+    settings_before = (tmp_path / "config" / "settings.py").read_text(encoding="utf-8")
+    with pytest.raises(CommandError, match="aborted before any edits"):
+        register_collector_project_files(tmp_path, "zzregistrydemo", dry_run=False)
+    assert (tmp_path / "config" / "settings.py").read_text(
+        encoding="utf-8"
+    ) == settings_before
+
+
 def test_startcollector_dry_run_does_not_create_app(tmp_path: Path) -> None:
     out = StringIO()
     label = "zzdryruncollect"
