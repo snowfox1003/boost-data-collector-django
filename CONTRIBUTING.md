@@ -20,15 +20,27 @@ python manage.py startcollector my_platform
 
 - App package `my_platform/` with `apps.py` (`BigAutoField`, correct `name`), `models.py` (stub run-state model), `services.py` (stub `record_run` — all writes for this app should stay in this module per [Service layer](#service-layer-single-place-for-writes) below).
 - `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`**; command subclasses **`BaseCollectorCommand`**.
-- `tests/test_run_my_platform_command.py` — smoke test; it runs only after you register the app (next step).
-- `schedule_snippet.yaml` — commented template to paste into **`config/boost_collector_schedule.yaml`** (see [Workflow.md](docs/Workflow.md)).
+- `tests/test_run_my_platform_command.py` — smoke test (runs after registration).
+- `schedule_snippet.yaml` — commented template; a matching commented block is also appended to **`config/boost_collector_schedule.yaml`** when run from repo root.
+
+**Auto-registered from repo root**
+
+When `--path` is the repository root (default), `startcollector` also:
+
+1. Adds **`"my_platform"`** to **`INSTALLED_APPS`** in `config/settings.py` (alphabetical among project apps).
+2. Appends a **commented** schedule stub to **`config/boost_collector_schedule.yaml`** (move to the right group and uncomment when ready).
+3. Adds **`my_platform`** to **`root_packages`** in **`.importlinter`**.
+4. Adds a stub inventory row in **`docs/cross-app-dependencies.md`**.
+5. Runs **`python manage.py makemigrations my_platform`**.
+
+Use **`--no-register`** or **`--path`** outside the repo root to scaffold the app package only (CI and isolated tests use this).
 
 **What you must do manually**
 
-1. Add **`"my_platform"`** to **`INSTALLED_APPS`** in `config/settings.py` (keep alphabetical order with the other project apps).
-2. Merge the task from `schedule_snippet.yaml` into **`config/boost_collector_schedule.yaml`** under the right `groups.<name>.tasks` entry (see [Workflow.md](docs/Workflow.md)).
-3. Run **`python manage.py migrate`** so the new tables exist.
-4. When the app imports other apps or defines cross-app foreign keys, update **[cross-app-dependencies.md](docs/cross-app-dependencies.md)** (add or adjust the row for your app).
+1. Run **`python manage.py migrate`** so the new tables exist.
+2. Move and uncomment the schedule block under the right **`groups.<name>.tasks`** entry; keep **`enabled: false`** until production-ready (see [Workflow.md](docs/Workflow.md)).
+3. Customize the stub row in **[cross-app-dependencies.md](docs/cross-app-dependencies.md)**; expand §1–§3 when the app imports other apps or defines cross-app foreign keys.
+4. Implement real domain logic in `models.py`, `services.py`, and `collect()`.
 5. As `services.py` grows, run **`python scripts/generate_service_docs.py`** and commit the generated `docs/service_api/` updates when you add public service functions.
 
 **Docs and contracts**
