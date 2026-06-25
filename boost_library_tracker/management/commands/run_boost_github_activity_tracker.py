@@ -14,6 +14,7 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import requests
 from django.conf import settings
@@ -23,7 +24,10 @@ from django.core.management.base import CommandError
 from core.collectors.base_collector import AbstractCollector
 from core.collectors.command_base import BaseCollectorCommand
 from core.utils.datetime_parsing import parse_iso_datetime
-from cppa_user_tracker.services import get_or_create_owner_account
+from cppa_user_tracker.services import (
+    GitHubClientProtocol,
+    get_or_create_owner_account,
+)
 from github_activity_tracker.services import (
     ensure_repository_owner,
     get_or_create_repository,
@@ -40,7 +44,11 @@ from core.operations.github_ops import (
     upload_folder_to_github,
 )
 from core.operations.github_ops.tokens import validate_github_token_for_use
-from core.operations.github_ops.client import ConnectionException, RateLimitException
+from core.operations.github_ops.client import (
+    ConnectionException,
+    GitHubAPIClient,
+    RateLimitException,
+)
 from core.operations.md_ops.github_export import (
     detect_renames_from_dirs,
     write_md_files,
@@ -52,6 +60,15 @@ MAIN_OWNER = "boostorg"
 MAIN_REPO = "boost"
 DEFAULT_MARKDOWN_REPO_BRANCH = "master"
 PINECONE_NAMESPACE_ENV_KEY = "BOOST_GITHUB_PINECONE_NAMESPACE"
+
+
+def _require_github_client() -> GitHubAPIClient:
+    client = get_github_client(use="scraping")
+    if client is None:
+        raise RuntimeError(
+            "GitHub client unavailable for boost_github_activity_tracker"
+        )
+    return client
 
 
 def _parse_gitmodules_owner_repo(
@@ -195,10 +212,11 @@ def task_fetch_github_activity(
     if from_repo:
         logger.info("from repo %s (and all after)", from_repo)
 
-    client = get_github_client(use="scraping")
+    client = _require_github_client()
+    gh_client = cast(GitHubClientProtocol, client)
 
     try:
-        owner_account = get_or_create_owner_account(client, MAIN_OWNER)
+        owner_account = get_or_create_owner_account(gh_client, MAIN_OWNER)
     except (ConnectionException, RateLimitException) as e:
         logger.exception("Failed to get owner account %s: %s", MAIN_OWNER, e)
         raise
@@ -267,7 +285,7 @@ def task_fetch_github_activity(
         try:
             logger.debug("Syncing %s/%s", own, repo_name)
             if own not in owner_accounts:
-                owner_accounts[own] = get_or_create_owner_account(client, own)
+                owner_accounts[own] = get_or_create_owner_account(gh_client, own)
             acc = owner_accounts[own]
             repo, _ = get_or_create_repository(acc, repo_name)
             ensure_repository_owner(repo, acc)

@@ -3,7 +3,12 @@ Models per docs/Schema.md section 7: WG21 Papers Tracker.
 References cppa_user_tracker.WG21PaperAuthorProfile (section 1) as author.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
 
 
 class WG21Mailing(models.Model):
@@ -13,6 +18,9 @@ class WG21Mailing(models.Model):
     title = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        id: int
 
     class Meta:
         ordering = ["-mailing_date"]
@@ -40,6 +48,10 @@ class WG21Paper(models.Model):
     is_downloaded = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        mailing_id: int
+        authors: Manager["WG21PaperAuthor"]
 
     class Meta:
         unique_together = [["paper_id", "year"]]

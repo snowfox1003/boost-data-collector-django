@@ -15,7 +15,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Optional machine-specific Django overrides (config/local_settings.py).
 try:
-    from . import local_settings as _local_settings
+    from . import (
+        local_settings as _local_settings,  # pyright: ignore[reportAttributeAccessIssue]
+    )
 except ModuleNotFoundError as exc:
     if exc.name not in {"config.local_settings", "local_settings"}:
         raise

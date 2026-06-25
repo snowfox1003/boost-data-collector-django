@@ -91,7 +91,7 @@ def submission_to_dict(submission: RedditSubmission) -> dict:
     return {
         "reddit_submission_id": submission.reddit_submission_id,
         "subreddit": submission.subreddit,
-        "user": submission.user.username if submission.user_id else None,
+        "user": submission.user.username if submission.user else None,
         "title": submission.title,
         "selftext": submission.selftext,
         "selftext_html": submission.selftext_html,
@@ -108,7 +108,7 @@ def comment_to_dict(comment: RedditComment) -> dict:
     return {
         "reddit_comment_id": comment.reddit_comment_id,
         "submission_id": comment.submission.reddit_submission_id,
-        "user": comment.user.username if comment.user_id else None,
+        "user": comment.user.username if comment.user else None,
         "parent_id": comment.parent_id,
         "body": comment.body,
         "url": comment.url,

@@ -12,9 +12,15 @@ from django.db import models
 class MailingListName(models.TextChoices):
     """Boost mailing list names; values match the list address used in API URLs (fetcher.BOOST_LIST_URLS)."""
 
-    BOOST_ANNOUNCE = "boost-announce@lists.boost.org", "Boost Announce"
-    BOOST_USERS = "boost-users@lists.boost.org", "Boost Users"
-    BOOST = "boost@lists.boost.org", "Boost"
+    BOOST_ANNOUNCE = (
+        "boost-announce@lists.boost.org",
+        "Boost Announce",
+    )  # pyright: ignore[reportCallIssue]
+    BOOST_USERS = (
+        "boost-users@lists.boost.org",
+        "Boost Users",
+    )  # pyright: ignore[reportCallIssue]
+    BOOST = "boost@lists.boost.org", "Boost"  # pyright: ignore[reportCallIssue]
 
 
 class MailingListMessage(models.Model):

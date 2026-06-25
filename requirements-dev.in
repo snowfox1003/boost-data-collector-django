@@ -16,3 +16,5 @@ responses>=0.24,<1
 Faker>=20.0,<38
 pyright>=1.1.350,<2
 import-linter>=2.1,<3
+httpx>=0.27,<1
+setuptools-scm>=8,<10

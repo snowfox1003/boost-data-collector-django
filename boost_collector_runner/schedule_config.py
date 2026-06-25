@@ -22,6 +22,7 @@ warning and returns an empty Beat schedule.
 import logging
 import calendar
 from pathlib import Path
+from typing import Any
 
 import yaml
 from django.core.exceptions import ImproperlyConfigured
@@ -165,7 +166,10 @@ def iter_beat_schedule_entry_keys(data):
         if schedule_kind == "interval":
             yield f"boost-collector-interval-{interval_minutes}min"
         elif schedule_kind == DEFAULT_GROUP_BATCH_SCHEDULE_KIND:
-            yield f"boost-collector-group-{group_id}-{time_str.replace(':', '-')}"
+            if time_str is None:
+                continue
+            time_label = time_str.replace(":", "-")
+            yield f"boost-collector-group-{group_id}-{time_label}"
 
 
 def _normalize_day_of_week(val):
@@ -408,6 +412,8 @@ def get_tasks_for_schedule(
     if schedule_kind == "monthly" and day_of_month is None:
         raise ValueError("day_of_month required for schedule_kind='monthly'")
     if schedule_kind == "monthly":
+        if day_of_month is None:
+            raise ValueError("day_of_month required for schedule_kind='monthly'")
         try:
             day_of_month = int(day_of_month)
         except (TypeError, ValueError):
@@ -417,6 +423,8 @@ def get_tasks_for_schedule(
     if schedule_kind == "interval" and interval_minutes is None:
         raise ValueError("interval_minutes required for schedule_kind='interval'")
     if schedule_kind == "interval":
+        if interval_minutes is None:
+            raise ValueError("interval_minutes required for schedule_kind='interval'")
         try:
             interval_minutes_int = int(interval_minutes)
         except (TypeError, ValueError):
@@ -519,25 +527,29 @@ def get_beat_schedule(
             interval_minutes,
             group_id,
         ) = row
-        kwargs = {"schedule_kind": schedule_kind}
+        kwargs: dict[str, Any] = {"schedule_kind": schedule_kind}
         if interval_minutes is not None:
             kwargs["interval_minutes"] = interval_minutes
         if group_id is not None:
             kwargs["group_id"] = group_id
 
         if schedule_kind == "interval":
+            if interval_minutes is None:
+                continue
             # Interval entries are global (no group_id); one Beat entry per interval_minutes.
             key = f"boost-collector-interval-{interval_minutes}min"
             schedule[key] = {
                 "task": "boost_collector_runner.tasks.run_scheduled_collectors_task",
                 "schedule": celery_schedule(
-                    run_every=timedelta(minutes=interval_minutes)
+                    run_every=timedelta(minutes=int(interval_minutes))
                 ),
                 "kwargs": kwargs,
             }
         elif schedule_kind == DEFAULT_GROUP_BATCH_SCHEDULE_KIND:
+            if time_str is None:
+                continue
             h, m = _parse_time(time_str)
-            key = f"boost-collector-group-{group_id}-{time_str.replace(':', '-')}"
+            key = f"boost-collector-group-{group_id}-{(time_str).replace(':', '-')}"
             schedule[key] = {
                 "task": "boost_collector_runner.tasks.run_scheduled_collectors_task",
                 "schedule": crontab(hour=h, minute=m),

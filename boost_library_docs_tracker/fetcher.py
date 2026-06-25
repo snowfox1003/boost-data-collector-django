@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
+from core.utils.text_processing import attr_str
 from .workspace import get_extract_dir
 from .html_to_md import convert_html_to_markdown  # noqa: F401
 
@@ -244,7 +245,7 @@ def walk_library_html(
         # Enqueue in-scope links
         soup = BeautifulSoup(html, "lxml")
         for a in soup.find_all("a", href=True):
-            href: str = a["href"].split("#")[0].strip()
+            href = attr_str(a["href"]).split("#")[0].strip()
             if not href or href.startswith(("http://", "https://", "mailto:")):
                 continue
             if not href.endswith(".html") and not href.endswith(".htm"):
@@ -329,7 +330,7 @@ def crawl_library_pages(
             )
         else:
             for a in soup.find_all("a", href=True):
-                href: str = a["href"]
+                href = attr_str(a["href"])
                 abs_url = urljoin(final_url, href)
                 # Strip fragment
                 abs_url = abs_url.split("#")[0]

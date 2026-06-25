@@ -54,7 +54,7 @@ class BoostUsageDashboardAnalyzer:
         self.version_name_list = [
             v.version.replace("boost-", "") for v in self.version_info
         ]
-        self.version_by_id = {v.id: v for v in self.version_info}
+        self.version_by_id = {v.pk: v for v in self.version_info}
 
         self.repo_info: list[dict[str, Any]] = []
         self.repo_info_dict: dict[str, dict[str, Any]] = {}
@@ -95,7 +95,7 @@ class BoostUsageDashboardAnalyzer:
             owner = repo.owner_account.username or ""
             full_name = f"{owner}/{repo.repo_name}" if owner else repo.repo_name
             row = {
-                "id": repo.id,
+                "id": repo.pk,
                 "repo_name": full_name,
                 "affect_from_boost": bool(ext_repo.is_boost_used),
                 "stars": repo.stars or 0,
@@ -122,7 +122,7 @@ class BoostUsageDashboardAnalyzer:
 
         # libs = BoostLibrary.objects.select_related("repo").all().order_by("name")  # pylint: disable=no-member
 
-        latest_version_id = self.version_info[-1].id if self.version_info else None
+        latest_version_id = self.version_info[-1].pk if self.version_info else None
         libs_qs = BoostLibrary.objects.select_related(
             "repo"
         )  # pylint: disable=no-member
@@ -154,9 +154,9 @@ class BoostUsageDashboardAnalyzer:
 
         for lib in libs:
             lib_data: dict[str, Any] = {
-                "id": lib.id,
+                "id": lib.pk,
                 "name": lib.name,
-                "created_version": created_versions.get(lib.id, ""),
+                "created_version": created_versions.get(lib.pk, ""),
                 "last_updated_version": "",
                 "removed_version": "",
                 "total_usage": 0,
@@ -169,7 +169,7 @@ class BoostUsageDashboardAnalyzer:
                 "repo_count": 0,
                 "earliest_commit": "",
                 "latest_commit": "",
-                "description": desc_map.get(lib.id, ""),
+                "description": desc_map.get(lib.pk, ""),
                 "used_headers": {},
             }
             lib_data.update(by_file_usage.get(lib.name, {}))

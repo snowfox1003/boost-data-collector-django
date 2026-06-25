@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def get_or_create_mailing_list_message(
     sender_profile_id: int,
     msg_id: str,
-    sent_at: datetime,
+    sent_at: datetime | None,
     parent_id: str = "",
     thread_id: str = "",
     subject: str = "",

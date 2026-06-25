@@ -4,11 +4,19 @@ import pytest
 
 from core.utils.text_processing import (
     SLACK_GREETING_WORDS,
+    attr_str,
     clean_text,
     filter_sentence,
     truncate_content,
     validate_content_length,
 )
+
+
+def test_attr_str():
+    assert attr_str(None) == ""
+    assert attr_str([]) == ""
+    assert attr_str(["/a", "/b"]) == "/a"
+    assert attr_str("/path") == "/path"
 
 
 def test_clean_text_empty():

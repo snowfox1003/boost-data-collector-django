@@ -3,7 +3,12 @@ Models per docs/Schema.md section 10: Boost Library Docs Tracker.
 References boost_library_tracker.BoostLibraryVersion and BoostVersion (cross-app FK, read-only from here).
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
 
 
 class BoostDocContent(models.Model):
@@ -43,6 +48,11 @@ class BoostDocContent(models.Model):
     scraped_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
+    if TYPE_CHECKING:
+        first_version_id: int | None
+        last_version_id: int | None
+        library_relations: Manager["BoostLibraryDocumentation"]
+
     class Meta:
         db_table = "boost_library_docs_tracker_boostdoccontent"
         ordering = ["url"]
@@ -71,6 +81,10 @@ class BoostLibraryDocumentation(models.Model):
         db_column="boost_doc_content_id",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    if TYPE_CHECKING:
+        boost_library_version_id: int
+        boost_doc_content_id: int
 
     class Meta:
         db_table = "boost_library_docs_tracker_boostlibrarydocumentation"

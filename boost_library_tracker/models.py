@@ -4,9 +4,15 @@ Extends github_activity_tracker (GitHubRepository, GitHubFile) and references
 cppa_user_tracker.GitHubAccount.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 
 from github_activity_tracker.models import GitHubRepository
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
+    from github_activity_tracker.models import GitHubFile
 
 
 # --- Part 1: Boost Library, Headers, and Dependencies ---
@@ -17,6 +23,10 @@ class BoostLibraryRepository(GitHubRepository):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        libraries: Manager["BoostLibrary"]
+        files: Manager["GitHubFile"]
 
     class Meta:
         db_table = "boost_library_tracker_boostlibraryrepository"
@@ -33,6 +43,9 @@ class BoostLibrary(models.Model):
         db_column="repo_id",
     )
     name = models.CharField(max_length=255, db_index=True)
+
+    if TYPE_CHECKING:
+        id: int
 
     class Meta:
         db_table = "boost_library_tracker_boostlibrary"
@@ -62,6 +75,9 @@ class BoostFile(models.Model):
         db_column="library_id",
     )
 
+    if TYPE_CHECKING:
+        library_id: int
+
     class Meta:
         db_table = "boost_library_tracker_boostfile"
 
@@ -71,6 +87,9 @@ class BoostVersion(models.Model):
 
     version = models.CharField(max_length=64, unique=True, db_index=True)
     version_created_at = models.DateTimeField(null=True, blank=True)
+
+    if TYPE_CHECKING:
+        id: int
 
     class Meta:
         db_table = "boost_library_tracker_boostversion"

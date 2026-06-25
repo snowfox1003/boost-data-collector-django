@@ -125,7 +125,7 @@ def search_list_httpx(api_key: str, params: dict[str, Any]) -> dict[str, Any]:
             body = resp.text
             if _is_quota_exceeded(body):
                 raise RuntimeError(f"quota exceeded: HTTP {resp.status_code}")
-            resp.raise_for_status()
+            raise RuntimeError(f"HTTP {resp.status_code}: {body}")
         return resp.json()
 
 

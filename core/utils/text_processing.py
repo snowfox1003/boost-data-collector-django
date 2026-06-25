@@ -88,6 +88,15 @@ SLACK_UNESSENTIAL_WORDS: FrozenSet[str] = frozenset(
 )
 
 
+def attr_str(value: object) -> str:
+    """Return the first string form of a BeautifulSoup attribute value (scalar or list)."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value)
+
+
 def clean_text(text: str | None, remove_extra_spaces: bool = True) -> str:
     """
     Clean and normalize text content.

@@ -4,6 +4,8 @@ amqp==5.3.1
     # via kombu
 annotated-types==0.7.0
     # via pydantic
+anyio==4.14.1
+    # via httpx
 asgiref==3.11.1
     # via django
 beautifulsoup4==4.14.3
@@ -14,6 +16,8 @@ celery==5.6.3
     # via -r requirements.in
 certifi==2026.4.22
     # via
+    #   httpcore
+    #   httpx
     #   pinecone
     #   requests
 cffi==2.0.0
@@ -82,15 +86,23 @@ grimp==3.14
     # via import-linter
 gunicorn==23.0.0
     # via -r requirements.in
+h11==0.16.0
+    # via httpcore
+httpcore==1.0.9
+    # via httpx
 httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
+httpx==0.28.1
+    # via -r requirements-dev.in
 identify==2.6.19
     # via pre-commit
 idna==3.16
     # via
     #   -r requirements.in
+    #   anyio
+    #   httpx
     #   requests
 import-linter==2.11
     # via -r requirements-dev.in
@@ -116,6 +128,7 @@ packaging==26.2
     #   gunicorn
     #   kombu
     #   pytest
+    #   setuptools-scm
 pinecone==6.0.2
     # via -r requirements.in
 pinecone-plugin-interface==0.0.7
@@ -210,6 +223,10 @@ responses==0.26.0
     # via -r requirements-dev.in
 rich==15.0.0
     # via import-linter
+setuptools==82.0.1
+    # via setuptools-scm
+setuptools-scm==9.2.2
+    # via -r requirements-dev.in
 six==1.17.0
     # via python-dateutil
 slack-bolt==1.28.0

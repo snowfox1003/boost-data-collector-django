@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone
 
 import requests
+from requests.auth import HTTPBasicAuth
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -168,7 +169,9 @@ class RedditSession:
             self._remint_bearer_from_session()
             return
         logger.info("Obtaining OAuth token...")
-        auth = requests.auth.HTTPBasicAuth(self._client_id, self._client_secret)
+        if not self._client_id or not self._client_secret:
+            raise RuntimeError("Reddit OAuth client_id and client_secret are required")
+        auth = HTTPBasicAuth(self._client_id, self._client_secret)
         resp = self._session.post(
             self._TOKEN_URL,
             auth=auth,

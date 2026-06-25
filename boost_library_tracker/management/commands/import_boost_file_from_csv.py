@@ -51,7 +51,7 @@ CSV_LIBRARY_NAME_TO_REAL_NAME = {
 }
 
 
-def _norm(s: str) -> str:
+def _norm(s: str | None) -> str:
     """Return the string stripped of leading/trailing whitespace, or empty string if None."""
     return (s or "").strip()
 

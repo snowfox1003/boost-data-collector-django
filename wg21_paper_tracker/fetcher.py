@@ -13,6 +13,8 @@ from bs4.element import Tag
 
 import logging
 
+from core.utils.text_processing import attr_str
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.open-std.org/jtc1/sc22/wg21/docs/papers"
@@ -71,7 +73,7 @@ def extract_paper_metadata_from_table_row(
         subgroup = cells[4].text.strip()
 
     for link in first_cell.find_all("a", href=True):
-        href = link.get("href", "")
+        href = attr_str(link.get("href"))
         match = _PAPER_LINK_PATTERN.search(href)
         if not match:
             continue
@@ -153,7 +155,7 @@ def fetch_all_mailings() -> list[dict]:
     pattern = re.compile(r"^(\d{4})/#mailing(\d{4}-\d{2})$")
 
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = attr_str(a["href"])
         match = pattern.search(href)
         if match:
             year, mailing_date = match.groups()

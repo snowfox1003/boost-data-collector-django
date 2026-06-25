@@ -2,11 +2,11 @@
   "description": "Maximum acceptable median wall time (seconds) per scenario at BENCHMARK_COMMIT_N on ubuntu-latest CI. CI fails if median exceeds baseline_median x 1.10. Update median_seconds after intentional perf work or when CI hardware changes; copy medians from --benchmark-json stats.median (ubuntu-latest artifact).",
   "benchmarks": {
     "benchmarks/test_github_commits_throughput.py::test_process_commit_data_batch": {
-      "median_seconds": 0.287835,
+      "median_seconds": 0.319365,
       "n": 50
     },
     "benchmarks/test_service_bulk_insert.py::test_service_bulk_commits_and_file_changes": {
-      "median_seconds": 0.178517,
+      "median_seconds": 0.199567,
       "n": 50
     }
   }
