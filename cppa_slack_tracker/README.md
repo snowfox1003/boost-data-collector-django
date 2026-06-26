@@ -18,7 +18,7 @@ Slack **teams, users, channels, memberships, and messages** are upserted into th
 
 ### How content is published to GitHub
 
-**Not applicable** for the scheduled collector. Markdown or repo uploads for Slack-derived content, if any, are handled elsewhere (for example the long-running [`slack_event_handler`](../slack_event_handler/README.md) for huddle transcripts).
+**Not applicable** for the scheduled collector.
 
 ### How vectors sync to Pinecone
 

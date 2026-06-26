@@ -1,7 +1,7 @@
 # cppa_user_tracker.services
 
 **Module path:** `cppa_user_tracker.services`
-**Description:** Identity, profiles (GitHubAccount, SlackUser, MailingListProfile, DiscordProfile, etc.), emails, and staging (TmpIdentity, TempProfileIdentityRelation). Single place for all writes to cppa_user_tracker models.
+**Description:** Identity, profiles (GitHubAccount, SlackUser, MailingListProfile, etc.), emails, and staging (TmpIdentity, TempProfileIdentityRelation). Single place for all writes to cppa_user_tracker models.
 
 **Type notation:** Model types refer to `cppa_user_tracker.models` (e.g. `Identity`, `BaseProfile`, `Email`).
 
@@ -19,7 +19,6 @@
 | `get_github_account_by_username` | username: str | GitHubAccount \| None | Return GitHubAccount for username, or None if not found (read-only lookup). |
 | `get_mailing_list_profile_by_id` | profile_id: int | MailingListProfile \| None | Return MailingListProfile for profile_id, or None if not found (read-only lookup). |
 | `get_mailing_list_profiles_by_ids` | profile_ids: list[int] | dict[int, MailingListProfile] | Return mailing-list profiles keyed by pk for the given ids (read-only bulk lookup). |
-| `get_or_create_discord_profile` | discord_user_id: int, username: str = '', display_name: str = '', avatar_url: str = '', is_bot: bool = False, identity: Identity \| None = None | tuple[DiscordProfile, bool] | Get or create a DiscordProfile by discord_user_id. Returns (profile, created). |
 | `get_or_create_github_account` | github_account_id: int, username: str = '', display_name: str = '', avatar_url: str = '', account_type: str = GitHubAccountType.USER, identity: Identity \| None = None | tuple[GitHubAccount, bool] | Get or create a GitHubAccount by github_account_id. Returns (account, created). |
 | `get_or_create_identity` | display_name: str = '', description: str = '', defaults: dict[str, Any] \| None = None | tuple[Identity, bool] | Get or create an Identity by display_name. If exists, updates description from defaults. |
 | `get_or_create_mailing_list_profile` | display_name: str = '', email: str = '' | tuple[MailingListProfile, bool] | Get or create a MailingListProfile by display_name and email. Returns (profile, created). |

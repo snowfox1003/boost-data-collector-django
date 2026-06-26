@@ -20,15 +20,28 @@ python manage.py startcollector my_platform
 
 - App package `my_platform/` with `apps.py` (`BigAutoField`, correct `name`), `models.py` (stub run-state model), `services.py` (stub `record_run` — all writes for this app should stay in this module per [Service layer](#service-layer-single-place-for-writes) below).
 - `management/commands/run_my_platform.py` — collector subclasses **`AbstractCollector`**; command subclasses **`BaseCollectorCommand`**.
-- `tests/test_run_my_platform_command.py` — smoke test; it runs only after you register the app (next step).
-- `schedule_snippet.yaml` — commented template to paste into **`config/boost_collector_schedule.yaml`** (see [Workflow.md](docs/Workflow.md)).
+- `tests/test_run_my_platform_command.py` — smoke test (runs after registration).
+- `schedule_snippet.yaml` — commented template; a matching commented block is also appended to **`config/boost_collector_schedule.yaml`** when run from repo root.
+
+**Auto-registered from repo root**
+
+When `--path` is the repository root (default), `startcollector` also:
+
+1. Adds **`"my_platform"`** to **`INSTALLED_APPS`** in `config/settings.py` (alphabetical among project apps).
+2. Appends a **commented** schedule stub to **`config/boost_collector_schedule.yaml`** (move to the right group and uncomment when ready).
+3. Adds **`my_platform`** to **`root_packages`** in **`.importlinter`**.
+4. Adds a stub inventory row in **`docs/cross-app-dependencies.md`**.
+
+The scaffold includes **`migrations/0001_initial.py`**; no in-process **`makemigrations`** (Django would not see the new app until restart). Run **`makemigrations`** yourself only after you change `models.py`.
+
+Use **`--no-register`** or **`--path`** outside the repo root to scaffold the app package only (CI and isolated tests use this).
 
 **What you must do manually**
 
-1. Add **`"my_platform"`** to **`INSTALLED_APPS`** in `config/settings.py` (keep alphabetical order with the other project apps).
-2. Merge the task from `schedule_snippet.yaml` into **`config/boost_collector_schedule.yaml`** under the right `groups.<name>.tasks` entry (see [Workflow.md](docs/Workflow.md)).
-3. Run **`python manage.py migrate`** so the new tables exist.
-4. When the app imports other apps or defines cross-app foreign keys, update **[cross-app-dependencies.md](docs/cross-app-dependencies.md)** (add or adjust the row for your app).
+1. Run **`python manage.py migrate`** so the new tables exist.
+2. Move and uncomment the schedule block under the right **`groups.<name>.tasks`** entry; keep **`enabled: false`** until production-ready (see [Workflow.md](docs/Workflow.md)).
+3. Customize the stub row in **[cross-app-dependencies.md](docs/cross-app-dependencies.md)**; expand §1–§3 when the app imports other apps or defines cross-app foreign keys.
+4. Implement real domain logic in `models.py`, `services.py`, and `collect()`.
 5. As `services.py` grows, run **`python scripts/generate_service_docs.py`** and commit the generated `docs/service_api/` updates when you add public service functions.
 
 **Docs and contracts**
@@ -64,7 +77,6 @@ Each Django app that has **models** provides a **`services.py`** module. This is
 | `boost_library_docs_tracker` | `boost_library_docs_tracker/services.py` | BoostDocContent and BoostLibraryDocumentation (doc scrape and sync status). |
 | `boost_usage_tracker`     | `boost_usage_tracker/services.py`     | External repos, Boost usage, missing-header tmp. |
 | `cppa_pinecone_sync`       | `cppa_pinecone_sync/services.py`       | Pinecone fail list and sync status writes.                  |
-| `discord_activity_tracker` | `discord_activity_tracker/services.py` | Servers, channels, messages, reactions (Discord user profiles in cppa_user_tracker). |
 | `cppa_youtube_script_tracker` | `cppa_youtube_script_tracker/services.py` | YouTube channels, videos, tags, transcript state, speaker links. |
 | `clang_github_tracker` | `clang_github_tracker/services.py` | Clang/llvm GitHub issue, PR, and commit upserts; fetch watermarks. |
 | `boost_mailing_list_tracker` | `boost_mailing_list_tracker/services.py` | Mailing list messages and names. |
@@ -127,13 +139,22 @@ export BENCHMARK_COMMIT_N=50
 
 uv run pytest benchmarks/ -m benchmark --benchmark-only \
   --benchmark-json=bench.json -v \
-  --benchmark-disable-gc
+  --benchmark-disable-gc \
+  --benchmark-min-rounds=5 \
+  --benchmark-warmup=on
 uv run python benchmarks/compare_to_baseline.py bench.json benchmarks/baselines.json
 ```
 
-**Baselines:** [`benchmarks/baselines.json`](benchmarks/baselines.json) stores maximum acceptable **median** seconds per scenario (for the configured `n`). The compare script fails if any median exceeds `baseline_median × 1.25` (more than 25% slower than the reference). After a deliberate performance change or a CI image upgrade, update `median_seconds` (and `n` if you change `BENCHMARK_COMMIT_N`) using `stats.median` from the generated JSON.
+**Baselines:** [`benchmarks/baselines.json`](benchmarks/baselines.json) stores maximum acceptable **median** seconds per scenario (for the configured `n`). The compare script fails if any median exceeds `baseline_median × 1.10` (more than 10% slower than the reference). Override with `--regression-ratio` or `BENCHMARK_REGRESSION_RATIO`. After a deliberate performance change or a CI image upgrade, update `median_seconds` (and `n` if you change `BENCHMARK_COMMIT_N`) using `stats.median` from the generated JSON.
 
-**CI:** The [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) workflow runs on **`workflow_dispatch`** only, uploads `bench.json` as an artifact, and runs the compare step on success.
+**Updating baselines (deliberate, not automatic):**
+
+1. Run benchmarks locally, or trigger [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) via **workflow_dispatch** with **skip regression check** enabled.
+2. Download the `benchmark-json-<run_id>` artifact (or use local `bench.json`).
+3. Copy each scenario's `stats.median` into `benchmarks/baselines.json` and keep `"n"` in sync with `BENCHMARK_COMMIT_N`.
+4. Open a PR that changes only `baselines.json`, with a short note explaining why (perf improvement, CI runner change, etc.).
+
+**CI:** [`.github/workflows/benchmarks.yml`](.github/workflows/benchmarks.yml) runs on **push** and **pull requests** targeting **`main`** and **`develop`** (doc-only changes are skipped via `paths-ignore`, same as the main CI workflow). It uploads `bench.json` as an artifact, compares medians against the checked-in baselines at the 10% threshold, and also supports **workflow_dispatch** for manual runs and baseline calibration. During initial rollout the `benchmark` job is **informational** (not a required branch-protection check); see [docs/CODEOWNERS_and_branch_protection.md](docs/CODEOWNERS_and_branch_protection.md).
 
 ## Dependency security audit
 
@@ -164,7 +185,7 @@ Commit the updated `.in` and `.lock` files. Prefer fixing versions over long-liv
 ## Other guidelines
 
 - **Branching:** Create feature branches from `develop`. Open pull requests against `develop`. See [docs/Development_guideline.md](docs/Development_guideline.md).
-- **Code style:** Use Python 3.13 and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test** / **Security audit** jobs would pass.
+- **Code style:** Use Python 3.13 and follow Django and project conventions. Use the project’s logging (`logging.getLogger(__name__)`). Before pushing, run **`uv run pyright`** (with dev deps) for the paths covered by **`pyrightconfig.json`**, and ensure CI’s **lint** / **pyright** / **test-ubuntu** / **test-macos** / **test-windows** / **Security audit** jobs would pass.
 - **Database:** Use the Django ORM and migrations. Writes only through the service layer as above.
 - **Docs:** Update this file (and app `services.py` docstrings) when adding new apps or changing the write rules. After changing `services.py` or `core/protocols.py`, run `python scripts/generate_service_docs.py` and commit the updated `docs/service_api/` files.
 - **Stability:** Pull requests that change `sync_api.__all__`, the `/health/` JSON contract, or management command names used in `config/boost_collector_schedule.yaml` must update [STABILITY.md](STABILITY.md) and [CHANGELOG.md](CHANGELOG.md) when the change is user-visible.

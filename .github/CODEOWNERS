@@ -17,10 +17,8 @@ boost_mailing_list_tracker/ @jonathanMLDev @wpak-ai
 cppa_pinecone_sync/ @jonathanMLDev @wpak-ai
 clang_github_tracker/ @snowfox1003 @wpak-ai
 cppa_slack_tracker/ @snowfox1003 @wpak-ai
-discord_activity_tracker/ @snowfox1003 @wpak-ai
 wg21_paper_tracker/ @snowfox1003 @wpak-ai
 cppa_youtube_script_tracker/ @jonathanMLDev @wpak-ai
-slack_event_handler/ @snowfox1003 @wpak-ai
 
 core/ @snowfox1003 @jonathanMLDev @wpak-ai
 .github/workflows/ @snowfox1003 @wpak-ai

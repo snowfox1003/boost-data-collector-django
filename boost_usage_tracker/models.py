@@ -5,10 +5,15 @@ Extends github_activity_tracker (GitHubRepository, GitHubFile) and references
 boost_library_tracker.BoostFile for Boost header files.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.db.models import Q
 
 from github_activity_tracker.models import GitHubRepository
+
+if TYPE_CHECKING:
+    from github_activity_tracker.models import GitHubRepository as GitHubRepositoryType
 
 
 class BoostExternalRepository(GitHubRepository):
@@ -29,6 +34,9 @@ class BoostExternalRepository(GitHubRepository):
     is_boost_used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        githubrepository_ptr: GitHubRepositoryType
 
     class Meta:
         db_table = "boost_usage_tracker_boostexternalrepository"
@@ -78,6 +86,10 @@ class BoostUsage(models.Model):
     excepted_at = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        boost_header_id: int | None
+        file_path_id: int
 
     class Meta:
         db_table = "boost_usage_tracker_boostusage"

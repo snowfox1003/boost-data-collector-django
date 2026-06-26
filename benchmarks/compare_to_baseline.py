@@ -2,17 +2,20 @@
 """
 Compare pytest-benchmark JSON (--benchmark-json) against benchmarks/baselines.json.
 
-Exits with status 1 if any baseline median is exceeded by more than 25% (slower).
+Exits with status 1 if any baseline median exceeds baseline_median * regression_ratio.
+Default ratio is 1.10 (10% slower); override with --regression-ratio or
+BENCHMARK_REGRESSION_RATIO.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-DEFAULT_REGRESSION_RATIO = 1.25
+DEFAULT_REGRESSION_RATIO = 1.10
 
 
 def main() -> int:
@@ -29,12 +32,25 @@ def main() -> int:
         type=Path,
         help="Path to benchmarks/baselines.json",
     )
+    env_ratio = os.environ.get("BENCHMARK_REGRESSION_RATIO")
+    if env_ratio:
+        try:
+            default_ratio = float(env_ratio)
+        except ValueError:
+            parser.error("BENCHMARK_REGRESSION_RATIO must be a number (e.g. 1.10)")
+        if default_ratio <= 0:
+            parser.error("BENCHMARK_REGRESSION_RATIO must be > 0")
+    else:
+        default_ratio = DEFAULT_REGRESSION_RATIO
     parser.add_argument(
         "--regression-ratio",
         type=float,
-        default=DEFAULT_REGRESSION_RATIO,
+        default=default_ratio,
         metavar="R",
-        help=f"Fail if median > baseline_median * R (default {DEFAULT_REGRESSION_RATIO})",
+        help=(
+            f"Fail if median > baseline_median * R "
+            f"(default {default_ratio}; env BENCHMARK_REGRESSION_RATIO)"
+        ),
     )
     args = parser.parse_args()
 

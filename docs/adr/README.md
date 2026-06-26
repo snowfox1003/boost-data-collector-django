@@ -7,7 +7,7 @@ ADRs capture significant architectural choices, context, and consequences. They 
 | ADR | Summary | Status |
 |-----|---------|--------|
 | [identity-hub-decoupling.md](identity-hub-decoupling.md) | Identity hub data-layer decoupling (soft profile IDs) | Accepted (pilot: `boost_mailing_list_tracker`) |
-| [paradigm-unification.md](paradigm-unification.md) | Batch (YAML/Celery) vs event-driven (Slack Socket Mode) paradigms, target swim-lane deployables, app mapping, migration path | See document |
+| [paradigm-unification.md](paradigm-unification.md) | Batch (YAML/Celery) vs event-driven collection paradigms, target swim-lane deployables, app mapping, migration path | See document |
 
 ## Format
 

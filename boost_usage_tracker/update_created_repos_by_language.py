@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 LANGUAGES_ENV_KEY = "REPO_COUNT_LANGUAGES"
 
 
+def _require_github_client() -> GitHubAPIClient:
+    client = get_github_client(use="scraping")
+    if client is None:
+        raise RuntimeError(
+            "GitHub client unavailable for update_created_repos_by_language"
+        )
+    return client
+
+
 def _parse_languages_csv(value: str) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
@@ -107,12 +116,20 @@ def update_created_repos_by_language(
             "Skipping languages not found in Language table: %s", ", ".join(missing)
         )
 
+    if not language_map:
+        result = _result_template(
+            start_year=start_year, end_year=end_year, stars_min=stars_min
+        )
+        result["languages_requested"].extend(ordered_language_names)
+        result["languages_missing"].extend(missing)
+        return result
+
     created_count = 0
     updated_count = 0
     rows_processed = 0
     errors: list[str] = []
     processed_languages: list[str] = []
-    client = get_github_client(use="scraping")
+    client = _require_github_client()
 
     for language_name in ordered_language_names:
         language_obj = language_map.get(language_name)

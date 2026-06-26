@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from django.apps import apps
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+
+from core.management.collector_registry import register_collector_project_files
 
 
 _APP_LABEL_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -271,11 +274,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Print planned paths and YAML snippet; do not write files.",
         )
+        parser.add_argument(
+            "--no-register",
+            action="store_true",
+            help="Do not update project config files (even at repo root).",
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         app_label: str = options["app_label"]
         base = Path(options["path"]).resolve()
         dry_run: bool = options["dry_run"]
+        no_register: bool = options["no_register"]
 
         self._validate_app_label(app_label, base)
 
@@ -283,6 +292,8 @@ class Command(BaseCommand):
         pascal = _label_to_pascal(app_label)
         verbose = _verbose_name(app_label)
         snippet = _schedule_snippet(app_label)
+        repo_root = Path(settings.BASE_DIR).resolve()
+        should_register = not no_register and base.resolve() == repo_root
 
         if dry_run:
             self.stdout.write(
@@ -297,8 +308,14 @@ class Command(BaseCommand):
             )
             self.stdout.write("\n--- schedule_snippet.yaml (preview) ---\n")
             self.stdout.write(snippet)
+            if should_register:
+                self.stdout.write("\n--- project registration (preview) ---\n")
+                for line in register_collector_project_files(
+                    repo_root, app_label, dry_run=True
+                ):
+                    self.stdout.write(f"  {line}\n")
             self.stdout.write("\n--- next steps ---\n")
-            self._print_next_steps(app_label)
+            self._print_next_steps(app_label, registered=should_register)
             return
 
         app_dir.mkdir(parents=True, exist_ok=False)
@@ -364,7 +381,17 @@ class Command(BaseCommand):
         self.stdout.write("\n--- schedule_snippet.yaml ---\n")
         self.stdout.write(snippet)
         self.stdout.write("\n")
-        self._print_next_steps(app_label)
+
+        registered = False
+        if should_register:
+            self.stdout.write("--- project registration ---\n")
+            for line in register_collector_project_files(
+                repo_root, app_label, dry_run=False
+            ):
+                self.stdout.write(f"  {line}\n")
+            registered = True
+
+        self._print_next_steps(app_label, registered=registered)
 
     def _validate_app_label(self, app_label: str, base: Path) -> None:
         if not _APP_LABEL_RE.match(app_label):
@@ -382,16 +409,35 @@ class Command(BaseCommand):
         if candidate.exists():
             raise CommandError(f"Path already exists: {candidate}")
 
-    def _print_next_steps(self, app_label: str) -> None:
+    def _print_next_steps(self, app_label: str, *, registered: bool) -> None:
+        if registered:
+            self.stdout.write(
+                textwrap.dedent(
+                    f"""\
+                    Next steps:
+                      1. Review the commented schedule block in config/boost_collector_schedule.yaml — move it under the right groups.<name>.tasks, uncomment, then set enabled: true when production-ready.
+                      2. Run: python manage.py migrate
+                      3. Customize the stub row for "{app_label}" in docs/cross-app-dependencies.md (expand §1–§3 if you add cross-app imports or FKs).
+                      4. Implement real domain logic in models.py, services.py, and collect().
+                      5. After adding public service functions, run: python scripts/generate_service_docs.py
+                      6. Run: uv run pytest and uv run pyright before opening a PR
+                    """
+                )
+            )
+            return
+
         self.stdout.write(
             textwrap.dedent(
                 f"""\
                 Next steps:
-                  1. Add "{app_label}" to INSTALLED_APPS in config/settings.py (keep alphabetical order).
-                  2. Merge schedule_snippet.yaml into config/boost_collector_schedule.yaml (see docs/Workflow.md).
-                  3. When the app imports other apps or adds cross-app FKs, update docs/cross-app-dependencies.md.
-                  4. Run: python manage.py migrate
-                  5. After adding real service functions, run: python scripts/generate_service_docs.py
+                  Registration skipped (app not created at repo root, or --no-register).
+                  Re-run from the repository root without --path, or register manually:
+                    1. Add "{app_label}" to INSTALLED_APPS in config/settings.py (keep alphabetical order).
+                    2. Append schedule_snippet.yaml to config/boost_collector_schedule.yaml (see docs/Workflow.md).
+                    3. Add "{app_label}" to root_packages in .importlinter.
+                    4. Add a stub row for "{app_label}" in docs/cross-app-dependencies.md.
+                    5. Run: python manage.py migrate
+                    6. After adding real service functions, run: python scripts/generate_service_docs.py
                 """
             )
         )

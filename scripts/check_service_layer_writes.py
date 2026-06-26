@@ -37,10 +37,8 @@ TRACKER_APPS = [
     "cppa_pinecone_sync",
     "clang_github_tracker",
     "cppa_slack_tracker",
-    "discord_activity_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
-    "slack_event_handler",
 ]
 TRACKER_APP_SET = set(TRACKER_APPS)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def download_vtt(
         ydl_opts["cookiefile"] = cookies_file
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             ydl.download([url])
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("download_vtt: yt-dlp error for %s: %s", video_id, exc)

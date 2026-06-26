@@ -85,10 +85,8 @@ flowchart TB
 | `boost_mailing_list_tracker` | Mailing list archives | PostgreSQL, `WORKSPACE_DIR` (raw / message JSON) |
 | `clang_github_tracker` | LLVM/Clang GitHub activity | PostgreSQL, `WORKSPACE_DIR` |
 | `cppa_slack_tracker` | Slack messages and channels | PostgreSQL, `WORKSPACE_DIR` (per-channel JSON, raw) |
-| `discord_activity_tracker` | Discord server activity | PostgreSQL, `WORKSPACE_DIR` |
 | `cppa_youtube_script_tracker` | YouTube transcript collection | PostgreSQL, `WORKSPACE_DIR` (metadata, raw VTT) |
 | `wg21_paper_tracker` | WG21 committee papers pipeline | PostgreSQL, `WORKSPACE_DIR` |
 | `cppa_pinecone_sync` | Hybrid vector upserts / namespaces | PostgreSQL (sync status, fail lists), Pinecone |
-| `slack_event_handler` | Slack Bolt (Socket Mode): huddles / PR bot — **long-running process**, not the same as the YAML nightly batch | `WORKSPACE_DIR` (JSON state / queue; no ORM models), GitHub (optional MD uploads) |
 
 **Pinecone paths:** Many collectors write rows first; **`cppa_pinecone_sync`** (and some commands’ built-in sync phases) read from PostgreSQL and/or files and upsert into Pinecone. Namespace and field conventions vary by source; see [Pinecone_preprocess_guideline.md](Pinecone_preprocess_guideline.md) and per-app docs under [service_api/](service_api/).

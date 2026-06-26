@@ -23,6 +23,7 @@
 | `get_or_create_boost_library_repo` | github_repository: GitHubRepository | tuple[BoostLibraryRepository, bool] | Get or create BoostLibraryRepository for a GitHub repository (inherited model). Creates only the child row (no parent save) to avoid NOT NULL errors on corrupt parent rows. |
 | `get_or_create_boost_library_version` | library: BoostLibrary, version: BoostVersion, cpp_version: str \| None = None, description: str \| None = None, key: str \| None = None, documentation: str \| None = None | tuple[BoostLibraryVersion, bool] | Get or create BoostLibraryVersion for library + version. If exists, updates only fields that are provided (not None). |
 | `get_or_create_boost_version` | version: str, version_created_at = None | tuple[BoostVersion, bool] | Get or create BoostVersion by version string. If exists, updates version_created_at. |
+| `has_new_boost_release` |  | bool | Return True when GitHub has a Boost release not yet recorded in BoostVersion. |
 
 <!-- SERVICE_API:GENERATED:END -->
 

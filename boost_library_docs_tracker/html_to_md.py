@@ -17,7 +17,7 @@ import subprocess
 
 from bs4 import BeautifulSoup
 
-from core.utils.text_processing import clean_text
+from core.utils.text_processing import attr_str, clean_text
 
 try:
     import pypandoc
@@ -74,7 +74,7 @@ def _preprocess_html(html: str) -> str:
     # contains an <img> with "boost" in the src (the logo + nav links row).
     for table in soup.find_all("table"):
         img = table.find("img")
-        if img and "boost" in (img.get("src") or "").lower():
+        if img and "boost" in attr_str(img.get("src")).lower():
             table.decompose()
             break  # only remove the first matching table
 

@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from cppa_user_tracker.models import (
-    DiscordProfile,
     Email,
     GitHubAccount,
     GitHubAccountType,
@@ -779,34 +778,6 @@ def test_get_or_create_slack_user_updates_existing():
     assert user.display_name == "Real New"
     assert user.avatar_url == "https://ava"
     assert user.emails.filter(email="slack@example.com").exists()
-
-
-# --- get_or_create_discord_profile ---
-
-
-@pytest.mark.django_db
-def test_get_or_create_discord_profile_updates_existing():
-    """Updating paths merge username, display_name, avatar_url, is_bot."""
-    DiscordProfile.objects.create(
-        discord_user_id=999,
-        username="u",
-        display_name="d",
-        avatar_url="",
-        is_bot=False,
-    )
-    profile, created = services.get_or_create_discord_profile(
-        999,
-        username="newu",
-        display_name="newd",
-        avatar_url="http://img",
-        is_bot=True,
-    )
-    assert created is False
-    profile.refresh_from_db()
-    assert profile.username == "newu"
-    assert profile.display_name == "newd"
-    assert profile.avatar_url == "http://img"
-    assert profile.is_bot is True
 
 
 # --- get_or_create_reddit_user ---

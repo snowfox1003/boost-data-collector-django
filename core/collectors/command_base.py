@@ -81,6 +81,12 @@ class BaseCollectorCommand(ABC, BaseCommand):
     ``handle_error``. Any other :class:`Exception` is passed to ``collector.handle_error``
     (which classifies via :func:`core.errors.classify_failure` and logs), then re-raised.
     A ``finally`` block always removes ``collector._error_phase`` after each phase.
+
+    Note:
+        **Thread safety:** Executes :class:`CollectorRunnable` phases on the
+        management-command thread only. See
+        :class:`~core.collectors.base_collector.AbstractCollector` for the
+        collector instance contract.
     """
 
     @abstractmethod

@@ -57,6 +57,3 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
-
-  slack-chromium:
-    profiles: ["slack-session"]

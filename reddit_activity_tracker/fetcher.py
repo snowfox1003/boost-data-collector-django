@@ -15,11 +15,11 @@ import time
 from datetime import datetime, timezone
 
 import requests
+from requests.auth import HTTPBasicAuth
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-SUBREDDIT = "cpp"
 MAX_RETRIES = 5
 RETRY_BASE_DELAY = 2.0
 RATE_LIMIT_LOW_WATERMARK = getattr(settings, "REDDIT_RATE_LIMIT_LOW_WATERMARK", 2.0)
@@ -169,7 +169,9 @@ class RedditSession:
             self._remint_bearer_from_session()
             return
         logger.info("Obtaining OAuth token...")
-        auth = requests.auth.HTTPBasicAuth(self._client_id, self._client_secret)
+        if not self._client_id or not self._client_secret:
+            raise RuntimeError("Reddit OAuth client_id and client_secret are required")
+        auth = HTTPBasicAuth(self._client_id, self._client_secret)
         resp = self._session.post(
             self._TOKEN_URL,
             auth=auth,
@@ -352,7 +354,7 @@ class RedditSession:
         start_ts: int,
         end_ts: int,
         *,
-        subreddit: str = SUBREDDIT,
+        subreddit: str,
     ) -> list[dict]:
         """Paginate /r/{subreddit}/comments and keep items created in range."""
         comments: list[dict] = []
@@ -402,7 +404,7 @@ class RedditSession:
         start_ts: int,
         end_ts: int,
         *,
-        subreddit: str = SUBREDDIT,
+        subreddit: str,
     ) -> list[dict]:
         """Paginate /r/{subreddit}/new and keep submissions created in range."""
         posts: dict[str, dict] = {}

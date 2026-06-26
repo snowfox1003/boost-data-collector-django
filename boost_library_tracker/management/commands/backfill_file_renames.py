@@ -167,7 +167,7 @@ class Command(BaseCommand):
                                     )
 
                                     # Only update if not already set
-                                    if new_file.previous_filename_id != old_file.id:
+                                    if new_file.previous_filename_id != old_file.pk:
                                         set_github_file_previous_filename(
                                             new_file, old_file
                                         )

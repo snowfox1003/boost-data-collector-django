@@ -13,8 +13,13 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
+from github_activity_tracker.api_schemas import (
+    GitHubCommit,
+    GitHubIssueBundle,
+    GitHubPullRequestBundle,
+)
 from github_activity_tracker.sync_api import (
     fetcher,
     get_commit_json_path,
@@ -47,6 +52,78 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+def _issue_bundle_to_storage_dict(bundle: GitHubIssueBundle) -> dict:
+    detail = bundle.issue.model_dump()
+    comments = detail.pop("comments", [])
+    return {"issue_info": detail, "comments": comments}
+
+
+def _pr_bundle_to_storage_dict(bundle: GitHubPullRequestBundle) -> dict:
+    detail = bundle.pr.model_dump()
+    comments = detail.pop("comments", [])
+    reviews = detail.pop("reviews", [])
+    return {"pr_info": detail, "comments": comments, "reviews": reviews}
+
+
+def _validated_issue_number(num: object) -> int | None:
+    if isinstance(num, str) and num.isdigit():
+        num = int(num)
+    if not _valid_positive_issue_number(num):
+        return None
+    return cast(int, num)
+
+
+def _pr_number_from_dict(item: dict) -> int | None:
+    pr_info = item.get("pr_info")
+    pr_number = (
+        pr_info.get("number") if isinstance(pr_info, dict) else item.get("number")
+    )
+    return _validated_issue_number(pr_number)
+
+
+def _is_pr_dict(item: dict) -> bool:
+    return "pr_info" in item or "pull_request" in item or "reviews" in item
+
+
+def _issue_number_from_dict(item: dict) -> int | None:
+    issue_number = (item.get("issue_info") or {}).get("number") or item.get("number")
+    if issue_number is None:
+        return None
+    if isinstance(issue_number, str) and issue_number.isdigit():
+        issue_number = int(issue_number)
+    return _validated_issue_number(issue_number)
+
+
+def _promote_pr_item(
+    owner: str,
+    repo: str,
+    storage: dict,
+    pr_number: int,
+    pr_numbers: list[int],
+) -> None:
+    staging_path = get_pr_json_path(owner, repo, pr_number)
+    _write_staging_json(staging_path, storage)
+    num_int = _validated_issue_number(normalize_pr_json(storage).get("number"))
+    if _promote_pr_staging(owner, repo, staging_path, storage) and num_int is not None:
+        pr_numbers.append(num_int)
+
+
+def _promote_issue_item(
+    owner: str,
+    repo: str,
+    storage: dict,
+    issue_number: int,
+    issue_numbers: list[int],
+) -> None:
+    staging_path = get_issue_json_path(owner, repo, issue_number)
+    _write_staging_json(staging_path, storage)
+    num_int = _validated_issue_number(normalize_issue_json(storage).get("number"))
+    if _promote_issue_staging(owner, repo, staging_path, storage) and (
+        num_int is not None
+    ):
+        issue_numbers.append(num_int)
 
 
 def _valid_positive_issue_number(n: object) -> bool:
@@ -114,8 +191,8 @@ def _promote_issue_staging(
     owner: str, repo: str, staging_path: Path, item: dict
 ) -> bool:
     flat = normalize_issue_json(item)
-    num = flat.get("number")
-    if not _valid_positive_issue_number(num):
+    num_int = _validated_issue_number(flat.get("number"))
+    if num_int is None:
         logger.warning(
             "clang sync: drop staging issue (invalid number): %s", staging_path
         )
@@ -123,7 +200,7 @@ def _promote_issue_staging(
         return False
     try:
         clang_services.upsert_issue_item(
-            num,
+            num_int,
             is_pull_request=False,
             github_created_at=parse_datetime(flat.get("created_at")),
             github_updated_at=parse_datetime(flat.get("updated_at")),
@@ -149,14 +226,14 @@ def _promote_issue_staging(
 
 def _promote_pr_staging(owner: str, repo: str, staging_path: Path, item: dict) -> bool:
     flat = normalize_pr_json(item)
-    num = flat.get("number")
-    if not _valid_positive_issue_number(num):
+    num_int = _validated_issue_number(flat.get("number"))
+    if num_int is None:
         logger.warning("clang sync: drop staging PR (invalid number): %s", staging_path)
         staging_path.unlink(missing_ok=True)
         return False
     try:
         clang_services.upsert_issue_item(
-            num,
+            num_int,
             is_pull_request=True,
             github_created_at=parse_datetime(flat.get("created_at")),
             github_updated_at=parse_datetime(flat.get("updated_at")),
@@ -214,10 +291,9 @@ def process_pending_clang_staging(
             continue
         flat = normalize_issue_json(data)
         num = flat.get("number")
-        if _promote_issue_staging(
-            owner, repo, path, data
-        ) and _valid_positive_issue_number(num):
-            issue_numbers.append(num)
+        num_int = _validated_issue_number(num)
+        if _promote_issue_staging(owner, repo, path, data) and num_int is not None:
+            issue_numbers.append(num_int)
 
     for path in sorted(iter_existing_pr_jsons(owner, repo), key=lambda p: p.name):
         try:
@@ -229,10 +305,9 @@ def process_pending_clang_staging(
             continue
         flat = normalize_pr_json(data)
         num = flat.get("number")
-        if _promote_pr_staging(
-            owner, repo, path, data
-        ) and _valid_positive_issue_number(num):
-            pr_numbers.append(num)
+        num_int = _validated_issue_number(num)
+        if _promote_pr_staging(owner, repo, path, data) and num_int is not None:
+            pr_numbers.append(num_int)
 
     return commits_promoted, issue_numbers, pr_numbers
 
@@ -266,6 +341,8 @@ def sync_clang_github_activity(
     start_item = _ensure_utc(start_item)
 
     client = get_github_client(use="scraping")
+    if client is None:
+        raise RuntimeError("GitHub client unavailable for clang sync")
 
     pending_c, pending_i, pending_p = process_pending_clang_staging(owner, repo)
     commits_saved = pending_c
@@ -273,9 +350,12 @@ def sync_clang_github_activity(
     pr_numbers: list[int] = list(pending_p)
 
     try:
-        for commit_data in fetcher.fetch_commits_from_github(
+        for commit in fetcher.fetch_commits_from_github(
             client, owner, repo, start_commit, end_date
         ):
+            commit_data = (
+                commit.model_dump() if isinstance(commit, GitHubCommit) else commit
+            )
             sha = commit_data.get("sha")
             if not isinstance(sha, str) or not sha.strip():
                 continue
@@ -288,40 +368,39 @@ def sync_clang_github_activity(
         for item in fetcher.fetch_issues_and_prs_from_github(
             client, owner, repo, start_item, end_date
         ):
-            if "pr_info" in item:
-                pr_number = (item["pr_info"] or {}).get("number")
+            if isinstance(item, GitHubPullRequestBundle):
+                pr_number = item.pr.number
                 if pr_number is None:
                     continue
-                if isinstance(pr_number, str) and pr_number.isdigit():
-                    pr_number = int(pr_number)
-                if type(pr_number) is not int or pr_number <= 0:
-                    continue
-                staging_path = get_pr_json_path(owner, repo, pr_number)
-                _write_staging_json(staging_path, item)
-                flat = normalize_pr_json(item)
-                num = flat.get("number")
-                if _promote_pr_staging(owner, repo, staging_path, item) and (
-                    _valid_positive_issue_number(num)
-                ):
-                    pr_numbers.append(num)
-            else:
-                issue_number = (item.get("issue_info") or {}).get("number") or item.get(
-                    "number"
+                _promote_pr_item(
+                    owner,
+                    repo,
+                    _pr_bundle_to_storage_dict(item),
+                    pr_number,
+                    pr_numbers,
                 )
-                if issue_number is None:
+            elif isinstance(item, dict) and _is_pr_dict(item):
+                pr_number = _pr_number_from_dict(item)
+                if pr_number is None:
                     continue
-                if isinstance(issue_number, str) and issue_number.isdigit():
-                    issue_number = int(issue_number)
-                if type(issue_number) is not int or issue_number <= 0:
-                    continue
-                staging_path = get_issue_json_path(owner, repo, issue_number)
-                _write_staging_json(staging_path, item)
-                flat = normalize_issue_json(item)
-                num = flat.get("number")
-                if _promote_issue_staging(owner, repo, staging_path, item) and (
-                    _valid_positive_issue_number(num)
-                ):
-                    issue_numbers.append(num)
+                _promote_pr_item(owner, repo, item, pr_number, pr_numbers)
+            else:
+                if isinstance(item, GitHubIssueBundle):
+                    issue_number = item.issue.number
+                    if issue_number is None:
+                        continue
+                    _promote_issue_item(
+                        owner,
+                        repo,
+                        _issue_bundle_to_storage_dict(item),
+                        issue_number,
+                        issue_numbers,
+                    )
+                elif isinstance(item, dict):
+                    issue_number = _issue_number_from_dict(item)
+                    if issue_number is None:
+                        continue
+                    _promote_issue_item(owner, repo, item, issue_number, issue_numbers)
 
     except (ConnectionException, RateLimitException) as e:
         logger.exception("clang_github_tracker sync failed: %s", e)

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`discord_activity_tracker`** and **`slack_event_handler`** apps, workspace layouts, service API docs, and related operations guides from this repository.
+- **`DiscordProfile`** from `cppa_user_tracker` Django state (`0010_remove_discordprofile`); physical table `cppa_user_tracker_discordprofile` is unchanged.
+
 ## [0.2.0] - 2026-06-12
 
 ### Added

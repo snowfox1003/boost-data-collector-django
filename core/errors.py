@@ -8,6 +8,7 @@ for logs, metrics, and alerting (machine-parseable ``failure_category`` field).
 from __future__ import annotations
 
 import errno
+import re
 from enum import Enum
 
 
@@ -136,6 +137,56 @@ def _classify_os_error(exc: OSError) -> CollectorFailureCategory:
         return CollectorFailureCategory.NETWORK
 
     return CollectorFailureCategory.UNKNOWN
+
+
+def _sanitize_credential_text(text: str) -> str:
+    """Redact credentials from exception/log text snippets."""
+    if not text:
+        return text
+    out = re.sub(
+        r"(?i)([?&]key=)[^&\s\"'<>]+",
+        r"\1<redacted>",
+        text,
+    )
+    out = re.sub(
+        r"(?i)([?&]token=)[^&\s\"'<>]+",
+        r"\1<redacted>",
+        out,
+    )
+    out = re.sub(
+        r"(?i)(Authorization:\s*Bearer\s+)\S+",
+        r"\1<redacted>",
+        out,
+    )
+    out = re.sub(
+        r"xox[bp]-[\w-]+",
+        lambda m: m.group(0)[:5] + "<redacted>",
+        out,
+    )
+    out = re.sub(
+        r"(?i)(x-access-token:)[^@\s]+(@)",
+        r"\1***\2",
+        out,
+    )
+    out = re.sub(
+        r"(?i)(https?://)[^/\s?#]+@",
+        r"\1<redacted>@",
+        out,
+    )
+    return out
+
+
+def sanitize_exception_message(exc: BaseException) -> str:
+    """
+    Return a redacted string form of *exc* safe for logs.
+
+    Redacts known credential patterns in the exception representation: URL query
+    params ``key`` and ``token``, ``Authorization: Bearer`` values, Slack
+    ``xoxb-`` / ``xoxp-`` tokens, GitHub ``x-access-token`` userinfo, and generic
+    URL userinfo. Does not mutate *exc*; callers should still re-raise the original
+    exception.
+    """
+    return _sanitize_credential_text(str(exc))
 
 
 def classify_failure(exc: BaseException) -> CollectorFailureCategory:
@@ -279,11 +330,6 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     for mod_name, exc_name in (
         ("github_activity_tracker.api_schemas", "GitHubApiValidationError"),
         ("cppa_slack_tracker.api_schemas", "SlackApiValidationError"),
-        ("discord_activity_tracker.staging_schema", "StagingValidationError"),
-        (
-            "discord_activity_tracker.api_schemas",
-            "DiscordLiveSyncValidationError",
-        ),
     ):
         try:
             import importlib

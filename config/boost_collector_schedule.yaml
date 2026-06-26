@@ -43,18 +43,13 @@ groups:
       - command: run_cppa_slack_tracker
         schedule: daily
 
-  discord:
-    default_time: "16:40"
-    tasks:
-      - command: run_discord_activity_tracker
-        schedule: daily
-
   mailing_list:
     default_time: "00:10"
     tasks:
       - command: run_boost_mailing_list_tracker
         schedule: daily
 
+  # Subreddit targets come from REDDIT_SUBREDDITS env (default: cpp,cpp_questions,programming).
   reddit:
     default_time: "17:00"
     tasks:

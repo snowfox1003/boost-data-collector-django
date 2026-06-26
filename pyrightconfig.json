@@ -1,21 +1,15 @@
 {
-  "include": [
-    "core",
-    "github_activity_tracker",
-    "discord_activity_tracker",
-    "cppa_slack_tracker",
-    "cppa_user_tracker",
-    "cppa_pinecone_sync"
-  ],
   "exclude": [
     "**/.venv/**",
     "**/migrations/**",
     "**/__pycache__/**",
     "**/tests/**",
     "core/pyright_samples/**",
+    "**/workspace/**",
     "**/._*",
     "**/.___*"
   ],
+  "stubPath": "scripts/typings",
   "pythonVersion": "3.13",
   "typeCheckingMode": "basic",
   "reportMissingImports": true

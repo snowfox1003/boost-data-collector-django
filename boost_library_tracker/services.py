@@ -250,3 +250,12 @@ def get_or_create_account_from_name(name: str) -> GitHubAccount:
         return existing
 
     return get_or_create_unknown_github_account(name=name)[0]
+
+
+def has_new_boost_release() -> bool:
+    """Return True when GitHub has a Boost release not yet recorded in BoostVersion."""
+    from boost_library_tracker.release_check import (
+        has_new_boost_release as _has_new_boost_release,
+    )
+
+    return _has_new_boost_release()

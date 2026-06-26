@@ -8,7 +8,7 @@ Shared **external I/O** (GitHub, Slack, markdown export, filenames). Not a separ
 | --- | --- | --- |
 | [`github_ops/`](github_ops/) | [github_ops/README.md](github_ops/README.md) | GitHub REST/GraphQL client, tokens, git clone/push/upload. |
 | [`slack_ops/`](slack_ops/) | [slack_ops/README.md](slack_ops/README.md) | Slack API client, tokens, channels, messages, file fetch. |
-| [`md_ops/`](md_ops/) | [md_ops/README.md](md_ops/README.md) | JSON/HTML → Markdown (issues, PRs, transcripts, GitHub export). |
+| [`md_ops/`](md_ops/) | [md_ops/README.md](md_ops/README.md) | JSON/HTML → Markdown (issues, PRs, GitHub export). |
 | [`file_ops/`](file_ops/) | [file_ops/README.md](file_ops/README.md) | Cross-platform `sanitize_filename`. |
 
 ## Docs

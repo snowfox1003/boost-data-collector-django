@@ -2,9 +2,9 @@
 
 ## Overview
 
-**Identity and profiles for CPPA workflows** — GitHub accounts, Slack/Discord profiles, mailing identities, staging rows, and helpers other apps call while they ingest. This app is **not** a standalone “hit an API and fill the DB” collector today.
+**Identity and profiles for CPPA workflows** — GitHub accounts, Slack profiles, mailing identities, staging rows, and helpers other apps call while they ingest. This app is **not** a standalone “hit an API and fill the DB” collector today.
 
-**`run_cppa_user_tracker`** is still a **stub** (it logs and exits successfully). **Real writes** happen when **other apps** import [`services.py`](services.py) during Slack, GitHub, Discord, mailing list, or similar runs.
+**`run_cppa_user_tracker`** is still a **stub** (it logs and exits successfully). **Real writes** happen when **other apps** import [`services.py`](services.py) during Slack, GitHub, mailing list, or similar runs.
 
 **Docs:** [docs/service_api/cppa_user_tracker.md](../docs/service_api/cppa_user_tracker.md) · [docs/Schema.md, section 1 — Base tables, Identity, and profiles](../docs/Schema.md#1-base-tables-identity-and-profiles) · [`models.py`](models.py)
 

@@ -3,6 +3,7 @@ Django settings for Boost Data Collector project.
 Uses django-environ for environment variables.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -11,6 +12,29 @@ import environ
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Optional machine-specific Django overrides (config/local_settings.py).
+try:
+    from . import (
+        local_settings as _local_settings,  # pyright: ignore[reportAttributeAccessIssue]
+    )
+except ModuleNotFoundError as exc:
+    if exc.name not in {"config.local_settings", "local_settings"}:
+        raise
+    _local_settings = None
+except ImportError as exc:
+    # Missing submodule file raises ImportError(name=__package__), not ModuleNotFoundError.
+    if getattr(exc, "name", None) != __package__:
+        raise
+    _local_settings = None
+
+_local_app_dir = None
+if _local_settings is not None:
+    _local_app_dir = getattr(_local_settings, "LOCAL_APP_DIR", None)
+    if _local_app_dir:
+        _local_app_root = (BASE_DIR / _local_app_dir).resolve()
+        if _local_app_root.is_dir():
+            sys.path.insert(0, str(_local_app_root))
 
 # Load environment
 env = environ.Env(
@@ -68,11 +92,9 @@ INSTALLED_APPS = [
     "cppa_pinecone_sync",
     "clang_github_tracker",
     "cppa_slack_tracker",
-    "discord_activity_tracker",
     "reddit_activity_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
-    "slack_event_handler",
 ]
 
 MIDDLEWARE = [
@@ -162,16 +184,19 @@ _WORKSPACE_APP_SLUGS = (
     "boost_library_usage_dashboard",
     "boost_usage_tracker",
     "cppa_slack_tracker",
-    "discord_activity_tracker",
     "reddit_activity_tracker",
     "boost_mailing_list_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
-    "slack_event_handler",
     "shared",
 )
+_EXTRA_WORKSPACE_SLUGS = (
+    tuple(getattr(_local_settings, "EXTRA_WORKSPACE_APP_SLUGS", ()))
+    if _local_settings is not None
+    else ()
+)
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
-for _slug in _WORKSPACE_APP_SLUGS:
+for _slug in (*_WORKSPACE_APP_SLUGS, *_EXTRA_WORKSPACE_SLUGS):
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
 
 # Orphan workspace cleanup (github_activity_tracker JSON cache — see docs/Workspace.md)
@@ -351,7 +376,7 @@ GIT_AUTHOR_EMAIL = (
 ).strip()
 
 
-# Slack (bot + app token for operations.slack_ops and slack_event_handler)
+# Slack (bot + app token for operations.slack_ops and cppa_slack_tracker)
 # SLACK_BOT_TOKEN: built from env (prefixed vars). In settings it is a dict (team_id -> token).
 # Env: SLACK_TEAM_IDS=id1,id2 and SLACK_BOT_TOKEN_id1=xoxb-..., etc.
 
@@ -416,128 +441,6 @@ def _slack_team_scope_from_env():
 
 
 SLACK_TEAM_SCOPE = _slack_team_scope_from_env()
-ALLOW_INTERNAL_SLACK_TOKENS = (
-    env("ALLOW_INTERNAL_SLACK_TOKENS", default="") or ""
-).strip().lower() == "true"
-SLACK_INTERNAL_TOKENS_JSON = (
-    env("SLACK_INTERNAL_TOKENS_JSON", default="") or ""
-).strip()
-# xoxc/xoxd are read at runtime from workspace JSON (see slack_internal_tokens_store),
-# not loaded into settings at Django startup.
-SLACK_XOXC_TOKEN = ""
-SLACK_XOXD_TOKEN = ""
-# Chrome user-data dir for Slack xoxc/xoxd extraction (logged-in session on disk)
-_DEFAULT_CHROME_PROFILE = str(WORKSPACE_DIR / "slack_event_handler" / "chrome_profile")
-CHROME_PROFILE_PATH = (
-    env("CHROME_PROFILE_PATH", default=_DEFAULT_CHROME_PROFILE) or ""
-).strip()
-
-# Slack PR Bot configuration (for slack_event_handler)
-SLACK_PR_BOT_TEAM = (env("SLACK_PR_BOT_TEAM", default="") or "").strip()
-SLACK_PR_BOT_GITHUB_TOKEN = (env("SLACK_PR_BOT_GITHUB_TOKEN", default="") or "").strip()
-SLACK_PR_BOT_CHANNEL_NAME = (
-    env("SLACK_PR_BOT_CHANNEL_NAME", default="slack-bot") or "slack-bot"
-).strip()
-SLACK_PR_BOT_COMMENT_TEMPLATE = (
-    env(
-        "SLACK_PR_BOT_COMMENT_TEMPLATE",
-        default="Automated comment from Slack bot.",
-    )
-    or ""
-).strip() or "Automated comment from Slack bot."
-SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW = int(
-    env("SLACK_PR_BOT_COMMENTS_MAX_PER_WINDOW", default="5") or "5"
-)
-SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS = int(
-    env("SLACK_PR_BOT_COMMENTS_WINDOW_SECONDS", default="3600") or "3600"
-)
-
-# Discord configuration (for discord_activity_tracker)
-DISCORD_TOKEN = (env("DISCORD_TOKEN", default="") or "").strip()
-DISCORD_USER_TOKEN = (env("DISCORD_USER_TOKEN", default="") or "").strip()
-ALLOW_INTERNAL_DISCORD_TOKENS = (
-    env("ALLOW_INTERNAL_DISCORD_TOKENS", default="") or ""
-).strip().lower() == "true"
-DISCORD_INTERNAL_TOKENS_JSON = (
-    env("DISCORD_INTERNAL_TOKENS_JSON", default="") or ""
-).strip()
-# Chrome user-data dir for Discord user token extraction (logged-in session on disk)
-_DEFAULT_DISCORD_CHROME_PROFILE = str(
-    WORKSPACE_DIR / "discord_activity_tracker" / "chrome_profile"
-)
-DISCORD_CHROME_PROFILE_PATH = (
-    env("DISCORD_CHROME_PROFILE_PATH", default=_DEFAULT_DISCORD_CHROME_PROFILE) or ""
-).strip()
-_discord_server_id_str = (env("DISCORD_SERVER_ID", default="") or "").strip()
-DISCORD_SERVER_ID: int | None = (
-    int(_discord_server_id_str) if _discord_server_id_str.isdigit() else None
-)
-# Comma-separated channel snowflake IDs to scrape; empty = scrape all channels
-_discord_channel_ids_str = (env("DISCORD_CHANNEL_IDS", default="") or "").strip()
-DISCORD_CHANNEL_IDS: list[int] = [
-    int(c.strip()) for c in _discord_channel_ids_str.split(",") if c.strip().isdigit()
-]
-DISCORD_CONTEXT_REPO_PATH = Path(
-    env(
-        "DISCORD_CONTEXT_REPO_PATH",
-        default=str(
-            WORKSPACE_DIR
-            / "discord_activity_tracker"
-            / "discord-cplusplus-together-context"
-        ),
-    )
-).resolve()
-# Full path to DiscordChatExporter CLI executable (optional).
-# Default: workspace/discord_activity_tracker/script/DiscordChatExporter.Cli.exe (Windows)
-# or .../DiscordChatExporter.Cli (macOS/Linux)
-# Releases: https://github.com/Tyrrrz/DiscordChatExporter/releases/latest
-_discord_chat_exporter_cli = (
-    env("DISCORD_CHAT_EXPORTER_CLI", default="") or ""
-).strip()
-DISCORD_CHAT_EXPORTER_CLI: str | None = (
-    _discord_chat_exporter_cli if _discord_chat_exporter_cli else None
-)
-# Run via ``dotnet /path/to/DiscordChatExporter.Cli.dll`` (uses system .NET host; avoids blocked
-# bundled libhostfxr on macOS external volumes / quarantine). Requires ``dotnet`` on PATH or
-# DISCORD_CHAT_EXPORTER_DOTNET below.
-_discord_chat_exporter_dotnet_dll = (
-    env("DISCORD_CHAT_EXPORTER_DOTNET_DLL", default="") or ""
-).strip()
-DISCORD_CHAT_EXPORTER_DOTNET_DLL: str | None = (
-    _discord_chat_exporter_dotnet_dll if _discord_chat_exporter_dotnet_dll else None
-)
-_discord_chat_exporter_dotnet = (
-    env("DISCORD_CHAT_EXPORTER_DOTNET", default="") or ""
-).strip()
-DISCORD_CHAT_EXPORTER_DOTNET: str | None = (
-    _discord_chat_exporter_dotnet if _discord_chat_exporter_dotnet else None
-)
-# macOS: run ``xattr -cr`` on the CLI bundle directory before export (helps when Gatekeeper
-# blocks downloaded binaries; use only if you trust the DiscordChatExporter files).
-DISCORD_CHAT_EXPORTER_MACOS_CLEAR_QUARANTINE = env.bool(
-    "DISCORD_CHAT_EXPORTER_MACOS_CLEAR_QUARANTINE", default=False
-)
-# DiscordChatExporter --parallel (default 1: lower RAM; 3+ can SIGKILL/OOM on small machines).
-DISCORD_CHAT_EXPORTER_PARALLEL: int = env.int(
-    "DISCORD_CHAT_EXPORTER_PARALLEL", default=1
-)
-# Voice channels are rarely needed for text analytics; excluding them cuts exportguild work.
-DISCORD_CHAT_EXPORTER_INCLUDE_VC = env.bool(
-    "DISCORD_CHAT_EXPORTER_INCLUDE_VC", default=False
-)
-# One CLI process per channel after `channels` listing — slower but avoids macOS SIGKILL on exportguild.
-DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = env.bool(
-    "DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT",
-    default=(sys.platform == "darwin"),
-)
-PINECONE_DISCORD_APP_TYPE: str = (
-    env("PINECONE_DISCORD_APP_TYPE", default="discord-together-c-cpp")
-    or "discord-together-c-cpp"
-).strip()
-PINECONE_DISCORD_NAMESPACE: str = (
-    env("PINECONE_DISCORD_NAMESPACE", default="discord-together-c-cpp")
-    or "discord-together-c-cpp"
-).strip()
 
 # Reddit configuration (for reddit_activity_tracker)
 REDDIT_CLIENT_ID = (env("REDDIT_CLIENT_ID", default="") or "").strip()
@@ -551,6 +454,46 @@ REDDIT_REQUEST_INTERVAL = env.float("REQUEST_INTERVAL", default=1.0)
 # Pause when X-Ratelimit-Remaining drops below this value. Env: RATE_LIMIT_LOW_WATERMARK.
 REDDIT_RATE_LIMIT_LOW_WATERMARK = env.float("RATE_LIMIT_LOW_WATERMARK", default=2.0)
 REDDIT_DEFAULT_LOOKBACK_DAYS = env.int("REDDIT_DEFAULT_LOOKBACK_DAYS", default=30)
+# Comma-separated subreddit names to scrape (r/ prefix optional)
+_reddit_subreddits_str = (
+    env("REDDIT_SUBREDDITS", default="cpp,cpp_questions,programming") or ""
+).strip()
+REDDIT_SUBREDDITS: list[str] = [
+    s.strip().removeprefix("r/") for s in _reddit_subreddits_str.split(",") if s.strip()
+]
+_DEFAULT_REDDIT_KEYWORD_FILTERS: dict[str, list[str]] = {
+    "programming": ["boost", "c++", "cpp"],
+}
+_reddit_keyword_filters_raw = (
+    env("REDDIT_SUBREDDIT_KEYWORD_FILTERS", default="") or ""
+).strip()
+if _reddit_keyword_filters_raw:
+    try:
+        _parsed_keyword_filters = json.loads(_reddit_keyword_filters_raw)
+        if isinstance(_parsed_keyword_filters, dict):
+            REDDIT_SUBREDDIT_KEYWORD_FILTERS: dict[str, list[str]] = {
+                str(k).strip().removeprefix("r/"): [str(kw) for kw in v]
+                for k, v in _parsed_keyword_filters.items()
+                if isinstance(v, list)
+            }
+        else:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "REDDIT_SUBREDDIT_KEYWORD_FILTERS must be a JSON object; got %s. "
+                "Using defaults.",
+                type(_parsed_keyword_filters).__name__,
+            )
+            REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
+    except json.JSONDecodeError:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "REDDIT_SUBREDDIT_KEYWORD_FILTERS is not valid JSON; using defaults."
+        )
+        REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
+else:
+    REDDIT_SUBREDDIT_KEYWORD_FILTERS = dict(_DEFAULT_REDDIT_KEYWORD_FILTERS)
 
 # WG21 Paper Tracker Configuration
 WG21_GITHUB_DISPATCH_ENABLED = env.bool("WG21_GITHUB_DISPATCH_ENABLED", default=False)
@@ -668,14 +611,18 @@ CELERY_ENABLE_UTC = True  # Beat schedule times (default_time from YAML) are UTC
 # Schedule from YAML (boost_collector_runner). Strict mode (DEBUG=False or BOOST_COLLECTOR_SCHEDULE_STRICT):
 # missing/invalid YAML raises ScheduleConfigurationError at import time. In strict mode, any other
 # load failure is also re-raised after logging. Non-strict: unexpected errors fall back to {}.
-BOOST_COLLECTOR_SCHEDULE_YAML = BASE_DIR / "config" / "boost_collector_schedule.yaml"
+from boost_collector_runner.schedule_config import (  # noqa: E402
+    ScheduleConfigurationError,
+    get_beat_schedule,
+    resolve_schedule_yaml_path,
+)
+
+BOOST_COLLECTOR_SCHEDULE_YAML = resolve_schedule_yaml_path(
+    base_dir=BASE_DIR,
+    env_path=env("BOOST_COLLECTOR_SCHEDULE_YAML", default=""),
+)
 _schedule_strict = BOOST_COLLECTOR_SCHEDULE_STRICT or not DEBUG
 try:
-    from boost_collector_runner.schedule_config import (
-        ScheduleConfigurationError,
-        get_beat_schedule,
-    )
-
     # Pass strict and yaml_path explicitly; settings proxy is not ready during this import.
     CELERY_BEAT_SCHEDULE = get_beat_schedule(
         strict=_schedule_strict,
@@ -737,13 +684,10 @@ YOUTUBE_PINECONE_NAMESPACE = (
 YOUTUBE_DEFAULT_PUBLISHED_AFTER = (
     env("YOUTUBE_DEFAULT_PUBLISHED_AFTER", default="") or ""
 ).strip()
-# You can add your own Django apps here by adding them to the EXTRA_INSTALLED_APPS list in config/local_settings.py.
-try:
-    from . import local_settings as _local_settings
-
-    _LOCAL_EXTRA_INSTALLED_APPS = tuple(
-        getattr(_local_settings, "EXTRA_INSTALLED_APPS", ())
-    )
-except ImportError:
-    _LOCAL_EXTRA_INSTALLED_APPS = ()
+# Optional extra apps via config/local_settings.py (EXTRA_INSTALLED_APPS).
+_LOCAL_EXTRA_INSTALLED_APPS = (
+    tuple(getattr(_local_settings, "EXTRA_INSTALLED_APPS", ()))
+    if _local_settings is not None
+    else ()
+)
 INSTALLED_APPS = [*INSTALLED_APPS, *_LOCAL_EXTRA_INSTALLED_APPS]

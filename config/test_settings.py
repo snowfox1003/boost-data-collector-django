@@ -13,7 +13,10 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
 from .settings import *  # noqa: F401, F403
-from .settings import DATABASES  # explicit import for ruff F405 (after star import)
+from .settings import (  # explicit imports for ruff F405 (after star import)
+    DATABASES,
+    _EXTRA_WORKSPACE_SLUGS,
+)
 
 # Never run workspace orphan cleanup during tests (CoreConfig.ready).
 WORKSPACE_ORPHAN_CLEANUP_ENABLED = False
@@ -82,15 +85,11 @@ for _slug in (
     "github_activity_tracker",
     "boost_library_tracker",
     "clang_github_tracker",
-    "discord_activity_tracker",
     "reddit_activity_tracker",
     "shared",
+    *_EXTRA_WORKSPACE_SLUGS,
 ):
     (WORKSPACE_DIR / _slug).mkdir(parents=True, exist_ok=True)
-# Base settings computed DISCORD_CONTEXT_REPO_PATH before WORKSPACE_DIR was overridden above.
-DISCORD_CONTEXT_REPO_PATH = (
-    WORKSPACE_DIR / "discord_activity_tracker" / "discord-cplusplus-together-context"
-).resolve()
 LOG_DIR = _test_dir / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -105,11 +104,3 @@ CLANG_GITHUB_REPO = "llvm-project"
 CLANG_GITHUB_CONTEXT_REPO_OWNER = ""
 CLANG_GITHUB_CONTEXT_REPO_NAME = ""
 CLANG_GITHUB_CONTEXT_REPO_BRANCH = ""
-
-# Tests patch a single subprocess.Popen for DiscordChatExporter.
-DISCORD_CHAT_EXPORTER_SEQUENTIAL_EXPORT = False
-
-# Tests set DISCORD_USER_TOKEN via monkeypatch; do not inherit internal-token mode
-# from developer .env (get_or_load_discord_user_token would ignore env token).
-ALLOW_INTERNAL_DISCORD_TOKENS = False
-DISCORD_USER_TOKEN = ""

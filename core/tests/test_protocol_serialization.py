@@ -25,11 +25,6 @@ from clang_github_tracker.protocol_impl import (
 from cppa_pinecone_sync.protocol_impl import PineconeSyncTrackerResult
 from cppa_slack_tracker.protocol_impl import SlackIncrementalState, SlackTrackerResult
 from cppa_youtube_script_tracker.protocol_impl import YoutubeScriptTrackerResult
-from discord_activity_tracker.protocol_impl import (
-    DiscordActivityRecord,
-    DiscordCollectionTrackerResult,
-    DiscordIncrementalState,
-)
 from github_activity_tracker.protocol_impl import (
     GitHubActivityRecord,
     GitHubIncrementalState,
@@ -47,7 +42,6 @@ _TRACKER_RESULTS = [
         duration_seconds=1.5,
     ),
     GitHubSyncTrackerResult(success=True, counts={"issues": 1}),
-    DiscordCollectionTrackerResult(success=True, counts={"messages": 2}),
     PineconeSyncTrackerResult.from_sync_dict(
         {"upserted": 1, "total": 1, "failed_count": 0}
     ),
@@ -64,12 +58,6 @@ _TRACKER_RESULTS = [
 _INCREMENTAL_STATES = [
     GenericIncrementalState(checkpoint_token="t", human_readable_marker="m"),
     GitHubIncrementalState.from_repo_watermark(repo_id=1, marker="2024"),
-    DiscordIncrementalState.from_after_date(after=None),
-    DiscordIncrementalState.from_after_date(
-        after=datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc),
-        last_message_id=100,
-        channel_id=55,
-    ),
     MailingListIncrementalState.from_start_date("2024-01-01"),
     SlackIncrementalState.from_team(team_id="T1", start_date="2024-01-01"),
     ClangGithubIncrementalState.from_watermarks(start_commit="abc", start_item="2024"),
@@ -77,17 +65,6 @@ _INCREMENTAL_STATES = [
 
 _ACTIVITY_RECORDS = [
     GitHubActivityRecord.from_issue(repo_id=7, issue_number=123, summary="title"),
-    DiscordActivityRecord.from_converted_export_dict(
-        {
-            "id": 5,
-            "created_at": "2024-01-01T00:00:00.0000000Z",
-            "message_type": "Reply",
-            "content": "hello",
-            "author": {"id": 7},
-        },
-        server_id=1,
-        channel_id=2,
-    ),
     GenericActivityRecord(
         source_system=SourceSystem.GITHUB,
         external_id="1:issue:1",

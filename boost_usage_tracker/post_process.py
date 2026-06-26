@@ -53,7 +53,7 @@ def _resolve_boost_header(header_path: str):
     return None
 
 
-def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, object]:
+def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, BoostFile | None]:
     """Resolve a set of Boost include paths to BoostFile instances in one pass.
 
     Returns a dict ``{header_path: BoostFile | None}``.  Deduplicates the
@@ -71,13 +71,13 @@ def _resolve_boost_headers_bulk(header_paths: set[str]) -> dict[str, object]:
         .select_related("github_file")
         .order_by("github_file_id")
     )
-    by_filename: dict[str, object] = {}
+    by_filename: dict[str, BoostFile] = {}
     for row in exact_rows:
         filename = row.github_file.filename
         if filename not in by_filename:
             by_filename[filename] = row
 
-    resolved: dict[str, object] = {}
+    resolved: dict[str, BoostFile | None] = {}
     unresolved: list[str] = []
     for path in header_paths:
         boost_file = by_filename.get(path)

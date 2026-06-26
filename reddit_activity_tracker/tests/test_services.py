@@ -89,8 +89,42 @@ def test_get_latest_submission_and_comment_created_utc_empty_db():
 
 
 @pytest.mark.django_db
-def test_get_latest_submission_and_comment_created_utc_independent():
+def test_get_latest_submission_and_comment_created_utc_per_subreddit():
+    submission_cpp = baker.make(
+        RedditSubmission,
+        reddit_submission_id="t3_cpp",
+        subreddit="cpp",
+        title="Cpp post",
+        url="https://example.com/cpp",
+        permalink="/r/cpp/comments/cpp/",
+        created_utc=100,
+    )
     baker.make(
+        RedditSubmission,
+        reddit_submission_id="t3_prog",
+        subreddit="programming",
+        title="Prog post",
+        url="https://example.com/prog",
+        permalink="/r/programming/comments/prog/",
+        created_utc=500,
+    )
+    baker.make(
+        RedditComment,
+        reddit_comment_id="t1_cpp",
+        submission=submission_cpp,
+        parent_id="t3_cpp",
+        url="https://example.com/c",
+        created_utc=200,
+    )
+    assert services.get_latest_submission_created_utc(subreddit="cpp") == 100
+    assert services.get_latest_submission_created_utc(subreddit="programming") == 500
+    assert services.get_latest_comment_created_utc(subreddit="cpp") == 200
+    assert services.get_latest_comment_created_utc(subreddit="programming") == 0
+
+
+@pytest.mark.django_db
+def test_get_latest_submission_and_comment_created_utc_global_max():
+    submission = baker.make(
         RedditSubmission,
         reddit_submission_id="t3_a",
         subreddit="cpp",
@@ -100,12 +134,21 @@ def test_get_latest_submission_and_comment_created_utc_independent():
         created_utc=100,
     )
     baker.make(
+        RedditSubmission,
+        reddit_submission_id="t3_b",
+        subreddit="programming",
+        title="B",
+        url="https://example.com/b",
+        permalink="/r/programming/comments/b/",
+        created_utc=500,
+    )
+    baker.make(
         RedditComment,
         reddit_comment_id="t1_b",
-        submission=RedditSubmission.objects.get(reddit_submission_id="t3_a"),
+        submission=submission,
         parent_id="t3_a",
-        url="https://example.com/b",
+        url="https://example.com/c",
         created_utc=200,
     )
-    assert services.get_latest_submission_created_utc() == 100
+    assert services.get_latest_submission_created_utc() == 500
     assert services.get_latest_comment_created_utc() == 200

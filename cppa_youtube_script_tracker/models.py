@@ -9,7 +9,12 @@ Tables:
 - YouTubeVideoTags:    M2M join between YouTubeVideo and CppaTags
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
 
 
 class YouTubeChannel(models.Model):
@@ -60,6 +65,9 @@ class YouTubeVideo(models.Model):
     scraped_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    if TYPE_CHECKING:
+        video_speakers: Manager["YouTubeVideoSpeaker"]
 
     class Meta:
         ordering = ["-published_at"]

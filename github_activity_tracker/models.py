@@ -3,7 +3,12 @@ Models per docs/Schema.md section 2: GitHub Activity Tracker.
 References cppa_user_tracker.GitHubAccount for owner/author/assignee.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import Manager
 
 
 # --- Enums ---
@@ -125,6 +130,10 @@ class GitHubRepository(models.Model):
         blank=True,
     )
 
+    if TYPE_CHECKING:
+        id: int
+        files: Manager["GitHubFile"]
+
     class Meta:
         db_table = "github_activity_tracker_githubrepository"
         ordering = ["owner_account", "repo_name"]
@@ -225,6 +234,10 @@ class GitHubFile(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    if TYPE_CHECKING:
+        repo_id: int
+        previous_filename_id: int | None
+
     class Meta:
         db_table = "github_activity_tracker_githubfile"
         ordering = ["repo", "filename"]
@@ -254,6 +267,9 @@ class GitCommitFileChange(models.Model):
     deletions = models.IntegerField(default=0)
     patch = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    if TYPE_CHECKING:
+        commit_id: int
 
     class Meta:
         db_table = "github_activity_tracker_gitcommitfilechange"

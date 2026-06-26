@@ -52,7 +52,7 @@ The **`pandoc`** executable must be on your **`PATH`** when you run **`run_boost
 
 **When you need it:** Running or debugging the Boost library docs collector without mocks. Many unit tests mock conversion and do not require pandoc on your machine.
 
-**CI:** The GitHub Actions **`test`** job installs pandoc on **`ubuntu-latest`**. The **`lint`** and **`pyright`** jobs do not install it. Developers on macOS or Windows should install pandoc locally if they run integration-style tests or the real collector.
+**CI:** The GitHub Actions **`test-ubuntu`**, **`test-macos`**, and **`test-windows`** jobs install pandoc (apt / Homebrew / Chocolatey) before pytest. The **`lint`** and **`pyright`** jobs do not install it. **`compose-smoke`** (Docker stack validation) runs on **`ubuntu-latest`** only.
 
 ### Initial setup
 
@@ -172,7 +172,18 @@ python -m pytest --tb=short --cov=. --cov-report=term-missing --cov-fail-under=9
 
 Coverage writes a local **`.coverage`** file (binary data used by `coverage.py`; safe to delete). It is listed in `.gitignore`.
 
-**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs three jobs on pushes/PRs (see the workflow for triggers): **`lint`** (pre-commit on all files), **`pyright`** (static analysis from `pyrightconfig.json`), and **`test`** (pytest with Postgres, `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`). The **`test`** job installs **`pandoc`** via apt on Ubuntu; on macOS or Windows, install pandoc yourself if you run the full suite or docs-tracker paths that invoke real conversion (see [System dependencies](#system-dependencies)).
+**CI:** [`.github/workflows/actions.yml`](.github/workflows/actions.yml) runs on pushes/PRs (see the workflow for triggers):
+
+| Job | OS | What it validates |
+| --- | --- | --- |
+| `test-ubuntu` | Linux | Full pytest + Postgres service container |
+| `test-macos` | macOS | Full pytest + native Postgres |
+| `test-windows` | Windows | Full pytest + native Postgres (no `plyvel`) |
+| `lint` | Linux | pre-commit on all files |
+| `pyright` | Linux | Static analysis from `pyrightconfig.json` |
+| `compose-smoke` | Linux | Docker Compose stack |
+
+All three **`test-*`** jobs use `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres`, `DJANGO_SETTINGS_MODULE=config.test_settings`, coverage, and `--cov-fail-under=90`. Treat failures on these jobs as merge-blocking; add them as required status checks on protected branches if they are not already (see [docs/CODEOWNERS_and_branch_protection.md](docs/CODEOWNERS_and_branch_protection.md)).
 
 6. Run a subset of tests (e.g. one app or one file):
 
@@ -183,7 +194,7 @@ python -m pytest github_activity_tracker/tests/test_sync_utils.py -v
 
 CI runs pytest with coverage (`--cov`, HTML/XML reports). To match a **local** coverage gate, use **`--cov-fail-under=90`** (see step 5 above). If coverage fails locally or you need a fresh test DB schema after model changes, run once with `python -m pytest --create-db`.
 
-**Pyright (local):** with dev dependencies installed (`uv pip install -r requirements-dev.lock`), run **`uv run pyright`** from the repo root to match the **`pyright`** CI job (`pyrightconfig.json` scopes `core`, `github_activity_tracker`, `discord_activity_tracker`, `cppa_slack_tracker`, `cppa_user_tracker`, and `cppa_pinecone_sync`).
+**Pyright (local):** with dev dependencies installed (`uv pip install -r requirements-dev.lock`), run **`uv run pyright`** from the repo root to match the **`pyright`** CI job (`pyrightconfig.json` scopes `core`, `github_activity_tracker`, `cppa_slack_tracker`, `cppa_user_tracker`, and `cppa_pinecone_sync`).
 
 See [docs/Development_guideline.md](docs/Development_guideline.md#testing-workflow) for when to run tests during development.
 
@@ -220,7 +231,7 @@ Typical top-level layout after clone (folder name is usually **`boost-data-colle
 │   ├── shared/
 │   ├── scripts/
 │   ├── github_activity_tracker/
-│   └── …                        # e.g. boost_library_tracker/, discord_activity_tracker/, …
+│   └── …                        # e.g. boost_library_tracker/, cppa_slack_tracker/, …
 ├── scripts/                     # Repo maintenance and codegen helpers
 ├── core/                        # Shared collectors + operations (GitHub, Slack, markdown, files)
 ├── boost_collector_runner/      # YAML schedule → run_scheduled_collectors
@@ -234,9 +245,7 @@ Typical top-level layout after clone (folder name is usually **`boost-data-colle
 ├── cppa_slack_tracker/
 ├── cppa_user_tracker/
 ├── cppa_youtube_script_tracker/
-├── discord_activity_tracker/
 ├── github_activity_tracker/
-├── slack_event_handler/
 └── wg21_paper_tracker/
 ```
 
@@ -263,8 +272,6 @@ Some Django apps include a **README.md** at the app package root when that helps
 | [`boost_library_usage_dashboard/`](boost_library_usage_dashboard/README.md) | Library usage data for dashboards. |
 | [`cppa_slack_tracker/`](cppa_slack_tracker/README.md) | CPPA Slack workspace collection. |
 | [`cppa_user_tracker/`](cppa_user_tracker/README.md) | CPPA users and GitHub account linkage. |
-| [`discord_activity_tracker/`](discord_activity_tracker/README.md) | Discord activity ingestion (exporter + workspace). |
-| [`slack_event_handler/`](slack_event_handler/README.md) | Slack Socket Mode listener (dev `runserver` integration). |
 
 ## How it works
 

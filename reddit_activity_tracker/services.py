@@ -14,7 +14,7 @@ from django.db.models import Max
 
 from cppa_user_tracker.services import resolve_reddit_user_from_author_data
 
-from reddit_activity_tracker.fetcher import SUBREDDIT, RedditSession
+from reddit_activity_tracker.fetcher import RedditSession
 from reddit_activity_tracker.models import RedditComment, RedditSubmission
 
 
@@ -76,10 +76,8 @@ def resolve_submission_for_comment(
     if existing is not None:
         return existing
 
-    return get_or_create_submission_stub(
-        post_id,
-        subreddit=(comment_data.get("subreddit") or SUBREDDIT).strip(),
-    )
+    subreddit = (comment_data.get("subreddit") or "").strip() or "unknown"
+    return get_or_create_submission_stub(post_id, subreddit=subreddit)
 
 
 @transaction.atomic
@@ -167,13 +165,19 @@ def upsert_reddit_comment(
     return comment
 
 
-def get_latest_submission_created_utc() -> int:
-    """Return max created_utc across submissions, or 0 when empty."""
-    latest = RedditSubmission.objects.aggregate(latest=Max("created_utc"))["latest"]
+def get_latest_submission_created_utc(*, subreddit: str | None = None) -> int:
+    """Return max created_utc across submissions, optionally scoped to one subreddit."""
+    qs = RedditSubmission.objects.all()
+    if subreddit:
+        qs = qs.filter(subreddit=subreddit)
+    latest = qs.aggregate(latest=Max("created_utc"))["latest"]
     return latest if latest is not None else 0
 
 
-def get_latest_comment_created_utc() -> int:
-    """Return max created_utc across comments, or 0 when empty."""
-    latest = RedditComment.objects.aggregate(latest=Max("created_utc"))["latest"]
+def get_latest_comment_created_utc(*, subreddit: str | None = None) -> int:
+    """Return max created_utc across comments, optionally scoped to one subreddit."""
+    qs = RedditComment.objects.all()
+    if subreddit:
+        qs = qs.filter(submission__subreddit=subreddit)
+    latest = qs.aggregate(latest=Max("created_utc"))["latest"]
     return latest if latest is not None else 0

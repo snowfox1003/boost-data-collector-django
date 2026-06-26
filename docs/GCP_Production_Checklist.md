@@ -18,6 +18,7 @@ Handoff for VM Docker Compose production and future Cloud Run work (@snowfox1003
 - Set `DATABASE_URL` in server `.env` (chmod 600), not in the image.
 - Examples: Auth Proxy → `127.0.0.1`, public IP with `?sslmode=require`, or Unix socket `host=/cloudsql/PROJECT:REGION:INSTANCE`.
 - Prod compose does **not** start a `db` service; Postgres is external.
+- **Automated backups:** daily `pg_dump` → GCS via [`scripts/backup_database.sh`](../scripts/backup_database.sh); cron, IAM, and restore steps in [Deployment.md](./Deployment.md#automated-database-backups).
 
 ## Secrets (six platforms)
 
@@ -41,7 +42,7 @@ Mirror [`.env.example`](../.env.example) groups; inject via Secret Manager → e
 
 ## Collectors in Beat schedule
 
-Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml): `github`, `boost_library_docs`, `slack`, `discord`, `mailing_list`.
+Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector_schedule.yaml): `github`, `boost_library_docs`, `slack`, `mailing_list`, `reddit`.
 
 **Not** on Beat yet (manual / future): WG21, YouTube, Clang — `/health/` shows `last_success_at: null` until scheduled or `record_group_success` is updated.
 
@@ -52,7 +53,6 @@ Configured in [`config/boost_collector_schedule.yaml`](../config/boost_collector
 | `web` | Gunicorn `gthread`; resource limits in `docker-compose.prod.yml` |
 | `celery_worker` | `--max-tasks-per-child` (default 50) |
 | `celery_beat` | Persistent `celerybeat` volume |
-| `slack-chromium` | Profile `slack-session` — off by default in prod (noVNC Slack login only) |
 
 ## Ingress
 

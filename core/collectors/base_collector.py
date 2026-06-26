@@ -12,9 +12,10 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
+from types import TracebackType
 from typing import Protocol, runtime_checkable
 
-from core.errors import classify_failure
+from core.errors import classify_failure, sanitize_exception_message
 from core.protocols import (
     IncrementalState,
     TrackerResult,
@@ -26,14 +27,45 @@ from core.tracker_result import with_duration_if_missing
 logger = logging.getLogger(__name__)
 
 
+_COLLECTOR_THREAD_SAFETY = (
+    "**Thread safety:** Collector instances are **not thread-safe**. "
+    ":class:`~core.collectors.command_base.BaseCollectorCommand` invokes "
+    "``run()`` then ``sync_pinecone()`` on the **management-command thread**. "
+    "Do not share one collector instance across threads or Celery workers without "
+    "external serialization. Lifecycle hooks (``pre_collect``, ``post_collect``, "
+    "``on_error``, ``handle_error``) run on that same thread."
+)
+
+
+def _safe_exc_info(
+    exc: BaseException,
+) -> bool | tuple[type[BaseException], BaseException, TracebackType | None]:
+    """Build logging ``exc_info`` with a redacted exception message when needed."""
+    safe_msg = sanitize_exception_message(exc)
+    if safe_msg == str(exc):
+        return True
+    try:
+        safe_exc = type(exc)(safe_msg)
+    except (TypeError, ValueError):
+        safe_exc = RuntimeError(safe_msg)
+        safe_exc.__cause__ = None
+        safe_exc.__suppress_context__ = True
+    if exc.__traceback__ is not None:
+        safe_exc.__traceback__ = exc.__traceback__
+    return (type(safe_exc), safe_exc, exc.__traceback__)
+
+
 @runtime_checkable
 class CollectorRunnable(Protocol):
-    """
+    f"""
     Structural type for objects executed by :class:`BaseCollectorCommand`.
 
     Implementations are typically :class:`AbstractCollector` subclasses (or any object
     satisfying this protocol). The command invokes :meth:`run`, then :meth:`sync_pinecone`, and
     routes failures through :meth:`handle_error` (except :class:`~django.core.management.base.CommandError`).
+
+    Note:
+        {_COLLECTOR_THREAD_SAFETY}
     """
 
     def run(self) -> TrackerResult:
@@ -55,7 +87,7 @@ class CollectorRunnable(Protocol):
 
 
 class _CollectorLifecycleMixin:
-    """
+    f"""
     Shared lifecycle hooks for collector implementations.
 
     Override points: :meth:`pre_collect`, :meth:`post_collect`, :meth:`on_error`,
@@ -69,6 +101,9 @@ class _CollectorLifecycleMixin:
 
     **Intentional gaps:** Many domain or SDK exceptions map to ``unknown``. Override
     :meth:`handle_error` when you need a different category or extra context.
+
+    Note:
+        {_COLLECTOR_THREAD_SAFETY}
     """
 
     _last_result: TrackerResult | None
@@ -144,6 +179,7 @@ class _CollectorLifecycleMixin:
             collector_id,
             phase,
             category.value,
+            exc_info=_safe_exc_info(exc),
             extra={
                 "collector": collector_id,
                 "collector_phase": phase,
@@ -167,7 +203,7 @@ class _CollectorLifecycleMixin:
 
 
 class AbstractCollector(_CollectorLifecycleMixin, ABC):
-    """
+    f"""
     Structured collector: stable ``name``, lifecycle hooks, then ``collect``.
 
     :meth:`run` orchestrates ``pre_collect`` → ``validate_config`` → ``collect`` →
@@ -186,6 +222,9 @@ class AbstractCollector(_CollectorLifecycleMixin, ABC):
 
     Do not override :meth:`run`. Override :meth:`handle_error` only when
     :func:`classify_failure` does not map your domain errors cleanly.
+
+    Note:
+        {_COLLECTOR_THREAD_SAFETY}
     """
 
     def __init_subclass__(cls, **kwargs: object) -> None:
