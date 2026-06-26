@@ -383,7 +383,7 @@ def test_run_scheduled_collectors_skipped_on_release_does_not_record_success(
             return_value=fake_tasks,
         ),
         patch(
-            "boost_library_tracker.release_check.has_new_boost_release",
+            "boost_library_tracker.services.has_new_boost_release",
             return_value=False,
         ),
         patch(

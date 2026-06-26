@@ -8,7 +8,7 @@ import sys
 
 from django.core.management.base import BaseCommand
 
-from boost_library_tracker.release_check import has_new_boost_release
+from boost_library_tracker.services import has_new_boost_release
 
 
 class Command(BaseCommand):

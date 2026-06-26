@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 from core.operations.github_ops import list_remote_directory
-from github_activity_tracker.workspace import (
+from github_activity_tracker.sync_api import (
     get_raw_source_issue_path,
     get_raw_source_pr_path,
 )

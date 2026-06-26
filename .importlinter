@@ -1,4 +1,5 @@
 [importlinter]
+exclude_type_checking_imports = True
 root_packages =
     boost_collector_runner
     boost_library_docs_tracker
@@ -7,11 +8,13 @@ root_packages =
     boost_mailing_list_tracker
     boost_usage_tracker
     clang_github_tracker
+    core
     cppa_pinecone_sync
     cppa_slack_tracker
     cppa_user_tracker
     cppa_youtube_script_tracker
     github_activity_tracker
+    reddit_activity_tracker
     wg21_paper_tracker
 
 [importlinter:contract:forbid-tech-debt-pinecone]
@@ -60,4 +63,813 @@ source_modules =
     boost_mailing_list_tracker.email_formatter
 forbidden_modules =
     cppa_user_tracker.models
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-collector-runner-internals]
+name = Cross-app imports must not use boost_collector_runner internals
+type = forbidden
+source_modules =
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_collector_runner.README.md
+    boost_collector_runner.__init__
+    boost_collector_runner.admin
+    boost_collector_runner.apps
+    boost_collector_runner.management
+    boost_collector_runner.schedule_config
+    boost_collector_runner.tasks
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-library-docs-tracker-internals]
+name = Cross-app imports must not use boost_library_docs_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_library_docs_tracker.README.md
+    boost_library_docs_tracker.__init__
+    boost_library_docs_tracker.admin
+    boost_library_docs_tracker.apps
+    boost_library_docs_tracker.fetcher
+    boost_library_docs_tracker.html_to_md
+    boost_library_docs_tracker.management
+    boost_library_docs_tracker.preprocessor
+    boost_library_docs_tracker.protocol_impl
+    boost_library_docs_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-library-tracker-internals]
+name = Cross-app imports must not use boost_library_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_library_tracker.README.md
+    boost_library_tracker.__init__
+    boost_library_tracker.admin
+    boost_library_tracker.apps
+    boost_library_tracker.management
+    boost_library_tracker.parsing
+    boost_library_tracker.preprocessors
+    boost_library_tracker.protocol_impl
+    boost_library_tracker.release_check
+    boost_library_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-library-usage-dashboard-internals]
+name = Cross-app imports must not use boost_library_usage_dashboard internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_library_usage_dashboard.README.md
+    boost_library_usage_dashboard.__init__
+    boost_library_usage_dashboard.analyzer
+    boost_library_usage_dashboard.analyzer_libraries
+    boost_library_usage_dashboard.analyzer_metrics
+    boost_library_usage_dashboard.analyzer_output
+    boost_library_usage_dashboard.apps
+    boost_library_usage_dashboard.collectors
+    boost_library_usage_dashboard.dashboard_html
+    boost_library_usage_dashboard.dashboard_html_common
+    boost_library_usage_dashboard.dashboard_html_index
+    boost_library_usage_dashboard.dashboard_html_library
+    boost_library_usage_dashboard.management
+    boost_library_usage_dashboard.protocol_impl
+    boost_library_usage_dashboard.publisher
+    boost_library_usage_dashboard.renderer
+    boost_library_usage_dashboard.report
+    boost_library_usage_dashboard.utils
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-mailing-list-tracker-internals]
+name = Cross-app imports must not use boost_mailing_list_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_mailing_list_tracker.README.md
+    boost_mailing_list_tracker.__init__
+    boost_mailing_list_tracker.admin
+    boost_mailing_list_tracker.apps
+    boost_mailing_list_tracker.email_formatter
+    boost_mailing_list_tracker.fetcher
+    boost_mailing_list_tracker.management
+    boost_mailing_list_tracker.preprocessor
+    boost_mailing_list_tracker.protocol_impl
+    boost_mailing_list_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-boost-usage-tracker-internals]
+name = Cross-app imports must not use boost_usage_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    boost_usage_tracker.README.md
+    boost_usage_tracker.__init__
+    boost_usage_tracker.admin
+    boost_usage_tracker.apps
+    boost_usage_tracker.boost_searcher
+    boost_usage_tracker.db_from_file
+    boost_usage_tracker.management
+    boost_usage_tracker.post_process
+    boost_usage_tracker.repo_searcher
+    boost_usage_tracker.update_boostusage_from_csv
+    boost_usage_tracker.update_created_repos_by_language
+    boost_usage_tracker.update_git_account
+    boost_usage_tracker.update_githubfile_from_csv
+    boost_usage_tracker.update_repository_from_csv
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-clang-github-tracker-internals]
+name = Cross-app imports must not use clang_github_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    clang_github_tracker.README.md
+    clang_github_tracker.__init__
+    clang_github_tracker.apps
+    clang_github_tracker.collectors
+    clang_github_tracker.management
+    clang_github_tracker.preprocessors
+    clang_github_tracker.protocol_impl
+    clang_github_tracker.publisher
+    clang_github_tracker.state_manager
+    clang_github_tracker.sync_raw
+    clang_github_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-core-internals]
+name = Cross-app imports must not use core internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    core._version
+    core.apps
+    core.concurrency
+    core.management
+    core.pyright_samples
+    core.workspace_orphans
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-cppa-pinecone-sync-internals]
+name = Cross-app imports must not use cppa_pinecone_sync internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    cppa_pinecone_sync.README.md
+    cppa_pinecone_sync.__init__
+    cppa_pinecone_sync.admin
+    cppa_pinecone_sync.apps
+    cppa_pinecone_sync.ingestion
+    cppa_pinecone_sync.management
+    cppa_pinecone_sync.protocol_impl
+    cppa_pinecone_sync.sync
+    cppa_pinecone_sync.text_chunking
+    cppa_pinecone_sync.types
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-cppa-slack-tracker-internals]
+name = Cross-app imports must not use cppa_slack_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    cppa_slack_tracker.README.md
+    cppa_slack_tracker.__init__
+    cppa_slack_tracker.admin
+    cppa_slack_tracker.apps
+    cppa_slack_tracker.fetcher
+    cppa_slack_tracker.management
+    cppa_slack_tracker.preprocessor
+    cppa_slack_tracker.protocol_impl
+    cppa_slack_tracker.sync
+    cppa_slack_tracker.utils
+    cppa_slack_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-cppa-user-tracker-internals]
+name = Cross-app imports must not use cppa_user_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    cppa_user_tracker.README.md
+    cppa_user_tracker.__init__
+    cppa_user_tracker.admin
+    cppa_user_tracker.apps
+    cppa_user_tracker.management
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-cppa-youtube-script-tracker-internals]
+name = Cross-app imports must not use cppa_youtube_script_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    cppa_youtube_script_tracker.README.md
+    cppa_youtube_script_tracker.__init__
+    cppa_youtube_script_tracker.admin
+    cppa_youtube_script_tracker.apps
+    cppa_youtube_script_tracker.fetcher
+    cppa_youtube_script_tracker.management
+    cppa_youtube_script_tracker.preprocessor
+    cppa_youtube_script_tracker.protocol_impl
+    cppa_youtube_script_tracker.transcript
+    cppa_youtube_script_tracker.utils
+    cppa_youtube_script_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-github-activity-tracker-internals]
+name = Cross-app imports must not use github_activity_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    reddit_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    github_activity_tracker.README.md
+    github_activity_tracker.__init__
+    github_activity_tracker.admin
+    github_activity_tracker.apps
+    github_activity_tracker.big_commit
+    github_activity_tracker.fetcher
+    github_activity_tracker.management
+    github_activity_tracker.preprocessors
+    github_activity_tracker.protocol_impl
+    github_activity_tracker.sync
+    github_activity_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-reddit-activity-tracker-internals]
+name = Cross-app imports must not use reddit_activity_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    wg21_paper_tracker
+forbidden_modules =
+    reddit_activity_tracker.README.md
+    reddit_activity_tracker.__init__
+    reddit_activity_tracker.admin
+    reddit_activity_tracker.apps
+    reddit_activity_tracker.fetcher
+    reddit_activity_tracker.management
+    reddit_activity_tracker.protocol_impl
+    reddit_activity_tracker.views
+    reddit_activity_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:forbid-wg21-paper-tracker-internals]
+name = Cross-app imports must not use wg21_paper_tracker internals
+type = forbidden
+source_modules =
+    boost_collector_runner
+    boost_library_docs_tracker
+    boost_library_tracker
+    boost_library_usage_dashboard
+    boost_mailing_list_tracker
+    boost_usage_tracker
+    clang_github_tracker
+    core
+    cppa_pinecone_sync
+    cppa_slack_tracker
+    cppa_user_tracker
+    cppa_youtube_script_tracker
+    github_activity_tracker
+    reddit_activity_tracker
+forbidden_modules =
+    wg21_paper_tracker.README.md
+    wg21_paper_tracker.__init__
+    wg21_paper_tracker.admin
+    wg21_paper_tracker.apps
+    wg21_paper_tracker.collectors
+    wg21_paper_tracker.fetcher
+    wg21_paper_tracker.management
+    wg21_paper_tracker.pipeline
+    wg21_paper_tracker.protocol_impl
+    wg21_paper_tracker.workspace
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-collector-runner-to-boost-library-tracker]
+name = boost_collector_runner may only import boost_library_tracker public API
+type = forbidden
+source_modules =
+    boost_collector_runner
+forbidden_modules =
+    boost_library_tracker
+ignore_imports =
+    boost_collector_runner.** -> boost_library_tracker.models
+    boost_collector_runner.tests.** -> boost_library_tracker.models
+    boost_collector_runner.** -> boost_library_tracker.services
+    boost_collector_runner.tests.** -> boost_library_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-core-to-github-activity-tracker]
+name = core may only import github_activity_tracker public API
+type = forbidden
+source_modules =
+    core
+forbidden_modules =
+    github_activity_tracker
+ignore_imports =
+    core.** -> github_activity_tracker.models
+    core.tests.** -> github_activity_tracker.models
+    core.** -> github_activity_tracker.services
+    core.tests.** -> github_activity_tracker.services
+    core.** -> github_activity_tracker.sync_api
+    core.tests.** -> github_activity_tracker.sync_api
+    core.** -> github_activity_tracker.api_schemas
+    core.tests.** -> github_activity_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-cppa-user-tracker-to-cppa-slack-tracker]
+name = cppa_user_tracker may only import cppa_slack_tracker public API
+type = forbidden
+source_modules =
+    cppa_user_tracker
+forbidden_modules =
+    cppa_slack_tracker
+ignore_imports =
+    cppa_user_tracker.** -> cppa_slack_tracker.models
+    cppa_user_tracker.tests.** -> cppa_slack_tracker.models
+    cppa_user_tracker.** -> cppa_slack_tracker.services
+    cppa_user_tracker.tests.** -> cppa_slack_tracker.services
+    cppa_user_tracker.** -> cppa_slack_tracker.api_schemas
+    cppa_user_tracker.tests.** -> cppa_slack_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-github-activity-tracker-to-cppa-user-tracker]
+name = github_activity_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    github_activity_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    github_activity_tracker.** -> cppa_user_tracker.models
+    github_activity_tracker.tests.** -> cppa_user_tracker.models
+    github_activity_tracker.** -> cppa_user_tracker.services
+    github_activity_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-tracker-to-github-activity-tracker]
+name = boost_library_tracker may only import github_activity_tracker public API
+type = forbidden
+source_modules =
+    boost_library_tracker
+forbidden_modules =
+    github_activity_tracker
+ignore_imports =
+    boost_library_tracker.** -> github_activity_tracker.models
+    boost_library_tracker.tests.** -> github_activity_tracker.models
+    boost_library_tracker.** -> github_activity_tracker.services
+    boost_library_tracker.tests.** -> github_activity_tracker.services
+    boost_library_tracker.** -> github_activity_tracker.sync_api
+    boost_library_tracker.tests.** -> github_activity_tracker.sync_api
+    boost_library_tracker.** -> github_activity_tracker.api_schemas
+    boost_library_tracker.tests.** -> github_activity_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-tracker-to-cppa-user-tracker]
+name = boost_library_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    boost_library_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    boost_library_tracker.** -> cppa_user_tracker.models
+    boost_library_tracker.tests.** -> cppa_user_tracker.models
+    boost_library_tracker.** -> cppa_user_tracker.services
+    boost_library_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-docs-tracker-to-boost-library-tracker]
+name = boost_library_docs_tracker may only import boost_library_tracker public API
+type = forbidden
+source_modules =
+    boost_library_docs_tracker
+forbidden_modules =
+    boost_library_tracker
+ignore_imports =
+    boost_library_docs_tracker.** -> boost_library_tracker.models
+    boost_library_docs_tracker.tests.** -> boost_library_tracker.models
+    boost_library_docs_tracker.** -> boost_library_tracker.services
+    boost_library_docs_tracker.tests.** -> boost_library_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-docs-tracker-to-cppa-pinecone-sync]
+name = boost_library_docs_tracker may only import cppa_pinecone_sync public API
+type = forbidden
+source_modules =
+    boost_library_docs_tracker
+forbidden_modules =
+    cppa_pinecone_sync
+ignore_imports =
+    boost_library_docs_tracker.** -> cppa_pinecone_sync.models
+    boost_library_docs_tracker.tests.** -> cppa_pinecone_sync.models
+    boost_library_docs_tracker.** -> cppa_pinecone_sync.services
+    boost_library_docs_tracker.tests.** -> cppa_pinecone_sync.services
+    boost_library_docs_tracker.** -> cppa_pinecone_sync.sync_api
+    boost_library_docs_tracker.tests.** -> cppa_pinecone_sync.sync_api
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-usage-dashboard-to-boost-library-tracker]
+name = boost_library_usage_dashboard may only import boost_library_tracker public API
+type = forbidden
+source_modules =
+    boost_library_usage_dashboard
+forbidden_modules =
+    boost_library_tracker
+ignore_imports =
+    boost_library_usage_dashboard.** -> boost_library_tracker.models
+    boost_library_usage_dashboard.tests.** -> boost_library_tracker.models
+    boost_library_usage_dashboard.** -> boost_library_tracker.services
+    boost_library_usage_dashboard.tests.** -> boost_library_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-usage-dashboard-to-boost-usage-tracker]
+name = boost_library_usage_dashboard may only import boost_usage_tracker public API
+type = forbidden
+source_modules =
+    boost_library_usage_dashboard
+forbidden_modules =
+    boost_usage_tracker
+ignore_imports =
+    boost_library_usage_dashboard.** -> boost_usage_tracker.models
+    boost_library_usage_dashboard.tests.** -> boost_usage_tracker.models
+    boost_library_usage_dashboard.** -> boost_usage_tracker.services
+    boost_library_usage_dashboard.tests.** -> boost_usage_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-library-usage-dashboard-to-github-activity-tracker]
+name = boost_library_usage_dashboard may only import github_activity_tracker public API
+type = forbidden
+source_modules =
+    boost_library_usage_dashboard
+forbidden_modules =
+    github_activity_tracker
+ignore_imports =
+    boost_library_usage_dashboard.** -> github_activity_tracker.models
+    boost_library_usage_dashboard.tests.** -> github_activity_tracker.models
+    boost_library_usage_dashboard.** -> github_activity_tracker.services
+    boost_library_usage_dashboard.tests.** -> github_activity_tracker.services
+    boost_library_usage_dashboard.** -> github_activity_tracker.sync_api
+    boost_library_usage_dashboard.tests.** -> github_activity_tracker.sync_api
+    boost_library_usage_dashboard.** -> github_activity_tracker.api_schemas
+    boost_library_usage_dashboard.tests.** -> github_activity_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-usage-tracker-to-github-activity-tracker]
+name = boost_usage_tracker may only import github_activity_tracker public API
+type = forbidden
+source_modules =
+    boost_usage_tracker
+forbidden_modules =
+    github_activity_tracker
+ignore_imports =
+    boost_usage_tracker.** -> github_activity_tracker.models
+    boost_usage_tracker.tests.** -> github_activity_tracker.models
+    boost_usage_tracker.** -> github_activity_tracker.services
+    boost_usage_tracker.tests.** -> github_activity_tracker.services
+    boost_usage_tracker.** -> github_activity_tracker.sync_api
+    boost_usage_tracker.tests.** -> github_activity_tracker.sync_api
+    boost_usage_tracker.** -> github_activity_tracker.api_schemas
+    boost_usage_tracker.tests.** -> github_activity_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-usage-tracker-to-boost-library-tracker]
+name = boost_usage_tracker may only import boost_library_tracker public API
+type = forbidden
+source_modules =
+    boost_usage_tracker
+forbidden_modules =
+    boost_library_tracker
+ignore_imports =
+    boost_usage_tracker.** -> boost_library_tracker.models
+    boost_usage_tracker.tests.** -> boost_library_tracker.models
+    boost_usage_tracker.** -> boost_library_tracker.services
+    boost_usage_tracker.tests.** -> boost_library_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-usage-tracker-to-cppa-user-tracker]
+name = boost_usage_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    boost_usage_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    boost_usage_tracker.** -> cppa_user_tracker.models
+    boost_usage_tracker.tests.** -> cppa_user_tracker.models
+    boost_usage_tracker.** -> cppa_user_tracker.services
+    boost_usage_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-boost-mailing-list-tracker-to-cppa-user-tracker]
+name = boost_mailing_list_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    boost_mailing_list_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    boost_mailing_list_tracker.** -> cppa_user_tracker.models
+    boost_mailing_list_tracker.tests.** -> cppa_user_tracker.models
+    boost_mailing_list_tracker.** -> cppa_user_tracker.services
+    boost_mailing_list_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-clang-github-tracker-to-github-activity-tracker]
+name = clang_github_tracker may only import github_activity_tracker public API
+type = forbidden
+source_modules =
+    clang_github_tracker
+forbidden_modules =
+    github_activity_tracker
+ignore_imports =
+    clang_github_tracker.** -> github_activity_tracker.models
+    clang_github_tracker.tests.** -> github_activity_tracker.models
+    clang_github_tracker.** -> github_activity_tracker.services
+    clang_github_tracker.tests.** -> github_activity_tracker.services
+    clang_github_tracker.** -> github_activity_tracker.sync_api
+    clang_github_tracker.tests.** -> github_activity_tracker.sync_api
+    clang_github_tracker.** -> github_activity_tracker.api_schemas
+    clang_github_tracker.tests.** -> github_activity_tracker.api_schemas
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-cppa-slack-tracker-to-cppa-user-tracker]
+name = cppa_slack_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    cppa_slack_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    cppa_slack_tracker.** -> cppa_user_tracker.models
+    cppa_slack_tracker.tests.** -> cppa_user_tracker.models
+    cppa_slack_tracker.** -> cppa_user_tracker.services
+    cppa_slack_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-cppa-slack-tracker-to-cppa-pinecone-sync]
+name = cppa_slack_tracker may only import cppa_pinecone_sync public API
+type = forbidden
+source_modules =
+    cppa_slack_tracker
+forbidden_modules =
+    cppa_pinecone_sync
+ignore_imports =
+    cppa_slack_tracker.** -> cppa_pinecone_sync.models
+    cppa_slack_tracker.tests.** -> cppa_pinecone_sync.models
+    cppa_slack_tracker.** -> cppa_pinecone_sync.services
+    cppa_slack_tracker.tests.** -> cppa_pinecone_sync.services
+    cppa_slack_tracker.** -> cppa_pinecone_sync.sync_api
+    cppa_slack_tracker.tests.** -> cppa_pinecone_sync.sync_api
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-wg21-paper-tracker-to-cppa-user-tracker]
+name = wg21_paper_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    wg21_paper_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    wg21_paper_tracker.** -> cppa_user_tracker.models
+    wg21_paper_tracker.tests.** -> cppa_user_tracker.models
+    wg21_paper_tracker.** -> cppa_user_tracker.services
+    wg21_paper_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-cppa-youtube-script-tracker-to-cppa-user-tracker]
+name = cppa_youtube_script_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    cppa_youtube_script_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    cppa_youtube_script_tracker.** -> cppa_user_tracker.models
+    cppa_youtube_script_tracker.tests.** -> cppa_user_tracker.models
+    cppa_youtube_script_tracker.** -> cppa_user_tracker.services
+    cppa_youtube_script_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
+allow_indirect_imports = true
+
+[importlinter:contract:allow-edge-reddit-activity-tracker-to-cppa-user-tracker]
+name = reddit_activity_tracker may only import cppa_user_tracker public API
+type = forbidden
+source_modules =
+    reddit_activity_tracker
+forbidden_modules =
+    cppa_user_tracker
+ignore_imports =
+    reddit_activity_tracker.** -> cppa_user_tracker.models
+    reddit_activity_tracker.tests.** -> cppa_user_tracker.models
+    reddit_activity_tracker.** -> cppa_user_tracker.services
+    reddit_activity_tracker.tests.** -> cppa_user_tracker.services
+unmatched_ignore_imports_alerting = none
 allow_indirect_imports = true

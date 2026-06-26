@@ -33,8 +33,7 @@ from github_activity_tracker.services import (
     get_or_create_repository,
 )
 from core.protocols import TrackerResult
-from github_activity_tracker.protocol_impl import GitHubSyncTrackerResult
-from github_activity_tracker.sync import sync_github
+from github_activity_tracker.sync_api import GitHubSyncTrackerResult, sync_github
 
 from boost_library_tracker.services import get_or_create_boost_library_repo
 from boost_library_tracker.workspace import get_md_export_dir

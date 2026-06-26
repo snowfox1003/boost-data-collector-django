@@ -169,9 +169,7 @@ class Command(BaseCommand):
 
         if schedule_kind == "on_release" or schedule_kind == "default":
             try:
-                from boost_library_tracker.release_check import (
-                    has_new_boost_release,
-                )
+                from boost_library_tracker.services import has_new_boost_release
 
                 if not has_new_boost_release():
                     logger.info(

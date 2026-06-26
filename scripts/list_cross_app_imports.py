@@ -39,6 +39,7 @@ TRACKER_APPS = [
     "cppa_pinecone_sync",
     "clang_github_tracker",
     "cppa_slack_tracker",
+    "reddit_activity_tracker",
     "wg21_paper_tracker",
     "cppa_youtube_script_tracker",
 ]
@@ -193,6 +194,30 @@ def _csv_output(rows: list[CrossAppImport]) -> str:
     return buf.getvalue()
 
 
+def _pair_contract_id(source_app: str, target_app: str) -> str:
+    return (
+        f"allow-edge-{source_app.replace('_', '-')}-to-{target_app.replace('_', '-')}"
+    )
+
+
+def _production_import_pairs(rows: list[CrossAppImport]) -> set[tuple[str, str]]:
+    return {(r.source_app, r.target_app) for r in rows if not r.is_test}
+
+
+def check_importlinter_contracts(prod_rows: list[CrossAppImport]) -> list[str]:
+    """Return missing allow-edge-* contract ids for production import pairs."""
+    importlinter_path = REPO_ROOT / ".importlinter"
+    if not importlinter_path.is_file():
+        return ["[importlinter] file not found"]
+    content = importlinter_path.read_text(encoding="utf-8")
+    missing: list[str] = []
+    for source_app, target_app in sorted(_production_import_pairs(prod_rows)):
+        contract_id = _pair_contract_id(source_app, target_app)
+        if f"[importlinter:contract:{contract_id}]" not in content:
+            missing.append(f"{source_app} -> {target_app} (expected {contract_id})")
+    return missing
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Emit a cross-app import report for the tracker apps."
@@ -203,10 +228,26 @@ def main() -> None:
     parser.add_argument(
         "--no-tests", action="store_true", help="Exclude test files from the scan."
     )
+    parser.add_argument(
+        "--check-importlinter",
+        action="store_true",
+        help="Exit 1 when a production import pair lacks an allow-edge-* contract.",
+    )
     args = parser.parse_args()
 
     all_rows = scan(include_tests=not args.no_tests)
     prod_rows = [r for r in all_rows if not r.is_test]
+
+    if args.check_importlinter:
+        missing = check_importlinter_contracts(prod_rows)
+        if missing:
+            print("Missing import-linter pair contracts:", file=sys.stderr)
+            for line in missing:
+                print(f"  - {line}", file=sys.stderr)
+            sys.exit(1)
+        print("All production import pairs have allow-edge-* contracts.")
+        return
+
     test_rows = [r for r in all_rows if r.is_test]
     orm_rows = orm_coupling_candidates(all_rows)
 

@@ -114,7 +114,7 @@ Implementation: [config/health.py](config/health.py).
 
 #### Cross-app `sync_api` exports
 
-**`github_activity_tracker.sync_api`** — `build_issue_document`, `build_pr_document`, `fetcher`, `get_commit_json_path`, `get_issue_json_path`, `get_pr_json_path`, `get_raw_source_issue_path`, `get_raw_source_pr_path`, `iter_existing_commit_jsons`, `iter_existing_issue_jsons`, `iter_existing_pr_jsons`, `normalize_issue_json`, `normalize_pr_json`, `save_commit_raw_source`, `save_issue_raw_source`, `save_pr_raw_source`.
+**`github_activity_tracker.sync_api`** — `GitHubSyncTrackerResult`, `build_issue_document`, `build_pr_document`, `fetcher`, `get_commit_json_path`, `get_issue_json_path`, `get_pr_json_path`, `get_raw_source_issue_path`, `get_raw_source_pr_path`, `iter_existing_commit_jsons`, `iter_existing_issue_jsons`, `iter_existing_pr_jsons`, `normalize_issue_json`, `normalize_pr_json`, `preprocess_all_issues`, `preprocess_all_prs`, `save_commit_raw_source`, `save_issue_raw_source`, `save_pr_raw_source`, `sync_github`.
 
 **`cppa_pinecone_sync.sync_api`** — `PineconeInstance`, `PreprocessFn`, `sync_to_pinecone`.
 

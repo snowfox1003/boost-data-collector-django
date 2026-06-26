@@ -7,6 +7,17 @@ from core.operations.md_ops.issue_to_md import issue_json_to_md
 from core.operations.md_ops.pr_to_md import pr_json_to_md
 
 
+def test_md_ops_lazy_reexports_github_export():
+    """Package __getattr__ re-exports github_export through the lazy-load bridge."""
+    import github_activity_tracker.sync_api  # noqa: F401 — cycle guard with github_export
+
+    from core.operations.md_ops import detect_renames, write_md_files
+    from core.operations.md_ops import github_export as ge
+
+    assert detect_renames is ge.detect_renames
+    assert write_md_files is ge.write_md_files
+
+
 def test_write_markdown_creates_nested_file(tmp_path):
     target = tmp_path / "nested" / "out.md"
     out = write_markdown(target, "# hello\n")

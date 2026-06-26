@@ -228,28 +228,66 @@ or an `if` block).
 [`import-linter`](https://import-linter.readthedocs.io/) is in **`requirements-dev.in`**
 and runs in CI via the **`import-linter`** pre-commit hook (`lint-imports`).
 
-Configuration: [`.importlinter`](../.importlinter) at the repo root.
+Configuration: [`.importlinter`](../.importlinter) at the repo root (`exclude_type_checking_imports = True`; **15** `root_packages` including `core` and `reddit_activity_tracker`).
 
-**Active contracts** guard the five resolved import edges in §3 (forbid *direct*
-imports; `allow_indirect_imports = true` where callers use a service facade):
+### Two-tier contract model
+
+| Tier | Contract prefix | Purpose |
+| --- | --- | --- |
+| **Blanket internals** | `forbid-{app}-internals` (×15) | Cross-app code must not import another app's internal submodules (`fetcher`, `sync`, `workspace`, `preprocessors`, `management`, etc.). Public surfaces are always allowed: `models`, `services`, `sync_api`, `api_schemas`. For `core`, additional public modules include `collectors`, `operations`, `protocols`, `adapters`, and related shared infrastructure. |
+| **Pair whitelist** | `allow-edge-{source}-to-{target}` (×21) | Each directed production import edge may only reach the target's public API (`models`, `services`, `sync_api`, `api_schemas`). Test-only imports under `{source}.tests.**` are ignored. |
+
+**Stricter legacy contracts** (subset rules, kept for clarity):
 
 | Contract | Purpose |
 | --- | --- |
 | `forbid-tech-debt-pinecone` | `boost_library_docs_tracker` / `cppa_slack_tracker` must not import `cppa_pinecone_sync.sync`, `.ingestion`, or `.services` directly (use `sync_api`) |
 | `forbid-tech-debt-usage-csv-user-model` | `boost_usage_tracker.update_repository_from_csv` must not import `cppa_user_tracker.models` directly |
 | `forbid-tech-debt-clang-github-internals` | `clang_github_tracker` must not import `github_activity_tracker` `fetcher`, `sync`, `workspace`, or `preprocessors` directly (use `sync_api`) |
+| `forbid-mailing-list-user-models` | `boost_mailing_list_tracker` production modules must not import `cppa_user_tracker.models` (services only) |
+
+**Directed pair contracts** (source → target):
+
+| Source | Target(s) |
+| --- | --- |
+| `boost_collector_runner` | `boost_library_tracker` |
+| `core` | `github_activity_tracker` |
+| `cppa_user_tracker` | `cppa_slack_tracker` |
+| `github_activity_tracker` | `cppa_user_tracker` |
+| `boost_library_tracker` | `github_activity_tracker`, `cppa_user_tracker` |
+| `boost_library_docs_tracker` | `boost_library_tracker`, `cppa_pinecone_sync` |
+| `boost_library_usage_dashboard` | `boost_library_tracker`, `boost_usage_tracker`, `github_activity_tracker` |
+| `boost_usage_tracker` | `github_activity_tracker`, `boost_library_tracker`, `cppa_user_tracker` |
+| `boost_mailing_list_tracker` | `cppa_user_tracker` |
+| `clang_github_tracker` | `github_activity_tracker` |
+| `cppa_slack_tracker` | `cppa_user_tracker`, `cppa_pinecone_sync` |
+| `wg21_paper_tracker` | `cppa_user_tracker` |
+| `cppa_youtube_script_tracker` | `cppa_user_tracker` |
+| `reddit_activity_tracker` | `cppa_user_tracker` |
+
+New collectors: `startcollector` appends the app to `root_packages` but **does not** add contracts — add `forbid-{app}-internals` and any `allow-edge-*` sections when introducing cross-app imports.
+
+### Pre-enforcement audit (resolved)
+
+| Pre-existing violation | Resolution |
+| --- | --- |
+| `core` → `github_activity_tracker.workspace` | `core/operations/md_ops/github_export.py` now imports path helpers from `github_activity_tracker.sync_api` |
+| `boost_library_tracker` preprocessors → `github_activity_tracker.preprocessors` | Batch preprocessors re-exported from `sync_api`; boost preprocessors import via `sync_api` |
+| `boost_library_tracker` command → `github_activity_tracker.sync` / `protocol_impl` | `sync_github` and `GitHubSyncTrackerResult` re-exported from `sync_api` |
+| `boost_collector_runner` → `boost_library_tracker.release_check` | `has_new_boost_release` exposed on `boost_library_tracker.services` |
+| `reddit_activity_tracker` / `core` missing from `root_packages` | Added to `.importlinter` |
+| Reactive-only coverage (11 apps unguarded) | Blanket + pair contracts (40 contracts total) |
 
 ### Running the linter
 
 ```bash
 uv run lint-imports          # check all contracts
 uv run lint-imports --debug  # verbose output
+python scripts/list_cross_app_imports.py --no-tests
+python scripts/list_cross_app_imports.py --no-tests --check-importlinter
 ```
 
-### Long-term goal (not yet a CI gate)
-
-A `layers` contract so tracker apps may only import from `core` and their own package
-remains a migration target; see historical note in git history for §5 Stage 3.
+`--check-importlinter` fails when a production import pair has no matching `allow-edge-*` contract in [`.importlinter`](../.importlinter). Run it after adding cross-app imports or before opening a PR that changes coupling.
 
 ---
 

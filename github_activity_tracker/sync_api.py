@@ -14,7 +14,11 @@ from github_activity_tracker import fetcher
 from github_activity_tracker.preprocessors.github_preprocess import (
     build_issue_document,
     build_pr_document,
+    preprocess_all_issues,
+    preprocess_all_prs,
 )
+from github_activity_tracker.protocol_impl import GitHubSyncTrackerResult
+from github_activity_tracker.sync import sync_github
 from github_activity_tracker.sync.raw_source import (
     save_commit_raw_source,
     save_issue_raw_source,
@@ -36,6 +40,7 @@ from github_activity_tracker.workspace import (
 )
 
 __all__ = [
+    "GitHubSyncTrackerResult",
     "build_issue_document",
     "build_pr_document",
     "fetcher",
@@ -49,7 +54,10 @@ __all__ = [
     "iter_existing_pr_jsons",
     "normalize_issue_json",
     "normalize_pr_json",
+    "preprocess_all_issues",
+    "preprocess_all_prs",
     "save_commit_raw_source",
     "save_issue_raw_source",
     "save_pr_raw_source",
+    "sync_github",
 ]

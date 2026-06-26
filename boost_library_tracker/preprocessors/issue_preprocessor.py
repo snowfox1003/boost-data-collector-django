@@ -21,9 +21,7 @@ from typing import Any
 
 from django.conf import settings
 
-from github_activity_tracker.preprocessors.github_preprocess import (
-    preprocess_all_issues,
-)
+from github_activity_tracker.sync_api import preprocess_all_issues
 
 NAMESPACE = "github-boostorg"
 APP_TYPE = os.getenv("BOOST_GITHUB_PINECONE_APP_TYPE", NAMESPACE)
