@@ -40,8 +40,12 @@ All **application** collectors listed below subclass **`AbstractCollector`** (`n
 |--------|---------|
 | `core.errors.CollectorFailureCategory` | Enum of coarse failure buckets (`network`, `command`, …). |
 | `core.errors.classify_failure(exc)` | Map an exception to `CollectorFailureCategory` for logs and metrics. |
+| `core.errors.CollectorValidationError` | Marker base for API-boundary validation errors (subclass in your app; maps to `validation`). |
+| `core.errors.AuthenticationError` | Marker base for credential-rejection errors (maps to `auth`). |
 
 Log records from `AbstractCollector.handle_error` include `extra` keys: `collector`, `collector_phase`, `failure_category`.
+
+Third-party SDK exceptions (`requests`, `urllib3`, `httpx`, `discord.py`, `slack_sdk`) are classified in [`core/failure_classifiers.py`](../core/failure_classifiers.py) via `isinstance` against SDK types — not by module path.
 
 ## Tracker protocols (DTOs)
 

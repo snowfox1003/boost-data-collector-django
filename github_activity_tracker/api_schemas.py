@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any, NoReturn
 
+from core.errors import CollectorValidationError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
-class GitHubApiValidationError(ValueError):
+class GitHubApiValidationError(CollectorValidationError):
     """GitHub API payload failed Pydantic validation."""
 
 

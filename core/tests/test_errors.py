@@ -2,8 +2,6 @@
 
 import builtins
 import errno
-import importlib
-import types
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -12,47 +10,17 @@ from django.core.management.base import CommandError
 from core.errors import (
     AuthenticationError,
     CollectorFailureCategory,
+    CollectorValidationError,
     _classify_os_error,
     classify_failure,
 )
-
-_swapped: dict[tuple[str, str], type[BaseException]] = {}
-
-
-@pytest.fixture(autouse=True)
-def _restore_swapped_exception_classes():
-    yield
-    for (module_name, attr_name), original in list(_swapped.items()):
-        mod = importlib.import_module(module_name)
-        setattr(mod, attr_name, original)
-        del _swapped[(module_name, attr_name)]
-
-
-def _swap_exc(module_name: str, attr_name: str, bases=(Exception,)):
-    mod = importlib.import_module(module_name)
-    key = (module_name, attr_name)
-    if key not in _swapped:
-        _swapped[key] = getattr(mod, attr_name)
-    cls = types.new_class(attr_name, bases, exec_body=lambda ns: None)
-    cls.__module__ = module_name
-    setattr(mod, attr_name, cls)
-    return cls
-
-
-def _make_requests_exc(name: str, bases=(Exception,)):
-    return _swap_exc("requests.exceptions", name, bases)
-
-
-def _make_urllib3_exc(name: str):
-    return _swap_exc("urllib3.exceptions", name)
-
-
-def _make_httpx_exc(name: str):
-    httpx = pytest.importorskip("httpx")
-
-    exc_cls = getattr(httpx, name)
-    mod_name = getattr(exc_cls, "__module__", "httpx")
-    return _swap_exc(mod_name, name)
+from core.tests.failure_classification_helpers import (
+    make_discord_exc,
+    make_httpx_exc,
+    make_requests_exc,
+    make_slack_sdk_exc,
+    make_urllib3_exc,
+)
 
 
 def test_classify_command_error():
@@ -73,33 +41,24 @@ def test_classify_django_db_error_unknown():
 
 
 def test_classify_discord_errors_module_429():
-    class HTTPException(Exception):
-        pass
-
-    HTTPException.__module__ = "discord.errors"
-    exc = HTTPException("rate limited")
+    cls = make_discord_exc("HTTPException")
+    exc = cls("rate limited")
     exc.status = 429
     assert classify_failure(exc) is CollectorFailureCategory.RATE_LIMIT
 
 
 def test_classify_discord_errors_module_unknown_without_status():
-    class DiscordExc(Exception):
-        pass
-
-    DiscordExc.__module__ = "discord.errors"
-    assert classify_failure(DiscordExc("x")) is CollectorFailureCategory.UNKNOWN
+    cls = make_discord_exc("SomeOtherError")
+    assert classify_failure(cls("x")) is CollectorFailureCategory.UNKNOWN
 
 
 def test_classify_slack_sdk_errors_module_401():
-    class SlackApiError(Exception):
-        pass
-
-    SlackApiError.__module__ = "slack_sdk.errors"
+    cls = make_slack_sdk_exc("SlackApiError")
 
     class Resp:
         status_code = 401
 
-    exc = SlackApiError("auth")
+    exc = cls("auth")
     exc.response = Resp()
     assert classify_failure(exc) is CollectorFailureCategory.AUTH
 
@@ -208,7 +167,7 @@ def test_classify_unknown():
     ],
 )
 def test_classify_requests_exceptions(name, category):
-    cls = _make_requests_exc(name)
+    cls = make_requests_exc(name)
     assert classify_failure(cls("x")) is category
 
 
@@ -269,7 +228,7 @@ def test_classify_requests_http_error_no_response_network():
     ],
 )
 def test_classify_urllib3_exceptions(name, category):
-    cls = _make_urllib3_exc(name)
+    cls = make_urllib3_exc(name)
     assert classify_failure(cls("x")) is category
 
 
@@ -283,7 +242,7 @@ def test_classify_urllib3_exceptions(name, category):
     ],
 )
 def test_classify_httpx(name, category):
-    cls = _make_httpx_exc(name)
+    cls = make_httpx_exc(name)
     assert classify_failure(cls("x")) is category
 
 
@@ -342,3 +301,19 @@ def test_classify_slack_api_validation_error():
         classify_failure(SlackApiValidationError("bad slack"))
         is CollectorFailureCategory.VALIDATION
     )
+
+
+def test_classify_collector_validation_error_unchanged_when_module_moved():
+    class MovedError(CollectorValidationError):
+        pass
+
+    MovedError.__module__ = "totally.unrelated.module.path"
+    assert classify_failure(MovedError("bad")) is CollectorFailureCategory.VALIDATION
+
+
+def test_classify_authentication_error_unchanged_when_module_moved():
+    class MovedAuth(AuthenticationError):
+        pass
+
+    MovedAuth.__module__ = "renamed.apps.auth"
+    assert classify_failure(MovedAuth("x")) is CollectorFailureCategory.AUTH

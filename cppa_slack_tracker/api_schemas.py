@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, NoReturn
 
+from core.errors import CollectorValidationError
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -13,7 +14,7 @@ from pydantic import (
 )
 
 
-class SlackApiValidationError(ValueError):
+class SlackApiValidationError(CollectorValidationError):
     """Slack API payload failed Pydantic validation."""
 
 

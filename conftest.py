@@ -42,6 +42,7 @@ if _subset_schema_settings:
     pytest_plugins: list[str] = []
 else:
     pytest_plugins = [
+        "core.tests.failure_classification_helpers",
         "cppa_user_tracker.tests.fixtures",
         "core.tests.github_ops.fixtures",
         "github_activity_tracker.tests.fixtures",

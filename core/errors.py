@@ -16,6 +16,10 @@ class AuthenticationError(RuntimeError):
     """Raised when collector credentials are rejected (HTTP 401/403 or equivalent)."""
 
 
+class CollectorValidationError(ValueError):
+    """Raised when an API payload fails validation at a collector ingestion boundary."""
+
+
 class CollectorFailureCategory(str, Enum):
     """High-level failure bucket for collector runs."""
 
@@ -202,9 +206,10 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     you need finer buckets).
 
     **HTTP clients:** ``requests`` / ``urllib3`` / ``httpx`` exceptions are classified
-    by module and type name; ``requests.HTTPError`` with ``response.status_code`` 429
-    maps to :attr:`~CollectorFailureCategory.RATE_LIMIT`; 401 and 403 map to
-    :attr:`~CollectorFailureCategory.AUTH`.
+    via :func:`~core.failure_classifiers.classify_third_party_failure` using
+    ``isinstance`` against SDK exception types; ``requests.HTTPError`` with
+    ``response.status_code`` 429 maps to :attr:`~CollectorFailureCategory.RATE_LIMIT`;
+    401 and 403 map to :attr:`~CollectorFailureCategory.AUTH`.
 
     **discord.py:** ``discord.errors.HTTPException`` and related types use ``status``
     when present (429 → rate limit; 401/403 → auth; 5xx → network; other 4xx → unknown).
@@ -213,6 +218,9 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
 
     **slack_sdk:** Exceptions use ``response.status_code`` when present; otherwise
     :attr:`~CollectorFailureCategory.UNKNOWN`.
+
+    **App validation:** Subclasses of :class:`CollectorValidationError` map to
+    :attr:`~CollectorFailureCategory.VALIDATION` regardless of module path.
 
     Everything else maps to :attr:`~CollectorFailureCategory.UNKNOWN` unless it matches
     built-ins (for example :class:`OSError`, :class:`ValueError`) handled below.
@@ -253,68 +261,17 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
     if isinstance(exc, (TimeoutError,)):
         return CollectorFailureCategory.TIMEOUT
 
-    # HTTP client libraries (optional deps)
-    exc_mod = type(exc).__module__
-    exc_name = type(exc).__name__
-    if exc_mod.startswith("requests.exceptions"):
-        if exc_name == "HTTPError":
-            response = getattr(exc, "response", None)
-            status = getattr(response, "status_code", None)
-            if status == 429:
-                return CollectorFailureCategory.RATE_LIMIT
-            if status in (401, 403):
-                return CollectorFailureCategory.AUTH
-            return CollectorFailureCategory.NETWORK
-        if exc_name == "SSLError":
-            return CollectorFailureCategory.NETWORK
-        if exc_name.endswith("Timeout"):
-            return CollectorFailureCategory.TIMEOUT
-        if exc_name in ("ConnectionError", "ChunkedEncodingError"):
-            return CollectorFailureCategory.NETWORK
-    if exc_mod.startswith("urllib3.exceptions"):
-        if exc_name.endswith("TimeoutError"):
-            return CollectorFailureCategory.TIMEOUT
-        return CollectorFailureCategory.NETWORK
-    if exc_mod.startswith("httpx"):
-        if "Timeout" in exc_name:
-            return CollectorFailureCategory.TIMEOUT
-        if "HTTPStatus" in exc_name or "Transport" in exc_name or "Connect" in exc_name:
-            return CollectorFailureCategory.NETWORK
+    from core.failure_classifiers import classify_third_party_failure
 
-    # discord.py (optional dependency): HTTPException and subclasses expose ``status``.
-    if exc_mod.startswith("discord"):
-        status = getattr(exc, "status", None)
-        if isinstance(status, int):
-            if status == 429:
-                return CollectorFailureCategory.RATE_LIMIT
-            if status in (401, 403):
-                return CollectorFailureCategory.AUTH
-            if 500 <= status < 600:
-                return CollectorFailureCategory.NETWORK
-            if 400 <= status < 500:
-                return CollectorFailureCategory.UNKNOWN
-            return CollectorFailureCategory.NETWORK
-        if exc_name == "HTTPException":
-            return CollectorFailureCategory.NETWORK
-        if exc_name in ("LoginFailure", "PrivilegedIntentsRequired", "ClientException"):
-            return CollectorFailureCategory.AUTH
-
-    if exc_mod.startswith("slack_sdk"):
-        response = getattr(exc, "response", None)
-        status = getattr(response, "status_code", None)
-        if isinstance(status, int):
-            if status == 429:
-                return CollectorFailureCategory.RATE_LIMIT
-            if status in (401, 403):
-                return CollectorFailureCategory.AUTH
-            if status >= 500:
-                return CollectorFailureCategory.NETWORK
-            if status >= 400:
-                return CollectorFailureCategory.NETWORK
-        return CollectorFailureCategory.UNKNOWN
+    third_party = classify_third_party_failure(exc)
+    if third_party is not None:
+        return third_party
 
     if isinstance(exc, OSError):
         return _classify_os_error(exc)
+
+    if isinstance(exc, CollectorValidationError):
+        return CollectorFailureCategory.VALIDATION
 
     if isinstance(exc, ValueError):
         # Often validation-ish in collectors
@@ -326,21 +283,5 @@ def classify_failure(exc: BaseException) -> CollectorFailureCategory:
         PydanticValidationError = ()  # type: ignore[misc, assignment]
     if PydanticValidationError and isinstance(exc, PydanticValidationError):
         return CollectorFailureCategory.VALIDATION
-
-    for mod_name, exc_name in (
-        ("github_activity_tracker.api_schemas", "GitHubApiValidationError"),
-        ("cppa_slack_tracker.api_schemas", "SlackApiValidationError"),
-    ):
-        try:
-            import importlib
-
-            mod = importlib.import_module(mod_name)
-            app_exc = getattr(mod, exc_name, None)
-            if isinstance(app_exc, type) and isinstance(exc, app_exc):
-                return CollectorFailureCategory.VALIDATION
-        except ImportError:
-            continue
-        except Exception:
-            continue
 
     return CollectorFailureCategory.UNKNOWN

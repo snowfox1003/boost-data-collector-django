@@ -202,6 +202,13 @@ During each phase the command sets **`collector._error_phase`** to `"run"` or `"
 
 **When to let other exceptions propagate:** API failures, DB errors — `handle_error` classifies them via [core/errors.py](../core/errors.py) `classify_failure()` into `CollectorFailureCategory` values for structured logs.
 
+**Declaring app-specific errors for classification:**
+
+- API payload validation at ingestion boundaries → subclass [`CollectorValidationError`](../core/errors.py) (see `GitHubApiValidationError`, `SlackApiValidationError`).
+- Credential rejection → subclass [`AuthenticationError`](../core/errors.py) (or multiply-inherit, e.g. `AuthError(CollectorError, AuthenticationError)`).
+- Classification uses **exception type hierarchy**, not module paths — moving or renaming a module does not change `failure_category`.
+- Third-party SDK errors are handled centrally in [`core/failure_classifiers.py`](../core/failure_classifiers.py); override `handle_error` only when you need finer buckets than `unknown`.
+
 Override `handle_error` only when the default classifier does not match your domain (see [How_to_add_a_collector.md](How_to_add_a_collector.md#3-shared-abstractions-recommended)).
 
 ### Optional: `sync_pinecone()`
